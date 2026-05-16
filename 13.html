@@ -1,0 +1,2118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>第13讲：检测应用原型 · 前后端架构 · FastAPI 与算法服务封装</title>
+<style>
+/* ===== RESET & BASE ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:clamp(14px,1.2vw,18px)}
+body{background:#e8dcc8;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:20px;font-family:'Noto Sans SC','Inter',sans-serif;line-height:1.7;color:#2c2418}
+.deck{width:1480px;max-width:100%;height:900px;max-height:96vh;position:relative;overflow:hidden;border-radius:6px;box-shadow:0 20px 60px rgba(40,30,15,0.25);background:#f5efe0;display:flex;flex-direction:column}
+
+/* ===== PAPER TEXTURE ===== */
+.deck::before{content:'';position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");pointer-events:none;z-index:100;opacity:0.6;mix-blend-mode:multiply}
+.deck::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 30% 20%,rgba(220,200,170,0.3) 0%,transparent 70%);pointer-events:none;z-index:99}
+
+/* ===== SLIDES ===== */
+.slide{position:absolute;inset:0;display:grid;grid-template-columns:300px 1fr;gap:44px;padding:56px 64px;opacity:0;visibility:hidden;transition:opacity .35s ease;overflow-y:auto;z-index:1;background:var(--bg, #f5efe0)}
+.slide.is-active{opacity:1;visibility:visible;z-index:10}
+.slide.full{grid-template-columns:1fr;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:60px 80px}
+
+/* ===== SCROLLBAR ===== */
+.slide::-webkit-scrollbar{width:6px}
+.slide::-webkit-scrollbar-track{background:transparent}
+.slide::-webkit-scrollbar-thumb{background:rgba(100,80,50,0.2);border-radius:3px}
+
+/* ===== SIDEBAR ===== */
+.sidebar{border-right:1px solid rgba(100,80,50,0.15);padding-right:36px;padding-top:4px;position:sticky;top:0;align-self:start}
+.sidebar .brand{font-family:'Playfair Display','Noto Serif SC',serif;font-size:28px;font-weight:700;color:#8b5e3c}
+.sidebar .brand::before{content:"◆ ";color:#c17b4a}
+.sidebar h5{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.10em;color:#7a6b58;margin:32px 0 12px}
+.sidebar .dim{font-size:14px;color:#8a7d6a}
+.obj-list{list-style:none;padding:0;margin:0;font-size:14px;color:#5a4e3e;line-height:1.6}
+.obj-list li{padding:8px 0 8px 26px;position:relative;border-bottom:1px dashed rgba(100,80,50,0.1)}
+.obj-list li::before{content:"○";position:absolute;left:0;top:8px;color:#8b5e3c;font-size:14px}
+.obj-list li.done::before{content:"●";color:#8b5e3c;font-weight:700}
+.obj-list li.current{color:#2c2418;font-weight:700}
+.obj-list li.current::before{content:"▸";color:#c17b4a;font-weight:700}
+
+/* ===== MAIN CONTENT ===== */
+.main{min-width:0;padding-right:8px}
+.main .kicker{font-family:'IBM Plex Mono',monospace;color:#c17b4a;font-size:13px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px}
+.h1{font-family:'Playfair Display','Noto Serif SC',serif;font-size:clamp(48px,4.8vw,72px);line-height:1.08;font-weight:800;letter-spacing:-.02em;color:#2c2418}
+.h2{font-family:'Playfair Display','Noto Serif SC',serif;font-size:clamp(34px,3.2vw,48px);line-height:1.12;font-weight:700;letter-spacing:-.015em;color:#2c2418}
+.h3{font-family:'Playfair Display','Noto Serif SC',serif;font-size:clamp(24px,2vw,30px);line-height:1.25;font-weight:600;color:#2c2418}
+.lede{font-size:clamp(18px,1.5vw,22px);color:#5a4e3e;line-height:1.7;max-width:70ch}
+.body-text{font-size:clamp(16px,1.25vw,18px);color:#3d3429;line-height:1.75}
+.dim{font-size:clamp(14px,1.05vw,16px);color:#7a6b58;line-height:1.6}
+.small{font-size:clamp(12px,0.9vw,14px);color:#8a7d6a}
+
+/* ===== CARD COMPONENTS ===== */
+.concept-box{background:#faf6ef;border:1px solid rgba(100,80,50,0.12);border-radius:4px;padding:18px 22px}
+.concept-box h4{font-family:'Noto Serif SC','Playfair Display',serif;font-size:clamp(16px,1.2vw,19px);font-weight:700;color:#2c2418;margin-bottom:6px}
+.concept-box p{margin:0}
+.framed-box{border:1px solid rgba(100,80,50,0.15);border-radius:4px;padding:18px 22px;background:rgba(255,248,235,0.5)}
+.callout{border-left:4px solid #c17b4a;background:#f5ede0;padding:16px 22px;margin-top:16px}
+.callout b{color:#8b5e3c}
+.exercise{background:#f8f0e0;border:1.5px dashed #c17b4a;border-radius:4px;padding:20px 24px;margin-top:16px}
+.exercise::before{content:"✎ 课堂任务";display:block;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:.10em;color:#c17b4a;margin-bottom:10px}
+.warning-box{background:#fdf3e0;border-left:4px solid #d4943a;padding:14px 20px;margin-top:14px;border-radius:0 4px 4px 0}
+.warning-box b{color:#a07030}
+.info-box{background:#f0ede8;border-left:4px solid #7a6b58;padding:14px 20px;margin-top:14px;border-radius:0 4px 4px 0}
+
+/* ===== CODE BLOCKS ===== */
+.code-block{background:#2c2418;color:#ede4d8;border-radius:4px;padding:16px 20px;font-family:'IBM Plex Mono','JetBrains Mono',monospace;font-size:clamp(13px,0.95vw,15px);line-height:1.65;overflow-x:auto;margin-top:12px;white-space:pre-wrap;word-break:break-word}
+.code-block .cmt{color:#8a7d6a;font-style:italic}
+.code-block .kw{color:#e8a770}
+.code-block .str{color:#a0c0a0}
+.code-block .fn{color:#b8a0d8}
+.code-block .num{color:#c8a060}
+.code-inline{font-family:'IBM Plex Mono','JetBrains Mono',monospace;font-size:0.9em;background:rgba(44,36,24,0.06);padding:1px 5px;border-radius:3px;color:#5a3e28}
+
+/* ===== GRIDS ===== */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:14px}
+
+/* ===== FLOW DIAGRAM ===== */
+.flow{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;padding:12px 0}
+.flow-node{background:#faf6ef;border:1.5px solid rgba(100,80,50,0.2);border-radius:4px;padding:12px 20px;font-size:clamp(13px,0.95vw,15px);font-weight:500;color:#2c2418;text-align:center;min-width:90px}
+.flow-node.highlight{border-color:#c17b4a;background:#f5ede0;font-weight:700}
+.flow-arrow{font-size:22px;color:#8a7d6a;flex:none}
+.flow-label{font-size:11px;color:#7a6b58;text-align:center;margin-top:-6px}
+
+/* ===== ARCH DIAGRAM ===== */
+.arch-tier{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 10px;background:#faf6ef;border:1px solid rgba(100,80,50,0.12);border-radius:4px}
+.arch-tier .tier-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:#7a6b58}
+.arch-tier .tier-content{font-size:clamp(14px,1vw,16px);color:#2c2418;font-weight:500}
+.arch-arrow{font-size:28px;color:#8a7d6a;text-align:center;line-height:1}
+.arch-arrow .arrow-label{font-size:11px;color:#7a6b58;display:block;margin-top:-8px}
+
+/* ===== STAT CARDS ===== */
+.stat-card{text-align:center;padding:16px 12px;background:#faf6ef;border:1px solid rgba(100,80,50,0.12);border-radius:4px}
+.stat-card .stat-nb{font-family:'Playfair Display',serif;font-size:clamp(28px,2.4vw,38px);font-weight:700;color:#8b5e3c}
+.stat-card .stat-label{font-size:clamp(12px,0.9vw,14px);color:#7a6b58;margin-top:4px}
+
+/* ===== TABLE ===== */
+.data-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:clamp(13px,0.95vw,15px)}
+.data-table th{padding:8px 12px;text-align:left;background:rgba(139,94,60,0.08);border-bottom:1.5px solid rgba(100,80,50,0.2);font-weight:600;color:#5a4e3e;font-family:'Noto Sans SC',sans-serif}
+.data-table td{padding:7px 12px;border-bottom:1px solid rgba(100,80,50,0.08);color:#3d3429}
+.data-table tr:hover td{background:rgba(139,94,60,0.04)}
+.data-table .mono{font-family:'IBM Plex Mono',monospace;font-size:0.9em}
+
+/* ===== JSON PREVIEW ===== */
+.json-box{background:#faf6ef;border:1px solid rgba(100,80,50,0.12);border-radius:4px;padding:14px 18px;font-family:'IBM Plex Mono',monospace;font-size:clamp(12px,0.85vw,14px);line-height:1.5;overflow-x:auto;margin-top:10px}
+.json-box .key{color:#8b5e3c}
+.json-box .val{color:#5a7a50}
+.json-box .punc{color:#7a6b58}
+
+/* ===== PILLS ===== */
+.pill{display:inline-block;padding:4px 12px;border-radius:3px;background:#f0ede8;border:1px solid rgba(100,80,50,0.1);font-size:12px;color:#5a4e3e;font-family:'IBM Plex Mono',monospace;margin:2px}
+.pill-accent{display:inline-block;padding:4px 12px;border-radius:3px;background:#f5ede0;border:1px solid #c17b4a;font-size:12px;color:#8b5e3c;font-family:'IBM Plex Mono',monospace;margin:2px}
+
+/* ===== ARCH FLOW COMPONENT ===== */
+.arch-flow{display:flex;align-items:flex-start;justify-content:center;gap:6px;padding:10px 0;flex-wrap:wrap}
+.arch-flow .af-node{background:#faf6ef;border:1.5px solid rgba(100,80,50,0.15);border-radius:4px;padding:10px 16px;text-align:center;min-width:100px}
+.arch-flow .af-node .af-title{font-size:clamp(13px,0.95vw,15px);font-weight:600;color:#2c2418}
+.arch-flow .af-node .af-desc{font-size:11px;color:#7a6b58;margin-top:2px}
+.arch-flow .af-node.active{background:#f5ede0;border-color:#c17b4a}
+.arch-flow .af-arrow{font-size:20px;color:#8a7d6a;padding-top:14px}
+
+/* ===== STEP LIST ===== */
+.step-list{counter-reset:step;margin:10px 0}
+.step-item{counter-increment:step;padding:8px 0 8px 40px;position:relative;font-size:clamp(14px,1.05vw,16px);color:#3d3429;border-bottom:1px solid rgba(100,80,50,0.06)}
+.step-item::before{content:counter(step);position:absolute;left:0;top:8px;width:28px;height:28px;border-radius:50%;background:#f0ede8;border:1px solid rgba(100,80,50,0.15);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#5a4e3e;font-family:'IBM Plex Mono',monospace}
+.step-item strong{color:#2c2418}
+
+/* ===== BULLET LIST ===== */
+.bullet-list{list-style:none;padding:0;margin:8px 0}
+.bullet-list li{padding:5px 0 5px 22px;position:relative;font-size:clamp(14px,1.05vw,16px);color:#3d3429;line-height:1.65}
+.bullet-list li::before{content:"—";position:absolute;left:0;color:#c17b4a;font-weight:600}
+
+/* ===== COMPARISON ===== */
+.comp-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px}
+.comp-card{padding:16px 18px;border-radius:4px}
+.comp-card.old{background:#f0ede8;border:1px solid rgba(100,80,50,0.12)}
+.comp-card.new{background:#f5ede0;border:1px solid #c17b4a}
+.comp-card h4{font-family:'Noto Serif SC',serif;font-size:clamp(15px,1.1vw,18px);margin-bottom:8px}
+.comp-card.old h4{color:#7a6b58}
+.comp-card.new h4{color:#8b5e3c}
+
+/* ===== TAG ROW ===== */
+.tag-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+
+/* ===== FULL-SLIDE LAYOUT ===== */
+.slide.full .h1{font-size:clamp(44px,4.2vw,64px)}
+.slide.full .h2{font-size:clamp(34px,3vw,44px)}
+.slide.full .lede{max-width:75ch;margin-left:auto;margin-right:auto}
+
+/* ===== FOOTER ===== */
+.slide-footer{position:absolute;bottom:14px;left:64px;right:64px;display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#8a7d6a;z-index:20;pointer-events:none}
+.slide-footer .slide-num{font-family:'IBM Plex Mono',monospace;font-size:14px;color:#7a6b58}
+.slide-footer .brand-footer{font-family:'Playfair Display',serif;font-size:14px;color:#8a7d6a;font-style:italic}
+
+/* ===== NAV CONTROLS ===== */
+.nav-controls{position:absolute;bottom:14px;right:64px;display:flex;gap:8px;z-index:50}
+.nav-btn{width:40px;height:40px;border-radius:50%;border:1px solid rgba(100,80,50,0.2);background:#faf6ef;color:#5a4e3e;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;box-shadow:0 2px 6px rgba(40,30,15,0.08)}
+.nav-btn:hover{background:#f5ede0;border-color:#c17b4a;color:#8b5e3c}
+.nav-btn:active{transform:scale(0.95)}
+.progress-dots{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:50}
+.progress-dot{width:7px;height:7px;border-radius:50%;background:rgba(100,80,50,0.15);cursor:pointer;transition:all .2s;border:none;padding:0}
+.progress-dot.active{background:#c17b4a;width:20px;border-radius:4px}
+.progress-dot:hover{background:rgba(100,80,50,0.3)}
+
+/* ===== MARGIN HELPERS ===== */
+.mt-s{margin-top:12px}
+.mt-m{margin-top:20px}
+.mt-l{margin-top:28px}
+.mt-xl{margin-top:40px}
+.mb-s{margin-bottom:10px}
+.gap-sm{gap:10px}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:1200px){
+  .slide{padding:40px 48px;grid-template-columns:240px 1fr;gap:32px}
+  .sidebar{padding-right:24px}
+  .slide-footer{left:48px;right:48px}
+  .nav-controls{right:48px}
+}
+@media(max-width:900px){
+  .slide{grid-template-columns:1fr;padding:32px 36px}
+  .sidebar{border-right:none;border-bottom:1px solid rgba(100,80,50,0.12);padding-bottom:16px;padding-right:0;position:static}
+  .sidebar h5{margin-top:16px}
+  .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+  .slide.full{padding:36px 40px}
+  .slide-footer{left:36px;right:36px;flex-direction:column;gap:4px}
+}
+</style>
+<style>
+/* ===== inlined unified course styles for standalone distribution ===== */
+/* Course-wide visual normalization.
+   This file intentionally mirrors the warm academic style of 1.html while
+   preserving each deck's existing navigation/runtime structure. */
+:root{
+  --bg:#faf7f0!important;
+  --bg-soft:#f0ece0!important;
+  --surface:#ffffff!important;
+  --surface-2:#f7f1e3!important;
+  --border:rgba(90,60,30,.13)!important;
+  --border-strong:rgba(90,60,30,.28)!important;
+  --text-1:#2a1f12!important;
+  --text-2:#5a4a33!important;
+  --text-3:#8a7859!important;
+  --accent:#3b7a5a!important;
+  --accent-2:#c4812a!important;
+  --accent-3:#b8452e!important;
+  --paper:#faf7f0!important;
+  --paper-tint:#f0ece0!important;
+  --paper-rgb:250,247,240!important;
+  --ink:#2a1f12!important;
+  --ink-rgb:42,31,18!important;
+  --ink-tint:#5a4a33!important;
+  --code-bg:#2a1f12!important;
+  --radius:14px!important;
+  --radius-sm:12px!important;
+  --shadow:0 8px 24px rgba(90,60,30,.07)!important;
+  --font-sans:'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif!important;
+  --font-serif:'Playfair Display','Noto Serif SC',Georgia,serif!important;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace!important;
+}
+html,body,#deck,.deck{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+  font-family:var(--font-sans)!important;
+  letter-spacing:-.01em;
+}
+.slide,
+section[class*="slide"],
+.slide.light,
+.slide.dark,
+.slide-cover,
+.slide-divider{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+}
+.slide.full,
+.cover,
+.slide-cover{
+  background:var(--bg)!important;
+}
+.main,
+.content,
+.slide-content,
+.main-content,
+.right,
+.body,
+.stage{
+  color:var(--text-1)!important;
+  min-height:0!important;
+}
+h1,h2,h3,
+.h1,.h2,.h3,
+.slide-title,
+.cover-title,
+.end-title,
+.h-hero,
+.h-xl,
+.main h1,
+.main h2,
+.main h3{
+  font-family:var(--font-serif)!important;
+  color:var(--text-1)!important;
+  letter-spacing:-.02em!important;
+}
+h1,.h1,.cover-title,.slide-title,.h-hero{
+  font-weight:800!important;
+}
+h2,.h2,.h-xl{
+  font-weight:700!important;
+}
+p,li,td,th,.lede,.dim,.dim2,.fn-desc,.body-text,.txt,.label{
+  color:var(--text-2);
+}
+strong,b{color:var(--text-1)}
+.kicker,
+.eyebrow,
+.module-label,
+.sidebar-module-label,
+.module-code,
+.obj-label,
+.obj-title,
+.obj-header,
+.objectives-title,
+.lb-title,
+.sidebar-label{
+  color:var(--accent-2)!important;
+  font-family:var(--font-sans)!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  letter-spacing:.14em!important;
+  text-transform:uppercase!important;
+}
+.sidebar,
+aside.sidebar,
+.learning-sidebar,
+.slide-sidebar,
+.left-col{
+  background:transparent!important;
+  border-right:1px solid var(--border)!important;
+  border-left:0!important;
+  padding-right:24px!important;
+  color:var(--text-2)!important;
+  box-shadow:none!important;
+}
+.sidebar-title,
+.module-title,
+.sidebar-module,
+.lb-module,
+.brand,
+.sidebar .brand{
+  font-family:var(--font-serif)!important;
+  color:var(--accent)!important;
+  font-size:20px!important;
+  line-height:1.25!important;
+  font-weight:700!important;
+}
+.obj-list,
+.objectives,
+.objective-list,
+.learning-sidebar ul,
+.slide-sidebar ul{
+  list-style:none!important;
+  padding:0!important;
+  margin:0!important;
+  font-family:var(--font-sans)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+  color:var(--text-2)!important;
+}
+.obj-list li,
+.objectives li,
+.objective-list li,
+.learning-sidebar li,
+.slide-sidebar li{
+  position:relative!important;
+  padding:7px 0 7px 22px!important;
+  border-bottom:1px dashed var(--border)!important;
+  color:var(--text-2)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+}
+.obj-list li::before,
+.objectives li::before,
+.objective-list li::before,
+.learning-sidebar li::before,
+.slide-sidebar li::before{
+  content:"○"!important;
+  position:absolute!important;
+  left:0!important;
+  top:7px!important;
+  color:var(--accent)!important;
+  width:auto!important;
+  height:auto!important;
+  background:transparent!important;
+  border-radius:0!important;
+  opacity:1!important;
+}
+.obj-list li.current::before,
+.objectives li.current::before,
+.objective-list li.current::before,
+.obj-list li.highlight::before,
+.objectives li.highlight::before,
+.objective-list li.highlight::before{
+  content:"▸"!important;
+  color:var(--accent-2)!important;
+}
+.obj-list li.current,
+.objectives li.current,
+.objective-list li.current,
+.obj-list li.highlight,
+.objectives li.highlight,
+.objective-list li.highlight{
+  color:var(--text-1)!important;
+  font-weight:700!important;
+}
+.card,
+.concept-box,
+.col-item,
+.metric-card,
+.panel,
+.info-card,
+.tip-box,
+.callout-box,
+.comp-item,
+.diagram-box,
+.data-card,
+.feature-card,
+.task-card,
+.warning-card,
+.workflow-card{
+  background:var(--surface)!important;
+  border:1px solid var(--border)!important;
+  border-radius:var(--radius)!important;
+  box-shadow:var(--shadow)!important;
+  color:var(--text-1)!important;
+}
+.card-accent,
+.accent-card,
+.concept-box h4{
+  border-color:var(--border)!important;
+}
+.callout,
+.tip,
+.note-box{
+  background:var(--surface-2)!important;
+  border-left:4px solid var(--accent-2)!important;
+  border-radius:0 var(--radius) var(--radius) 0!important;
+  color:var(--text-2)!important;
+}
+.warn-box,
+.warning,
+.alert{
+  background:rgba(196,129,42,.08)!important;
+  border:1px solid rgba(196,129,42,.3)!important;
+  border-radius:var(--radius)!important;
+  color:var(--text-2)!important;
+}
+.course-bridge{
+  max-width:72ch;
+  margin-top:16px!important;
+  padding:10px 16px!important;
+  font-size:13px!important;
+  line-height:1.45!important;
+}
+.course-bridge b{
+  color:var(--accent-2)!important;
+}
+
+
+.slide > .sidebar + .main-content + .course-bridge{
+  left:calc(18vw + 3vw)!important;
+  max-width:min(760px,70vw)!important;
+}
+
+.slide > .course-bridge,
+.hero .course-bridge,
+.slide.full .course-bridge,
+section.full .course-bridge{
+  position:absolute!important;
+  left:6vw!important;
+  right:auto!important;
+  bottom:9vh!important;
+  max-width:min(760px,64vw)!important;
+  margin:0!important;
+  z-index:3!important;
+}
+.slide.compact .h2,
+section.compact .h2,
+.slide.compact h2,
+section.compact h2{
+  font-size:clamp(25px,2.15vw,34px)!important;
+  line-height:1.12!important;
+  margin-bottom:6px!important;
+}
+.slide.compact .lede,
+section.compact .lede,
+.slide.compact .fn-desc,
+section.compact .fn-desc,
+.slide.compact p,
+section.compact p{
+  font-size:clamp(13px,1.05vw,16px)!important;
+  line-height:1.45!important;
+}
+.slide.compact .card,
+section.compact .card,
+.slide.compact .concept-box,
+section.compact .concept-box,
+.slide.compact .col-item,
+section.compact .col-item{
+  padding:12px 15px!important;
+}
+.slide.compact .concept-box h4,
+section.compact .concept-box h4,
+.slide.compact .card h4,
+section.compact .card h4{
+  font-size:clamp(14px,1.1vw,17px)!important;
+  line-height:1.25!important;
+  margin-bottom:4px!important;
+}
+.slide.compact .grid,
+section.compact .grid{
+  gap:12px!important;
+}
+.slide.compact .mt-l,
+section.compact .mt-l{
+  margin-top:14px!important;
+}
+.slide.compact .mt-m,
+section.compact .mt-m{
+  margin-top:8px!important;
+}
+.problem-grid .concept-box{
+  min-height:118px;
+}
+.problem-grid .concept-box:last-child{
+  grid-column:1/-1;
+  min-height:96px;
+}
+.slide.code-heavy .code-block,
+section.code-heavy .code-block{
+  font-size:clamp(10px,.82vw,12px)!important;
+  line-height:1.28!important;
+  padding:10px 12px!important;
+}
+.slide.compact .data-table th,
+.slide.compact .data-table td,
+section.compact .data-table th,
+section.compact .data-table td{
+  padding:4px 7px!important;
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.3!important;
+}
+.slide.compact .code-block,
+section.compact .code-block{
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.35!important;
+  padding:10px 12px!important;
+}
+pre,
+code,
+.code,
+.code-block,
+.code-panel{
+  font-family:var(--font-mono)!important;
+}
+pre,
+.code,
+.code-block,
+.code-panel{
+  background:#2a1f12!important;
+  color:#f0ece0!important;
+  border:0!important;
+  border-radius:var(--radius)!important;
+  box-shadow:none!important;
+}
+code:not(pre code){
+  background:rgba(90,60,30,.08)!important;
+  color:var(--text-1)!important;
+}
+table,
+.data-table{
+  border-color:var(--border)!important;
+}
+th,
+.data-table th{
+  background:var(--surface-2)!important;
+  color:var(--text-1)!important;
+}
+td,
+.data-table td{
+  background:var(--surface)!important;
+  color:var(--text-2)!important;
+}
+.pill,
+.pill-academic,
+.tag,
+.badge{
+  background:var(--surface-2)!important;
+  color:var(--text-2)!important;
+  border:1px solid var(--border)!important;
+  border-radius:4px!important;
+  font-family:var(--font-mono)!important;
+}
+.pill-accent,
+.tag.accent,
+.badge.accent{
+  color:var(--accent)!important;
+  border-color:color-mix(in srgb,var(--accent) 28%,transparent)!important;
+}
+.deck-footer,
+.page-meta,
+.footer,
+.slide-meta{
+  color:var(--text-3)!important;
+}
+.progress-bar>span,
+.progress,
+.progress-dot.active,
+.dot.active{
+  background:var(--accent)!important;
+}
+svg text{font-family:var(--font-sans)!important}
+/* ===== end inlined unified course styles ===== */
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+<!-- ==================== SLIDE 1: COVER ==================== -->
+<section class="slide full is-active" data-title="Cover">
+  <div style="max-width:1100px;width:100%">
+    <p style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#c17b4a;letter-spacing:.15em;margin-bottom:16px">检测应用原型 · 前后端架构 · 算法服务封装</p>
+    <h1 class="h1" style="font-size:clamp(48px,4.5vw,68px)">从训练脚本到<br>可用的检测平台</h1>
+    <p class="lede mt-l" style="max-width:80ch;margin-left:auto;margin-right:auto">将命令行参数转化为页面控件，将本地路径转化为上传文件，<br>将检测结果转化为可复用的 API 接口——产教融合的技术落地之路。</p>
+    <div class="tag-row mt-xl" style="justify-content:center">
+      <span class="pill-accent">授课时长 90 分钟</span>
+      <span class="pill-accent">课程专题</span>
+      <span class="pill-accent">前后端分离架构</span>
+      <span class="pill-accent">FastAPI + YOLO</span>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">1 / 38</span></div>
+
+  <div class="callout course-bridge"><b>课程衔接。</b>承接各类检测模型，本讲把算法封装为可用应用：通过 FastAPI、前端交互和统一响应格式，完成从训练脚本到检测平台的工程转换。</div>
+</section>
+
+<!-- ==================== SLIDE 2: TOC ==================== -->
+<section class="slide" data-title="TOC">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>本节导航</h5>
+    <ul class="obj-list">
+      <li class="current">课程总览</li>
+      <li>算法到应用的关键转变</li>
+      <li>系统架构与模块划分</li>
+      <li>FastAPI 后端搭建</li>
+      <li>推理函数封装</li>
+      <li>前端集成与课堂任务</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">课程提纲</p>
+    <h2 class="h2 mt-s">全课程内容结构</h2>
+    <div class="grid-2 mt-m" style="grid-template-columns:1fr 1fr;gap:20px">
+      <div>
+        <div class="concept-box" style="margin-bottom:12px">
+          <h4>01 · 为何需要检测平台</h4>
+          <p class="dim">训练脚本与可用产品之间的鸿沟；产教融合项目的价值定位。</p>
+        </div>
+        <div class="concept-box" style="margin-bottom:12px">
+          <h4>02 · 系统架构设计</h4>
+          <p class="dim">前后端分离、MVP 功能集、模块划分与数据流。</p>
+        </div>
+        <div class="concept-box" style="margin-bottom:12px">
+          <h4>03 · FastAPI 后端实现</h4>
+          <p class="dim">路由定义、文件上传、参数校验、JSON 响应设计。</p>
+        </div>
+      </div>
+      <div>
+        <div class="concept-box" style="margin-bottom:12px">
+          <h4>04 · 模型推理封装</h4>
+          <p class="dim">YOLO 推理函数抽象、接口解耦、可替换模型架构。</p>
+        </div>
+        <div class="concept-box" style="margin-bottom:12px">
+          <h4>05 · 异常处理与健壮性</h4>
+          <p class="dim">覆盖 6 种异常场景、统一的 error/success 响应格式。</p>
+        </div>
+        <div class="concept-box" style="margin-bottom:12px">
+          <h4>06 · 课堂实践</h4>
+          <p class="dim">AI 辅助生成骨架、人工审查、/docs 测试、前端集成。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">2 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 3: OBJECTIVES ==================== -->
+<section class="slide" data-title="Objectives">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="current">理解算法到应用的关键转变</li>
+      <li>掌握 FastAPI 端点的定义与实现</li>
+      <li>完成推理函数的模块化封装</li>
+      <li>理解前后端分离架构原理</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+    <h5>预备知识</h5>
+    <p class="dim">Python 基础、HTTP 基本概念、命令行操作</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">本节学习目标</p>
+    <h2 class="h2 mt-s">完成本课程后应达到的能力</h2>
+    <p class="lede mt-m">本节聚焦于"将训练好的模型转化为可交互应用"这一关键工程环节。以下为具体能力目标：</p>
+    <div class="grid-2 mt-l" style="grid-template-columns:1fr 1fr;gap:16px">
+      <div class="concept-box">
+        <h4>① 理解转变的必要性</h4>
+        <p class="dim">阐述为何训练脚本不可直接面向用户，明确工程封装在产教融合中的核心价值。</p>
+      </div>
+      <div class="concept-box">
+        <h4>② 搭建 FastAPI 后端</h4>
+        <p class="dim">独立完成文件上传、参数接收、结果返回等 API 端点的编写与调试。</p>
+      </div>
+      <div class="concept-box">
+        <h4>③ 封装推理函数</h4>
+        <p class="dim">将 YOLO 模型推理封装为独立模块，实现 API 与模型逻辑的解耦。</p>
+      </div>
+      <div class="concept-box">
+        <h4>④ 设计响应格式</h4>
+        <p class="dim">定义统一的 JSON 成功 / 错误响应结构，覆盖文件校验、推理异常等场景。</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">3 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 4: WHY APP ==================== -->
+<section class="slide full" data-title="Why App">
+  <p class="kicker" style="font-family:'IBM Plex Mono',monospace;color:#c17b4a;font-size:13px;letter-spacing:.12em;margin-bottom:12px">SECTION 01 · 为何构建检测平台</p>
+  <h1 class="h1" style="font-size:clamp(42px,3.8vw,60px);max-width:1000px">训练代码之外的工程交付要求</h1>
+  <p class="lede mt-m" style="max-width:85ch">训练脚本的目标读者是开发者本人。检测平台的服务对象是非技术用户。<br>从脚本到平台的跨越，本质上是将算法的能力封装为可交互、可复用、可理解的服务。</p>
+  <div class="comp-grid mt-l" style="max-width:1000px;margin-left:auto;margin-right:auto">
+    <div class="comp-card old">
+      <h4>训练脚本（仅开发者可用）</h4>
+      <p class="dim" style="font-size:15px;line-height:1.8">
+        命令行参数 · 本地文件路径 ·<br>
+        控制台日志输出 · 单次运行 ·<br>
+        需手动修改代码调整参数 ·<br>
+        无错误提示 · 无可视化反馈
+      </p>
+    </div>
+    <div class="comp-card new">
+      <h4>检测平台（面向多角色）</h4>
+      <p class="dim" style="font-size:15px;line-height:1.8">
+        页面控件调节参数 · Web 上传文件 ·<br>
+        检测结果图像展示 · 可重复调用 ·<br>
+        通过 UI 调节置信度阈值 ·<br>
+        友好错误提示 · 历史记录管理
+      </p>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">4 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 5: KEY TRANSFORMATIONS ==================== -->
+<section class="slide" data-title="Transformations">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="current">理解算法到应用的关键转变</li>
+      <li>掌握 FastAPI 端点的定义与实现</li>
+      <li>完成推理函数的模块化封装</li>
+      <li>理解前后端分离架构原理</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">核心转变</p>
+    <h2 class="h2 mt-s">从算法到应用的五项工程封装</h2>
+    <p class="body-text mt-m">训练脚本解决"模型如何学习"；检测平台解决"用户如何使用"。两者之间需要系统的工程封装：</p>
+    <div class="grid-2 mt-m" style="grid-template-columns:1fr 1fr;gap:14px">
+      <div class="concept-box">
+        <h4>① 参数界面化</h4>
+        <p class="dim">命令行 <span class="code-inline">--conf 0.5</span> 转化为页面滑块或输入框，用户无需记忆参数名称。</p>
+      </div>
+      <div class="concept-box">
+        <h4>② 路径网络化</h4>
+        <p class="dim">本地路径 <span class="code-inline">/data/images</span> 转化为 HTTP 文件上传，支持远程访问。</p>
+      </div>
+      <div class="concept-box">
+        <h4>③ 结果可视化</h4>
+        <p class="dim">控制台 print 的坐标数据转化为页面图像 + 结构化列表展示。</p>
+      </div>
+      <div class="concept-box">
+        <h4>④ 日志可读化</h4>
+        <p class="dim">原始日志转化为分类、置信度、坐标等直观可读的检测结果卡片。</p>
+      </div>
+      <div class="concept-box" style="grid-column:1/-1">
+        <h4>⑤ 接口可复用化</h4>
+        <p class="dim">一次性脚本转化为可重复调用的 REST API，支持前端或其他服务集成调用。这一转变是产教融合项目的核心价值——让算法具备被集成的能力。</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">5 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 6: MVP ==================== -->
+<section class="slide" data-title="MVP">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="current">掌握 MVP 功能定义</li>
+      <li>完成推理函数的模块化封装</li>
+      <li>理解前后端分离架构原理</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+    <h5>关键概念</h5>
+    <p class="dim">MVP · 最小可用产品 · 增量迭代</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">产品定义</p>
+    <h2 class="h2 mt-s">最小可用功能集（MVP）</h2>
+    <p class="body-text mt-m">MVP 聚焦核心检测流程，去除非必要功能以降低开发复杂度。以下为必须实现的 6 项基础功能：</p>
+    <div class="grid-3 mt-m" style="grid-template-columns:1fr 1fr 1fr;gap:14px">
+      <div class="concept-box">
+        <h4>上传图片</h4>
+        <p class="dim">支持 JPG / PNG 格式，前端文件选择器 + 后端 multipart 接收，文件大小限制检查。</p>
+      </div>
+      <div class="concept-box">
+        <h4>阈值调节</h4>
+        <p class="dim">置信度阈值 0–1 范围，前端滑块输入，后端通过 Form 参数接收。</p>
+      </div>
+      <div class="concept-box">
+        <h4>点击检测</h4>
+        <p class="dim">异步 POST 请求调用后端 /detect/image 接口，等待推理完成。</p>
+      </div>
+      <div class="concept-box">
+        <h4>结果图显示</h4>
+        <p class="dim">后端返回标注后图像路径，前端通过 <span class="code-inline">&lt;img&gt;</span> 标签渲染。</p>
+      </div>
+      <div class="concept-box">
+        <h4>检测列表</h4>
+        <p class="dim">每个目标的类别、置信度、边界框坐标，以表格形式展示。</p>
+      </div>
+      <div class="concept-box">
+        <h4>保存记录</h4>
+        <p class="dim">每次检测结果存入本地 JSON / 数据库，支持历史回溯。</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">6 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 7: EXTENDED ==================== -->
+<section class="slide" data-title="Extended Features">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">掌握 MVP 功能定义</li>
+      <li class="current">了解扩展功能方向</li>
+      <li>理解前后端分离架构原理</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">功能规划</p>
+    <h2 class="h2 mt-s">扩展功能与进阶方向</h2>
+    <p class="body-text mt-m">在 MVP 基础上，可根据项目需求逐步引入以下扩展功能。各功能按实现难度递增排列：</p>
+    <div class="grid-2 mt-m" style="grid-template-columns:1fr 1fr;gap:14px">
+      <div class="concept-box">
+        <h4>视频检测</h4>
+        <p class="dim">按帧读取视频文件，逐帧调用推理接口，结果合并为标注视频输出。需要考虑推理速度与帧率的平衡。</p>
+      </div>
+      <div class="concept-box">
+        <h4>摄像头实时检测</h4>
+        <p class="dim">前端通过 <span class="code-inline">getUserMedia</span> 获取摄像头流，定时捕获帧发送至后端。需 WebSocket 或轮询机制。</p>
+      </div>
+      <div class="concept-box">
+        <h4>多模型选择</h4>
+        <p class="dim">后端注册多个模型实例（YOLOv8n / v8s / v8m），前端通过下拉框选择，接口路由不变。</p>
+      </div>
+      <div class="concept-box">
+        <h4>文本提示输入</h4>
+        <p class="dim">集成 GroundingDINO 等开放词汇检测模型，前端输入文本描述（如"红色头盔"）作为检测目标。</p>
+      </div>
+      <div class="concept-box">
+        <h4>结果下载</h4>
+        <p class="dim">提供 <span class="code-inline">/download/&lt;result_id&gt;</span> 接口，支持标注图像 + JSON 结果打包下载。</p>
+      </div>
+      <div class="concept-box">
+        <h4>历史筛选</h4>
+        <p class="dim">按时间、模型名称、检测类别筛选历史记录，支持分页查询。</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">7 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 8: ARCHITECTURE ==================== -->
+<section class="slide full" data-title="Architecture">
+  <p class="kicker" style="font-family:'IBM Plex Mono',monospace;color:#c17b4a;font-size:13px;letter-spacing:.12em;margin-bottom:12px">SECTION 02 · 系统架构设计</p>
+  <h1 class="h1" style="font-size:clamp(36px,3.4vw,52px);max-width:1000px">前后端分离架构 · 完整数据流</h1>
+  <div class="arch-flow mt-m" style="max-width:1100px;margin-left:auto;margin-right:auto">
+    <div class="af-node active" style="min-width:120px">
+      <div class="af-title">Browser UI</div>
+      <div class="af-desc">HTML + JS 前端</div>
+    </div>
+    <div class="af-arrow">→</div>
+    <div class="af-node" style="min-width:110px">
+      <div class="af-title">POST /detect/image</div>
+      <div class="af-desc">HTTP 请求</div>
+    </div>
+    <div class="af-arrow">→</div>
+    <div class="af-node active" style="min-width:120px">
+      <div class="af-title">FastAPI Backend</div>
+      <div class="af-desc">路由 + 校验 + 调度</div>
+    </div>
+    <div class="af-arrow">→</div>
+    <div class="af-node" style="min-width:120px">
+      <div class="af-title">detect_image()</div>
+      <div class="af-desc">推理函数</div>
+    </div>
+    <div class="af-arrow">→</div>
+    <div class="af-node" style="min-width:120px">
+      <div class="af-title">YOLO Inference</div>
+      <div class="af-desc">模型推理</div>
+    </div>
+  </div>
+  <div class="info-box mt-m" style="max-width:1100px;margin-left:auto;margin-right:auto;width:100%;text-align:left">
+    <p class="body-text" style="margin:0"><b>核心设计原则：</b>前端不直接调用模型推理代码。所有模型调用通过后端 API 封装——前端只发送 HTTP 请求并接收 JSON 响应。这一层抽象使得模型替换、版本升级、负载均衡成为可能。</p>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">8 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 9: DATA FLOW ==================== -->
+<section class="slide" data-title="Data Flow">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">掌握 MVP 功能定义</li>
+      <li class="current">理解系统数据流</li>
+      <li>理解前后端分离架构原理</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+    <h5>关键概念</h5>
+    <p class="dim">请求-响应 · 数据流 · 模块边界</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">数据流详解</p>
+    <h2 class="h2 mt-s">请求数据流：从前端到后端到模型</h2>
+    <p class="body-text mt-m">一次完整的检测请求经过 6 个步骤，每一步都有明确的模块边界和职责：</p>
+    <div class="step-list mt-m">
+      <div class="step-item"><strong>用户选择文件 + 调节阈值</strong> —— 前端构造 <span class="code-inline">FormData</span>，包含 <span class="code-inline">file</span> 字段和 <span class="code-inline">conf</span> 字段。</div>
+      <div class="step-item"><strong>前端发送 POST 请求</strong> —— 使用 <span class="code-inline">fetch()</span> 异步发送至 <span class="code-inline">/detect/image</span>，设置 <span class="code-inline">Content-Type: multipart/form-data</span>。</div>
+      <div class="step-item"><strong>FastAPI 接收并校验</strong> —— <span class="code-inline">UploadFile</span> 解析文件内容，校验后缀名和文件大小，通过后写入上传目录。</div>
+      <div class="step-item"><strong>调用推理函数</strong> —— 将本地路径和置信度传入 <span class="code-inline">detect_image()</span>，此函数内部调用 YOLO 模型。</div>
+      <div class="step-item"><strong>YOLO 执行推理</strong> —— 加载权重、预处理图像、前向传播、非极大值抑制、绘制标注框并保存结果图。</div>
+      <div class="step-item"><strong>返回 JSON 结果</strong> —— 包含结果图路径、检测列表（类别+置信度+坐标）、推理耗时（毫秒）。</div>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">9 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 10: ARCH PLATFORM ==================== -->
+<section class="slide" data-title="Arch Platform">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">掌握 MVP 功能定义</li>
+      <li class="done">理解系统数据流</li>
+      <li class="current">掌握模块划分方法</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">模块划分</p>
+    <h2 class="h2 mt-s">平台功能架构：四个核心模块</h2>
+    <p class="body-text mt-m">整个检测平台可拆分为四个层次分明的模块，每一层只与相邻层交互：</p>
+    <div class="grid-4 mt-m" style="grid-template-columns:repeat(4,1fr);gap:12px">
+      <div class="concept-box" style="text-align:center">
+        <p style="font-size:28px;margin-bottom:6px">01</p>
+        <h4 style="font-size:15px">前端展示层</h4>
+        <p class="small">HTML 页面 + CSS 样式 + JS 交互逻辑。负责文件上传、参数调节、结果渲染、记录展示。</p>
+      </div>
+      <div class="concept-box" style="text-align:center">
+        <p style="font-size:28px;margin-bottom:6px">02</p>
+        <h4 style="font-size:15px">API 网关层</h4>
+        <p class="small">FastAPI 路由定义。负责请求接收、参数解析、数据校验、响应格式统一。</p>
+      </div>
+      <div class="concept-box" style="text-align:center">
+        <p style="font-size:28px;margin-bottom:6px">03</p>
+        <h4 style="font-size:15px">推理服务层</h4>
+        <p class="small">模型加载、预处理、推理、后处理。封装为独立函数，与 API 解耦。</p>
+      </div>
+      <div class="concept-box" style="text-align:center">
+        <p style="font-size:28px;margin-bottom:6px">04</p>
+        <h4 style="font-size:15px">数据持久层</h4>
+        <p class="small">检测记录存储（JSON / SQLite）、上传文件管理、结果文件管理。</p>
+      </div>
+    </div>
+    <div class="callout mt-m">
+      <p class="body-text" style="margin:0"><b>模块依赖规则：</b>01 → 02 → 03 → 04。前端只依赖 API 层，API 层依赖推理服务，推理服务使用持久层保存结果。禁止跨层调用。</p>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">10 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 11: SECTION BREAK - FASTAPI ==================== -->
+<section class="slide full" data-title="Section FastAPI">
+  <p class="kicker" style="font-family:'IBM Plex Mono',monospace;color:#c17b4a;font-size:13px;letter-spacing:.12em;margin-bottom:12px">SECTION 03 · FastAPI 后端搭建</p>
+  <h1 class="h1" style="font-size:clamp(42px,3.8vw,60px)">FastAPI：高性能 API 框架</h1>
+  <p class="lede mt-m" style="max-width:85ch">FastAPI 是一个现代、高性能的 Python Web 框架，专为构建 API 而设计。基于 Starlette（异步能力）和 Pydantic（数据校验），天然支持异步请求处理和自动生成 OpenAPI 文档。</p>
+  <div class="grid-2 mt-l" style="max-width:900px;margin-left:auto;margin-right:auto;gap:14px">
+    <div class="stat-card"><div class="stat-nb">异步原生</div><div class="stat-label">基于 asyncio，高并发场景性能优越</div></div>
+    <div class="stat-card"><div class="stat-nb">自动文档</div><div class="stat-label">OpenAPI + /docs 交互式测试页面</div></div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">11 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 12: INSTALL ==================== -->
+<section class="slide" data-title="Installation">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="current">掌握 FastAPI 环境搭建</li>
+      <li>完成推理函数的模块化封装</li>
+      <li>理解前后端分离架构原理</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+    <h5>环境要求</h5>
+    <p class="dim">Python ≥ 3.9 · pip · venv</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">环境搭建</p>
+    <h2 class="h2 mt-s">FastAPI 安装与项目初始化</h2>
+    <p class="body-text mt-m">以下为完整的项目初始化流程，包含虚拟环境创建、依赖安装和目录结构：</p>
+    <div class="code-block mt-m"><span class="cmt"># 创建并激活虚拟环境（Python 3.9+ 推荐）</span>
+python3 -m venv venv
+<span class="kw">source</span> venv/bin/activate  <span class="cmt"># macOS/Linux</span>
+<span class="cmt"># .\venv\Scripts\activate   # Windows</span>
+
+<span class="cmt"># 安装核心依赖</span>
+pip install fastapi uvicorn python-multipart
+pip install ultralytics opencv-python pillow
+
+<span class="cmt"># 验证安装</span>
+python -c <span class="str">"import fastapi; print(fastapi.__version__)"</span></div>
+    <div class="info-box mt-m">
+      <p class="body-text" style="margin:0"><b>依赖说明：</b><span class="code-inline">fastapi</span> 提供框架核心；<span class="code-inline">uvicorn</span> 为 ASGI 服务器，负责运行应用；<span class="code-inline">python-multipart</span> 用于解析文件上传请求。各依赖版本可通过 <span class="code-inline">pip freeze | grep</span> 确认。</p>
+    </div>
+    <div class="code-block mt-m" style="font-size:clamp(11px,0.8vw,13px);padding:12px 16px"><span class="cmt"># 推荐的项目目录结构</span>
+detection-platform/
+├── main.py              <span class="cmt"># FastAPI 应用入口</span>
+├── detector.py           <span class="cmt"># 推理函数封装</span>
+├── requirements.txt      <span class="cmt"># 依赖清单</span>
+├── uploads/              <span class="cmt"># 上传文件存储</span>
+├── outputs/              <span class="cmt"># 检测结果存储</span>
+└── records/              <span class="cmt"># 检测记录</span></div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">12 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 13: FASTAPI QUICKSTART ==================== -->
+<section class="slide" data-title="Quickstart">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="current">掌握 FastAPI 应用骨架</li>
+      <li>完成推理函数的模块化封装</li>
+      <li>理解前后端分离架构原理</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">应用骨架</p>
+    <h2 class="h2 mt-s">FastAPI 最小可用应用</h2>
+    <p class="body-text mt-m">以下代码展示了一个完整的 FastAPI 应用骨架，包含目录初始化和基础路由：</p>
+    <div class="code-block mt-m"><span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+
+app = FastAPI(title=<span class="str">"Detection Platform API"</span>)
+
+<span class="cmt"># 初始化存储目录</span>
+UPLOAD_DIR = Path(<span class="str">"uploads"</span>)
+OUTPUT_DIR = Path(<span class="str">"outputs"</span>)
+UPLOAD_DIR.mkdir(exist_ok=True)
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+<span class="fn">@app.get</span>(<span class="str">"/"</span>)
+<span class="kw">def</span> <span class="fn">root</span>():
+    <span class="kw">return</span> {<span class="str">"message"</span>: <span class="str">"Detection API Running"</span>, <span class="str">"version"</span>: <span class="str">"0.1.0"</span>}</div>
+    <p class="body-text mt-m">启动服务器：</p>
+    <div class="code-block"><span class="cmt"># 开发模式启动（热重载）</span>
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+<span class="cmt"># 终端输出示例</span>
+<span class="cmt"># INFO:     Uvicorn running on http://0.0.0.0:8000</span>
+<span class="cmt"># INFO:     Application startup complete.</span></div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">13 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 14: UPLOAD ENDPOINT ==================== -->
+<section class="slide" data-title="Upload Endpoint">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="current">实现文件上传 API</li>
+      <li>完成推理函数的模块化封装</li>
+      <li>理解前后端分离架构原理</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">核心端点</p>
+    <h2 class="h2 mt-s">检测接口实现：文件上传与参数接收</h2>
+    <p class="body-text mt-m"><span class="code-inline">/detect/image</span> 端点接收图片文件和置信度参数，执行校验后调用推理模块：</p>
+    <div class="code-block mt-m"><span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI, UploadFile, File, Form
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+
+app = FastAPI()
+UPLOAD_DIR = Path(<span class="str">"uploads"</span>)
+OUTPUT_DIR = Path(<span class="str">"outputs"</span>)
+UPLOAD_DIR.mkdir(exist_ok=True)
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+<span class="fn">@app.post</span>(<span class="str">"/detect/image"</span>)
+<span class="kw">async def</span> <span class="fn">detect_image_api</span>(
+    file: UploadFile = File(...),
+    conf: <span class="kw">float</span> = Form(<span class="num">0.25</span>),
+):
+    <span class="cmt"># 1. 校验文件后缀</span>
+    suffix = Path(file.filename).suffix.lower()
+    <span class="kw">if</span> suffix <span class="kw">not in</span> [<span class="str">".jpg"</span>, <span class="str">".jpeg"</span>, <span class="str">".png"</span>]:
+        <span class="kw">return</span> {<span class="str">"success"</span>: <span class="kw">False</span>, <span class="str">"message"</span>: <span class="str">"unsupported file type"</span>}
+
+    <span class="cmt"># 2. 保存上传文件</span>
+    input_path = UPLOAD_DIR / file.filename
+    input_path.write_bytes(<span class="kw">await</span> file.read())
+
+    <span class="cmt"># 3. 调用推理函数</span>
+    result = detect_image(str(input_path), conf=conf)
+    <span class="kw">return</span> result</div>
+    <div class="warning-box">
+      <p class="body-text" style="margin:0;font-size:15px"><b>注意：</b>以上代码为教学骨架。生产环境需要补充文件名去重（UUID 或时间戳前缀）、文件大小限制、更严格的安全检查。</p>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">14 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 15: VALIDATION ==================== -->
+<section class="slide" data-title="Validation">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="current">掌握请求校验方法</li>
+      <li>完成推理函数的模块化封装</li>
+      <li>理解前后端分离架构原理</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">请求校验</p>
+    <h2 class="h2 mt-s">输入校验的完整实现</h2>
+    <p class="body-text mt-m">健壮的 API 必须在入口处对请求进行全面校验，三行校验代码可避免绝大多数运行时错误：</p>
+    <div class="code-block mt-m"><span class="kw">import</span> uuid
+<span class="kw">from</span> fastapi <span class="kw">import</span> HTTPException
+
+ALLOWED_SUFFIXES = {<span class="str">".jpg"</span>, <span class="str">".jpeg"</span>, <span class="str">".png"</span>}
+MAX_FILE_SIZE = 16 * 1024 * 1024  <span class="cmt"># 16 MB</span>
+
+<span class="fn">@app.post</span>(<span class="str">"/detect/image"</span>)
+<span class="kw">async def</span> <span class="fn">detect_image_api</span>(
+    file: UploadFile = File(...),
+    conf: <span class="kw">float</span> = Form(<span class="num">0.25</span>),
+):
+    <span class="cmt"># 校验 1: 文件后缀名白名单</span>
+    suffix = Path(file.filename).suffix.lower()
+    <span class="kw">if</span> suffix <span class="kw">not in</span> ALLOWED_SUFFIXES:
+        <span class="kw">raise</span> HTTPException(<span class="num">400</span>, <span class="str">"Unsupported file type. Allowed: JPG, PNG"</span>)
+
+    <span class="cmt"># 校验 2: 文件大小上限</span>
+    content = <span class="kw">await</span> file.read()
+    <span class="kw">if</span> len(content) > MAX_FILE_SIZE:
+        <span class="kw">raise</span> HTTPException(<span class="num">400</span>, <span class="str">"File too large. Max: 16MB"</span>)
+
+    <span class="cmt"># 校验 3: 置信度范围</span>
+    conf = max(<span class="num">0.01</span>, min(<span class="num">0.99</span>, conf))
+
+    <span class="cmt"># 写入：使用 UUID 文件名避免冲突</span>
+    unique_name = f<span class="str">"{uuid.uuid4().hex}{suffix}"</span>
+    input_path = UPLOAD_DIR / unique_name
+    input_path.write_bytes(content)
+
+    result = detect_image(str(input_path), conf=conf)
+    <span class="kw">return</span> result</div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">15 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 16: RESPONSE FORMAT ==================== -->
+<section class="slide" data-title="Response Format">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="current">设计统一响应格式</li>
+      <li>理解前后端分离架构原理</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">API 规范</p>
+    <h2 class="h2 mt-s">统一的 JSON 响应格式设计</h2>
+    <p class="body-text mt-m">后端所有接口遵循统一的 success/data 或 success/message 格式，方便前端统一处理：</p>
+    <div class="grid-2 mt-m" style="grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <p style="font-weight:700;font-size:16px;color:#2c2418;margin-bottom:6px">成功响应</p>
+        <div class="json-box"><span class="punc">{</span>
+  <span class="key">"success"</span>: <span class="kw">true</span>,
+  <span class="key">"data"</span>: <span class="punc">{</span>
+    <span class="key">"result_image"</span>: <span class="val">"outputs/abc123_result.jpg"</span>,
+    <span class="key">"elapsed_ms"</span>: <span class="num">42</span>,
+    <span class="key">"detections"</span>: [
+      <span class="punc">{</span>
+        <span class="key">"class_name"</span>: <span class="val">"helmet"</span>,
+        <span class="key">"confidence"</span>: <span class="num">0.91</span>,
+        <span class="key">"bbox"</span>: [<span class="num">120</span>, <span class="num">80</span>, <span class="num">240</span>, <span class="num">210</span>]
+      <span class="punc">}</span>
+    ]
+  <span class="punc">}</span>
+<span class="punc">}</span></div>
+      </div>
+      <div>
+        <p style="font-weight:700;font-size:16px;color:#2c2418;margin-bottom:6px">错误响应</p>
+        <div class="json-box"><span class="punc">{</span>
+  <span class="key">"success"</span>: <span class="kw">false</span>,
+  <span class="key">"message"</span>: <span class="val">"unsupported file type"</span>,
+  <span class="key">"code"</span>: <span class="num">400</span>
+<span class="punc">}</span></div>
+        <p class="body-text mt-m"><b>响应字段说明：</b></p>
+        <p class="small" style="line-height:1.7">
+          <span class="code-inline">success</span> — 布尔值，前端以此判断结果状态。<br>
+          <span class="code-inline">data</span> — 成功时携带的实际数据。<br>
+          <span class="code-inline">message</span> — 错误时的可读描述。<br>
+          <span class="code-inline">code</span> — 错误码（400/403/500），便于前端分类处理。
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">16 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 17: /DOCS ==================== -->
+<section class="slide" data-title="Docs">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="done">设计统一响应格式</li>
+      <li class="current">掌握 /docs 测试方法</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">自动文档</p>
+    <h2 class="h2 mt-s">OpenAPI / Swagger 交互式测试</h2>
+    <p class="body-text mt-m">FastAPI 自动生成 OpenAPI 规范文档，内置 Swagger UI 页面（<span class="code-inline">/docs</span>）和 ReDoc 页面（<span class="code-inline">/redoc</span>）：</p>
+    <div class="info-box">
+      <p class="body-text" style="margin:0"><b>访问方式：</b>启动服务器后，浏览器打开 <span class="code-inline">http://localhost:8000/docs</span> 即可看到交互式 API 文档页面。</p>
+    </div>
+    <div class="grid-2 mt-m" style="grid-template-columns:1fr 1fr;gap:16px">
+      <div class="concept-box">
+        <h4>Swagger UI 功能</h4>
+        <p class="small" style="line-height:1.7">列出所有注册的路由（GET / POST / DELETE 等）<br>
+        每个端点独立测试面板，可直接上传文件、填写参数并执行请求<br>
+        自动展示请求示例和响应 Schema<br>
+        支持 API Key / Bearer Token 认证测试</p>
+      </div>
+      <div class="concept-box">
+        <h4>/docs 课堂使用场景</h4>
+        <p class="small" style="line-height:1.7">验证文件上传接口是否能正确接收图片<br>
+        测试不同置信度阈值对检测结果的影响<br>
+        检查文件格式校验是否正确拦截非法上传<br>
+        观察响应 JSON 结构是否与设计一致</p>
+      </div>
+    </div>
+    <div class="code-block mt-m"><span class="cmt"># 启动后访问以下地址</span>
+<span class="cmt"># http://localhost:8000/docs      → Swagger UI 交互文档</span>
+<span class="cmt"># http://localhost:8000/redoc     → ReDoc 阅读型文档</span>
+<span class="cmt"># http://localhost:8000/openapi.json → 原始 OpenAPI JSON</span></div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">17 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 18: INFERENCE ENCAP ==================== -->
+<section class="slide full" data-title="Section Inference">
+  <p class="kicker" style="font-family:'IBM Plex Mono',monospace;color:#c17b4a;font-size:13px;letter-spacing:.12em;margin-bottom:12px">SECTION 04 · 模型推理函数封装</p>
+  <h1 class="h1" style="font-size:clamp(40px,3.6vw,56px);max-width:1000px">将推理逻辑与 API 层分离</h1>
+  <p class="lede mt-m" style="max-width:85ch">不要在 API 函数中堆砌模型加载、预处理、推理、后处理等细节。抽象为独立函数后，API 层只需关心 HTTP 协议，推理层只需关心模型逻辑——职责分离，测试独立，替换灵活。</p>
+  <div class="callout mt-l" style="max-width:800px;margin-left:auto;margin-right:auto;text-align:left">
+    <p class="body-text" style="margin:0"><b>核心原则：</b>API 不 import 任何深度学习库。API 调推理函数，推理函数调模型。这一层隔离使得在替换检测模型时，API 代码无需任何变更。</p>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">18 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 19: DETECT FUNCTION ==================== -->
+<section class="slide" data-title="Detect Function">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="current">封装推理函数</li>
+      <li>理解前后端分离架构原理</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">函数封装</p>
+    <h2 class="h2 mt-s">detect_image() 函数签名与返回值</h2>
+    <p class="body-text mt-m">推理函数接收图片路径和置信度阈值，返回结构化的检测结果字典：</p>
+    <div class="code-block mt-m"><span class="kw">def</span> <span class="fn">detect_image</span>(image_path: str, conf: <span class="kw">float</span> = <span class="num">0.25</span>) -> dict:
+    <span class="str">"""
+    输入图片路径和置信度阈值。
+    返回结果图路径、检测框列表、推理耗时。
+
+    Args:
+        image_path: 输入图片的本地文件系统路径
+        conf:       置信度阈值 (0.0 ~ 1.0)，低于此值的检测框被过滤
+
+    Returns:
+        dict: {
+            "result_image": str,     # 标注后结果图路径
+            "elapsed_ms":   int,     # 推理耗时（毫秒）
+            "detections": [
+                {
+                    "class_name": str,   # 检测类别名称
+                    "confidence": float,  # 置信度
+                    "bbox": [x1, y1, x2, y2]  # 边界框坐标
+                }
+            ]
+        }
+    """</div>
+    <div class="warning-box">
+      <p class="body-text" style="margin:0;font-size:15px"><b>类型注解的优势：</b>函数签名明确标注参数类型和返回结构。IDE 可据此提供自动补全和类型检查，降低调用出错的概率。</p>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">19 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 20: YOLO IMPL ==================== -->
+<section class="slide" data-title="YOLO Impl">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="current">实现 YOLO 推理</li>
+      <li>理解前后端分离架构原理</li>
+      <li>能够独立完成应用原型开发</li>
+    </aside>
+  <div class="main">
+    <p class="kicker">推理实现</p>
+    <h2 class="h2 mt-s">YOLOv8 推理函数的完整实现（detector.py）</h2>
+    <p class="body-text mt-m">以下代码展示推理函数的完整实现，包含模型加载、推理执行、结果解析全流程：</p>
+    <div class="code-block mt-m"><span class="kw">import</span> time
+<span class="kw">import</span> cv2
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+<span class="kw">from</span> ultralytics <span class="kw">import</span> YOLO
+
+<span class="cmt"># 全局只加载一次模型（避免每次请求重复加载）</span>
+_model = <span class="kw">None</span>
+MODEL_PATH = <span class="str">"yolov8n.pt"</span>
+
+<span class="kw">def</span> <span class="fn">get_model</span>():
+    <span class="kw">global</span> _model
+    <span class="kw">if</span> _model <span class="kw">is</span> <span class="kw">None</span>:
+        _model = YOLO(MODEL_PATH)
+    <span class="kw">return</span> _model
+
+<span class="kw">def</span> <span class="fn">detect_image</span>(image_path: str, conf: <span class="kw">float</span> = <span class="num">0.25</span>) -> dict:
+    model = get_model()
+    img = cv2.imread(image_path)
+    <span class="kw">if</span> img <span class="kw">is</span> <span class="kw">None</span>:
+        <span class="kw">return</span> {<span class="str">"success"</span>: <span class="kw">False</span>, <span class="str">"message"</span>: <span class="str">"cannot read image"</span>}
+
+    t0 = time.perf_counter()
+    results = model(img, conf=conf)
+    elapsed = int((time.perf_counter() - t0) * <span class="num">1000</span>)
+
+    <span class="cmt"># 解析检测结果</span>
+    detections = []
+    <span class="kw">for</span> r <span class="kw">in</span> results:
+        <span class="kw">for</span> box <span class="kw">in</span> r.boxes:
+            x1, y1, x2, y2 = map(int, box.xyxy[<span class="num">0</span>].tolist())
+            detections.append({
+                <span class="str">"class_name"</span>: r.names[int(box.cls[<span class="num">0</span>])],
+                <span class="str">"confidence"</span>: round(float(box.conf[<span class="num">0</span>]), <span class="num">4</span>),
+                <span class="str">"bbox"</span>: [x1, y1, x2, y2],
+            })</div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">20 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 21: YOLO IMPL CONT'D ==================== -->
+<section class="slide" data-title="YOLO Impl 2">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="current">实现 YOLO 推理</li>
+      <li>理解前后端分离架构原理</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+    <h5>关键概念</h5>
+    <p class="dim">标注图绘制 · 结果序列化</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">推理实现（续）</p>
+    <h2 class="h2 mt-s">标注图绘制与结果返回</h2>
+    <p class="body-text mt-m">推理完成后需要将检测框绘制到原图上，保存结果图并返回结构化数据：</p>
+    <div class="code-block mt-m">    <span class="cmt"># 绘制标注框并保存结果图</span>
+    annotated = results[<span class="num">0</span>].plot()  <span class="cmt"># YOLO 内置绘图方法</span>
+    out_name = Path(image_path).stem + <span class="str">"_result.jpg"</span>
+    out_path = str(OUTPUT_DIR / out_name)
+    cv2.imwrite(out_path, annotated)
+
+    status = <span class="str">"detected"</span> <span class="kw">if</span> detections <span class="kw">else</span> <span class="str">"no_target"</span>
+
+    <span class="kw">return</span> {
+        <span class="str">"success"</span>: <span class="kw">True</span>,
+        <span class="str">"data"</span>: {
+            <span class="str">"result_image"</span>: out_path,
+            <span class="str">"elapsed_ms"</span>: elapsed,
+            <span class="str">"status"</span>: status,
+            <span class="str">"detections"</span>: detections,
+        }
+    }</div>
+    <div class="info-box mt-m">
+      <p class="body-text" style="margin:0"><b>注意事项：</b><span class="code-inline">results[0].plot()</span> 返回的是 BGR 格式的 OpenCV 图像，<span class="code-inline">cv2.imwrite</span> 可正确处理此格式。若需在前端展示，应转换为 RGB 并通过 <span class="code-inline">/outputs/</span> 静态路径提供。</p>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">21 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 22: ABSTRACTION ==================== -->
+<section class="slide" data-title="Abstraction">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="current">理解抽象层设计</li>
+      <li>理解前后端分离架构原理</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">抽象层</p>
+    <h2 class="h2 mt-s">推理抽象层：支持模型无缝替换</h2>
+    <p class="body-text mt-m">通过定义统一的推理接口，可实现不同检测模型的切换而不影响 API 层代码。两种常见的抽象方式：</p>
+    <div class="grid-2 mt-m" style="grid-template-columns:1fr 1fr;gap:16px">
+      <div class="concept-box">
+        <h4>方式一：函数式抽象</h4>
+        <p class="small" style="line-height:1.6"><span class="code-inline">detect_image_v2()</span> 替代 <span class="code-inline">detect_image()</span>，二者签名一致。<br>
+        API 层只需修改 import 行即可切换。<br>
+        适用于小规模项目、快速迭代。</p>
+      </div>
+      <div class="concept-box">
+        <h4>方式二：类抽象（推荐）</h4>
+        <p class="small" style="line-height:1.6">定义 <span class="code-inline">BaseDetector</span> 抽象基类，所有模型实现必须实现 <span class="code-inline">detect()</span> 方法。<br>
+        通过配置文件注册模型实例，运行时动态选择。<br>
+        适用于支持多模型选择的中大型项目。</p>
+      </div>
+    </div>
+    <div class="code-block mt-m"><span class="cmt"># 抽象基类方式（detector.py）</span>
+<span class="kw">from</span> abc <span class="kw">import</span> ABC, abstractmethod
+
+<span class="kw">class</span> <span class="fn">BaseDetector</span>(ABC):
+    <span class="fn">@abstractmethod</span>
+    <span class="kw">def</span> <span class="fn">detect</span>(self, image: np.ndarray, conf: <span class="kw">float</span>) -> list:
+        <span class="kw">pass</span>
+
+<span class="kw">class</span> <span class="fn">YOLODetector</span>(BaseDetector):
+    <span class="kw">def</span> <span class="fn">detect</span>(self, image, conf):
+        results = self.model(image, conf=conf)
+        <span class="kw">return</span> self.parse_results(results)</div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">22 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 23: FRONTEND ==================== -->
+<section class="slide full" data-title="Section Frontend">
+  <p class="kicker" style="font-family:'IBM Plex Mono',monospace;color:#c17b4a;font-size:13px;letter-spacing:.12em;margin-bottom:12px">SECTION 05 · 前端页面与集成</p>
+  <h1 class="h1" style="font-size:clamp(40px,3.6vw,56px);max-width:1000px">工作型工具界面设计</h1>
+  <p class="lede mt-m" style="max-width:85ch">检测平台的前端不是营销网站，不需要大段介绍和花哨 hero 区域。它是工作型工具界面，追求清晰、紧凑、可反复操作——用户每天使用数十次的上传→检测→查看→下载循环。</p>
+  <div class="info-box mt-l" style="max-width:800px;margin-left:auto;margin-right:auto;text-align:left">
+    <p class="body-text" style="margin:0"><b>页面分区：</b>顶部标题区 · 左侧输入区（文件上传 + 参数调节） · 右侧结果区（图像预览 + 检测列𫈸） · 底部历史记录区</p>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">23 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 24: FRONTEND STRUCTURE ==================== -->
+<section class="slide" data-title="Frontend Structure">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="done">封装推理函数</li>
+      <li class="current">理解前端页面结构</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">前端结构</p>
+    <h2 class="h2 mt-s">页面布局与交互逻辑</h2>
+    <p class="body-text mt-m">检测平台前端采用四区域布局，每个区域职责明确。核心是左侧输入 + 右侧结果的双栏结构：</p>
+    <div class="code-block mt-m" style="font-size:clamp(12px,0.85vw,14px)">&lt;!-- 顶部：标题栏 --&gt;
+&lt;header&gt;
+  &lt;h1&gt;检测平台&lt;/h1&gt;
+  &lt;span&gt;YOLOv8 · 目标检测&lt;/span&gt;
+&lt;/header&gt;
+
+&lt;div class="main-layout"&gt;
+  &lt;!-- 左侧：输入区 --&gt;
+  &lt;aside class="input-panel"&gt;
+    &lt;input type="file" accept=".jpg,.jpeg,.png" /&gt;
+    &lt;label&gt;置信度阈值: &lt;span id="confVal"&gt;0.25&lt;/span&gt;&lt;/label&gt;
+    &lt;input type="range" min="0.01" max="0.99" step="0.01" value="0.25" /&gt;
+    &lt;button onclick="detect()"&gt;开始检测&lt;/button&gt;
+  &lt;/aside&gt;
+
+  &lt;!-- 右侧：结果区 --&gt;
+  &lt;section class="result-panel"&gt;
+    &lt;div class="image-view"&gt;
+      &lt;img id="resultImg" /&gt;
+    &lt;/div&gt;
+    &lt;table&gt;
+      &lt;thead&gt;&lt;tr&gt;&lt;th&gt;类别&lt;/th&gt;&lt;th&gt;置信度&lt;/th&gt;&lt;th&gt;坐标&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
+      &lt;tbody id="detectList"&gt;&lt;/tbody&gt;
+    &lt;/table&gt;
+  &lt;/section&gt;
+&lt;/div&gt;</div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">24 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 25: FRONTEND JS ==================== -->
+<section class="slide" data-title="Frontend JS">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="done">封装推理函数</li>
+      <li class="current">实现前端交互逻辑</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">前端交互</p>
+    <h2 class="h2 mt-s">检测请求的 JavaScript 实现</h2>
+    <p class="body-text mt-m">前端使用 <span class="code-inline">fetch()</span> API 构造 FormData 请求，异步提交至后端并渲染结果：</p>
+    <div class="code-block mt-m"><span class="kw">async function</span> <span class="fn">detect</span>() {
+    <span class="kw">const</span> fileInput = document.getElementById(<span class="str">'fileInput'</span>);
+    <span class="kw">if</span> (!fileInput.files.length) {
+        alert(<span class="str">'请先选择一张图片'</span>);
+        <span class="kw">return</span>;
+    }
+
+    <span class="kw">const</span> formData = <span class="kw">new</span> FormData();
+    formData.append(<span class="str">'file'</span>, fileInput.files[<span class="num">0</span>]);
+    formData.append(<span class="str">'conf'</span>, document.getElementById(<span class="str">'confSlider'</span>).value);
+
+    <span class="cmt">// 显示加载状态</span>
+    document.getElementById(<span class="str">'status'</span>).textContent = <span class="str">'检测中...'</span>;
+
+    <span class="kw">try</span> {
+        <span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">'/detect/image'</span>, {
+            method: <span class="str">'POST'</span>,
+            body: formData,
+        });
+        <span class="kw">const</span> result = <span class="kw">await</span> res.json();
+
+        <span class="kw">if</span> (!result.success) {
+            alert(<span class="str">'检测失败: '</span> + result.message);
+            <span class="kw">return</span>;
+        }
+
+        <span class="cmt">// 渲染结果图像</span>
+        document.getElementById(<span class="str">'resultImg'</span>).src =
+            <span class="str">'/outputs/'</span> + result.data.result_image.split(<span class="str">'/'</span>).pop();
+
+        <span class="cmt">// 渲染检测列表</span>
+        renderDetections(result.data.detections);
+        document.getElementById(<span class="str">'status'</span>).textContent =
+            <span class="str">`推理完成: ${result.data.elapsed_ms}ms`</span>;
+    } <span class="kw">catch</span> (err) {
+        alert(<span class="str">'网络错误: '</span> + err.message);
+    }
+}</div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">25 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 26: HISTORY ==================== -->
+<section class="slide" data-title="History">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="done">封装推理函数</li>
+      <li class="current">实现历史记录</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">数据持久化</p>
+    <h2 class="h2 mt-s">检测记录管理：存储与查询</h2>
+    <p class="body-text mt-m">每次检测结果应持久化存储，支持历史回溯。最简单的方案是使用 JSON 文件存储记录列表：</p>
+    <div class="code-block mt-m"><span class="kw">import</span> json, datetime
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+
+RECORDS_FILE = Path(<span class="str">"records"</span>) / <span class="str">"detections.jsonl"</span>
+RECORDS_FILE.parent.mkdir(exist_ok=True)
+
+<span class="kw">def</span> <span class="fn">save_record</span>(filename: str, result: dict):
+    record = {
+        <span class="str">"timestamp"</span>: datetime.datetime.now().isoformat(),
+        <span class="str">"filename"</span>: filename,
+        <span class="str">"elapsed_ms"</span>: result[<span class="str">"data"</span>][<span class="str">"elapsed_ms"</span>],
+        <span class="str">"detections"</span>: result[<span class="str">"data"</span>][<span class="str">"detections"</span>],
+    }
+    <span class="kw">with open</span>(RECORDS_FILE, <span class="str">"a"</span>) <span class="kw">as</span> f:
+        f.write(json.dumps(record, ensure_ascii=<span class="kw">False</span>) + <span class="str">"\n"</span>)
+
+<span class="kw">def</span> <span class="fn">get_history</span>(limit: int = <span class="num">20</span>) -> list:
+    records = []
+    <span class="kw">if not</span> RECORDS_FILE.exists():
+        <span class="kw">return</span> []
+    <span class="kw">with open</span>(RECORDS_FILE) <span class="kw">as</span> f:
+        <span class="kw">for</span> line <span class="kw">in</span> f:
+            line = line.strip()
+            <span class="kw">if</span> line:
+                records.append(json.loads(line))
+    <span class="kw">return</span> records[-limit:]</div>
+    <div class="info-box mt-m">
+      <p class="body-text" style="margin:0"><b>存储格式选择：</b>JSON Lines（每行一条 JSON）便于追加写入和按行读取；SQLite 适用于更复杂的查询需求（按时间、类别、模型筛选）。</p>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">26 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 27: DOWNLOAD ==================== -->
+<section class="slide" data-title="Download">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="done">封装推理函数</li>
+      <li class="current">实现结果下载</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">文件服务</p>
+    <h2 class="h2 mt-s">结果下载接口与静态文件服务</h2>
+    <p class="body-text mt-m">后端需提供两种文件访问方式：静态结果图服务和打包下载接口。</p>
+    <div class="code-block mt-m"><span class="kw">from</span> fastapi.staticfiles <span class="kw">import</span> StaticFiles
+<span class="kw">from</span> fastapi.responses <span class="kw">import</span> FileResponse
+
+<span class="cmt"># 方式一：挂载静态文件目录，直接通过 URL 访问结果图</span>
+app.mount(<span class="str">"/outputs"</span>, StaticFiles(directory=<span class="str">"outputs"</span>), name=<span class="str">"outputs"</span>)
+
+<span class="cmt"># 方式二：/download 接口返回文件（支持 Content-Disposition）</span>
+<span class="fn">@app.get</span>(<span class="str">"/download/{filename}"</span>)
+<span class="kw">def</span> <span class="fn">download_result</span>(filename: str):
+    file_path = OUTPUT_DIR / filename
+    <span class="kw">if not</span> file_path.exists():
+        <span class="kw">raise</span> HTTPException(<span class="num">404</span>, <span class="str">"File not found"</span>)
+    <span class="kw">return</span> FileResponse(
+        path=str(file_path),
+        filename=filename,
+        media_type=<span class="str">"image/jpeg"</span>,
+        headers={<span class="str">"Content-Disposition"</span>: f<span class="str">"attachment; filename={filename}"</span>}
+    )</div>
+    <div class="warning-box mt-m">
+      <p class="body-text" style="margin:0"><b>安全提示：</b>挂载静态目录时需注意路径遍历攻击。验证 <span class="code-inline">filename</span> 参数不包含 <span class="code-inline">../</span> 等路径升降序列。可使用 <span class="code-inline">os.path.basename()</span> 提取纯净文件名。</p>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">27 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 28: ERROR HANDLING ==================== -->
+<section class="slide full" data-title="Section Error Handling">
+  <p class="kicker" style="font-family:'IBM Plex Mono',monospace;color:#c17b4a;font-size:13px;letter-spacing:.12em;margin-bottom:12px">SECTION 06 · 异常处理与健壮性</p>
+  <h1 class="h1" style="font-size:clamp(40px,3.6vw,56px);max-width:1000px">覆盖 6 种异常场景的健壮设计</h1>
+  <p class="lede mt-m" style="max-width:85ch">一个面向用户的检测平台必须预判并妥善处理各类异常情况——从文件格式不合规到模型权重加载失败。异常处理不是附加功能，而是核心品质。</p>
+  <div class="stat-card mt-l" style="max-width:500px;margin-left:auto;margin-right:auto;margin-top:28px">
+    <div class="stat-nb">6</div>
+    <div class="stat-label">必须覆盖的异常场景种类</div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">28 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 29: ERROR SCENARIOS ==================== -->
+<section class="slide" data-title="Error Scenarios">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="done">封装推理函数</li>
+      <li class="current">掌握异常处理</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">异常清单</p>
+    <h2 class="h2 mt-s">6 种必须处理的异常场景</h2>
+    <p class="body-text mt-m">每个异常场景应有明确的检测条件和对应的用户反馈。以下为完整分类与处理方案：</p>
+    <table class="data-table mt-m">
+      <thead><tr><th>#</th><th>异常场景</th><th>检测时机</th><th>响应方式</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">1</td><td>未选择文件</td><td>前端点击检测时</td><td>前端 alert + 阻止请求</td></tr>
+        <tr><td class="mono">2</td><td>文件格式不支持</td><td>后端接收请求时</td><td>返回 400 + 明确错误描述</td></tr>
+        <tr><td class="mono">3</td><td>文件超出大小限制</td><td>后端接收文件时</td><td>返回 400 + 最大限制说明</td></tr>
+        <tr><td class="mono">4</td><td>模型权重文件缺失</td><td>模型加载时</td><td>返回 500 + 提示检查权重路径</td></tr>
+        <tr><td class="mono">5</td><td>推理过程出错</td><td>推理运行时</td><td>try/except 包裹 + 返回 500</td></tr>
+        <tr><td class="mono">6</td><td>未检测到目标</td><td>推理完成后</td><td>返回空列表 + status:no_target</td></tr>
+      </tbody>
+    </table>
+    <div class="callout mt-m">
+      <p class="body-text" style="margin:0"><b>处理原则：</b>错误信息应同时满足用户可读（前端展示）和开发者可调试（后端日志记录）。二者分别写入不同信道。</p>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">29 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 30: ERROR IMPL ==================== -->
+<section class="slide" data-title="Error Impl">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="done">封装推理函数</li>
+      <li class="current">实现异常处理</li>
+      <li>能够独立完成应用原型开发</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">错误处理</p>
+    <h2 class="h2 mt-s">异常处理代码实现（完整示例）</h2>
+    <p class="body-text mt-m">将推理函数置于 try/except 保护中，配合 FastAPI 的 HTTPException 统一返回错误：</p>
+    <div class="code-block mt-m"><span class="kw">import</span> traceback
+<span class="kw">import</span> logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(<span class="str">"detector"</span>)
+
+<span class="fn">@app.post</span>(<span class="str">"/detect/image"</span>)
+<span class="kw">async def</span> <span class="fn">detect_image_api</span>(
+    file: UploadFile = File(...), conf: <span class="kw">float</span> = Form(<span class="num">0.25</span>)
+):
+    <span class="cmt"># 校验部分（省略，见第15页）</span>
+    ...
+
+    <span class="kw">try</span>:
+        result = detect_image(str(input_path), conf=conf)
+        <span class="kw">return</span> result
+    <span class="kw">except</span> FileNotFoundError:
+        logger.error(<span class="str">f"Model weights missing: {MODEL_PATH}"</span>)
+        <span class="kw">raise</span> HTTPException(<span class="num">500</span>, <span class="str">"Model initialization failed"</span>)
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        logger.error(<span class="str">f"Inference error: {traceback.format_exc()}"</span>)
+        <span class="kw">raise</span> HTTPException(<span class="num">500</span>, <span class="str">f"Inference failed: {str(e)}"</span>)</div>
+    <div class="info-box mt-m">
+      <p class="body-text" style="margin:0"><b>日志记录规范：</b><span class="code-inline">logger.error</span> 记录完整 traceback 便于排查；HTTPException 返回给前端的信息应适当抽象，避免泄露服务器内部路径等敏感信息。</p>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">30 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 31: PRODUCTION ==================== -->
+<section class="slide" data-title="Production">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="done">封装推理函数</li>
+      <li class="done">掌握异常处理</li>
+      <li class="current">了解生产化考量</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">生产化</p>
+    <h2 class="h2 mt-s">从教学骨架到生产级应用的差距</h2>
+    <p class="body-text mt-m">本课程搭建的原型与真实生产系统之间，还需要补齐以下关键模块：</p>
+    <div class="grid-2 mt-m" style="grid-template-columns:1fr 1fr;gap:14px">
+      <div class="concept-box">
+        <h4>用户管理与认证</h4>
+        <p class="small">JWT Token 鉴权，区分不同用户的检测记录。需要用户注册、登录、会话管理。防止未授权访问 API。</p>
+      </div>
+      <div class="concept-box">
+        <h4>请求队列与限流</h4>
+        <p class="small">GPU 推理是稀缺资源。使用 Celery + Redis 实现异步任务队列，防止并发请求耗尽显存。设置 API 速率限制。</p>
+      </div>
+      <div class="concept-box">
+        <h4>日志与监控</h4>
+        <p class="small">结构化日志（JSON 格式）、推理耗时统计、错误率告警。使用 Prometheus + Grafana 可观测性栈。</p>
+      </div>
+      <div class="concept-box">
+        <h4>部署与负载均衡</h4>
+        <p class="small">Docker 容器化 + Nginx 反向代理 + GPU 多卡调度。模型热加载与版本管理。OOM 自动恢复机制。</p>
+      </div>
+    </div>
+    <div class="warning-box mt-m">
+      <p class="body-text" style="margin:0"><b>补充说明：</b>以上内容属于课外拓展方向。本节课聚焦原型实现，生产化细节将在后续课程中展开。</p>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">31 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 32: EXTENSION ==================== -->
+<section class="slide" data-title="Extension">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="done">封装推理函数</li>
+      <li class="done">掌握异常处理</li>
+      <li class="current">了解扩展方向</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">功能扩展</p>
+    <h2 class="h2 mt-s">视频检测与摄像头流接入</h2>
+    <p class="body-text mt-m">在图片检测基础上，扩展视频和摄像头支持需要额外的技术考量：</p>
+    <div class="grid-2 mt-m" style="grid-template-columns:1fr 1fr;gap:16px">
+      <div class="concept-box">
+        <h4>视频文件检测</h4>
+        <p class="small" style="line-height:1.7">使用 OpenCV 逐帧读取视频，对每帧调用 <span class="code-inline">detect_image()</span>，将标注后的帧重新编码为输出视频。<br>
+        关键参数：跳帧间隔（每 N 帧检测一帧）、输出编码格式（H.264 / MP4V）。</p>
+      </div>
+      <div class="concept-box">
+        <h4>摄像头实时检测</h4>
+        <p class="small" style="line-height:1.7">前端通过 <span class="code-inline">navigator.mediaDevices.getUserMedia()</span> 获取摄像头流，使用 Canvas 定时截图并上传至后端。<br>
+        考虑使用 WebSocket 替代 HTTP 轮询以获得更低的延迟。</p>
+      </div>
+    </div>
+    <div class="code-block mt-m" style="font-size:clamp(12px,0.85vw,14px)"><span class="cmt"># 视频逐帧检测伪代码</span>
+<span class="kw">def</span> <span class="fn">detect_video</span>(video_path: str, skip_frames: int = <span class="num">3</span>):
+    cap = cv2.VideoCapture(video_path)
+    frame_idx = <span class="num">0</span>
+    <span class="kw">while</span> cap.isOpened():
+        ret, frame = cap.read()
+        <span class="kw">if not</span> ret: <span class="kw">break</span>
+        <span class="kw">if</span> frame_idx % skip_frames == <span class="num">0</span>:
+            result = detect_image_on_frame(frame, conf=<span class="num">0.25</span>)
+            <span class="cmt"># 绘制标注并写入输出视频</span>
+        frame_idx += <span class="num">1</span>
+    cap.release()
+    <span class="kw">return</span> output_video_path</div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">32 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 33: CLASSROOM TASK ==================== -->
+<section class="slide full" data-title="Section Tasks">
+  <p class="kicker" style="font-family:'IBM Plex Mono',monospace;color:#c17b4a;font-size:13px;letter-spacing:.12em;margin-bottom:12px">SECTION 07 · 课堂实践任务</p>
+  <h1 class="h1" style="font-size:clamp(40px,3.6vw,56px);max-width:1000px">独立完成检测应用原型开发</h1>
+  <p class="lede mt-m" style="max-width:85ch">以下任务按照开发流程依次完成。最终提交的内容包括：FastAPI 接口截图、前端页面截图、代码说明文档。全部任务建议在 40 分钟内完成。</p>
+  <div class="stat-card mt-l" style="max-width:400px;margin-left:auto;margin-right:auto;margin-top:28px">
+    <div class="stat-nb">5 项任务</div>
+    <div class="stat-label">预计 40 分钟 · 独立完成</div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">33 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 34: TASK 1-2 ==================== -->
+<section class="slide" data-title="Task 1-2">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="done">封装推理函数</li>
+      <li class="done">掌握异常处理</li>
+      <li class="current">完成课堂实践任务</li>
+    </ul>
+    <h5>任务 1-2</h5>
+    <p class="dim">AI 辅助 · 人工审查</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">课堂任务 1-2</p>
+    <h2 class="h2 mt-s">任务 1：AI 辅助生成 FastAPI 接口骨架</h2>
+    <p class="body-text mt-m">使用 AI 辅助生成 FastAPI 接口骨架代码。提示词建议：</p>
+    <div class="code-block mt-m"><span class="cmt"># 推荐提示词模板：</span>
+<span class="str">"请生成一个 FastAPI 图片检测 API 接口骨架，包含：
+1. POST /detect/image 端点
+2. 接收 UploadFile 和 conf 参数
+3. 文件后缀名校验（jpg/png）
+4. 调用 detect_image() 函数
+5. 返回 JSON 结果
+请包含必要的 import 语句和目录初始化。"</span></div>
+    <div class="exercise mt-m">
+      <p class="body-text" style="margin:0"><b>任务 2：</b>人工审查 AI 生成的代码，修改以下内容：</p>
+      <ul class="bullet-list mt-m">
+        <li>确认文件上传路径使用 <span class="code-inline">UUID</span> 而非原始文件名</li>
+        <li>补充文件大小限制校验</li>
+        <li>确认 JSON 返回结构符合统一的 success/data 格式</li>
+        <li>在推理调用处添加 try/except 异常处理</li>
+      </ul>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">34 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 35: TASK 3-4 ==================== -->
+<section class="slide" data-title="Task 3-4">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="done">封装推理函数</li>
+      <li class="done">掌握异常处理</li>
+      <li class="current">完成课堂实践任务</li>
+    </ul>
+    <h5>任务 3-4</h5>
+    <p class="dim">/docs 测试 · 前端集成</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">课堂任务 3-4</p>
+    <h2 class="h2 mt-s">任务 3：使用 /docs 页面测试接口</h2>
+    <p class="body-text mt-m">启动服务器后访问 <span class="code-inline">http://localhost:8000/docs</span>，在 Swagger UI 页面中完成以下测试：</p>
+    <ul class="bullet-list mt-m">
+      <li>上传一张 JPG 图片，设置置信度 0.25，验证返回 JSON 结构</li>
+      <li>上传一张 PNG 图片，验证同样正常工作</li>
+      <li>上传一个 .txt 文件，验证返回错误 <span class="code-inline">"unsupported file type"</span></li>
+      <li>调整置信度至 0.9，观察检测结果的变化（检测框变少）</li>
+      <li>截图保存每个测试步骤的请求与响应</li>
+    </ul>
+    <div class="info-box mt-m">
+      <p class="body-text" style="margin:0"><b>截图要求：</b>每项测试保存一张清晰的 Swagger UI 页面截图，包含请求参数和响应体。</p>
+    </div>
+    <div class="exercise mt-m">
+      <p class="body-text" style="margin:0"><b>任务 4：</b>编写前端 HTML 页面，集成文件上传、阈值调节和结果展示。具体要求见课堂任务描述。</p>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">35 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 36: TASK 5 ==================== -->
+<section class="slide" data-title="Task 5">
+  <aside class="sidebar">
+    <div class="brand">检测平台原型</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解算法到应用的关键转变</li>
+      <li class="done">实现文件上传 API</li>
+      <li class="done">封装推理函数</li>
+      <li class="done">掌握异常处理</li>
+      <li class="current">完成课堂实践任务</li>
+    </ul>
+    <h5>任务 5</h5>
+    <p class="dim">交付物说明</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">课堂任务 5</p>
+    <h2 class="h2 mt-s">任务 5：提交完整的交付物</h2>
+    <p class="body-text mt-m">最终提交的内容包含以下三部分。每部分的评估标准如下：</p>
+    <div class="grid-2 mt-m" style="grid-template-columns:1fr 1fr;gap:16px">
+      <div class="concept-box">
+        <h4>接口截图（任务 3 产出）</h4>
+        <p class="small" style="line-height:1.7">包含至少 3 张 /docs 页面截图：<br>
+        ① 正常图片检测请求与响应<br>
+        ② 非法文件格式的错误响应<br>
+        ③ 高置信度阈值下检测框减少的对比<br>
+        截图需清晰显示请求参数和 JSON 响应体。</p>
+      </div>
+      <div class="concept-box">
+        <h4>前端页面截图</h4>
+        <p class="small" style="line-height:1.7">包含至少 2 张前端页面截图：<br>
+        ① 上传图片后初始状态<br>
+        ② 检测完成后的结果展示页<br>
+        页面应完整展示输入控件、检测结果图、检测列表三个区域。</p>
+      </div>
+      <div class="concept-box" style="grid-column:1/-1">
+        <h4>代码说明文档</h4>
+        <p class="small" style="line-height:1.7">Markdown 格式，包含以下内容：项目目录结构说明、核心代码文件的功能描述（main.py / detector.py 等）、API 端点列表及对应功能、说明在 AI 生成代码基础上做了哪些人工修改（路径处理、异常处理、响应格式等）。</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">36 / 38</span></div>
+</section>
+
+<!-- ==================== SLIDE 37: SUMMARY ==================== -->
+<section class="slide full" data-title="Summary">
+  <p class="kicker" style="font-family:'IBM Plex Mono',monospace;color:#c17b4a;font-size:13px;letter-spacing:.12em;margin-bottom:12px">本讲总结</p>
+  <h1 class="h1" style="font-size:clamp(40px,3.6vw,56px);max-width:1000px">已完成的五项核心能力</h1>
+  <div class="grid-2 mt-l" style="max-width:1000px;margin-left:auto;margin-right:auto;gap:16px;text-align:left">
+    <div class="concept-box">
+      <h4>✓ 理解算法到应用的跨越</h4>
+      <p class="dim">明确训练脚本与可用产品之间的五项工程封装转变。</p>
+    </div>
+    <div class="concept-box">
+      <h4>✓ 搭建 FastAPI 后端</h4>
+      <p class="dim">实现文件上传、参数接收、HTTPException 异常处理的完整 API 端点。</p>
+    </div>
+    <div class="concept-box">
+      <h4>✓ 封装推理模型</h4>
+      <p class="dim">将 YOLO 推理抽象为独立函数，实现 API 与模型逻辑解耦。</p>
+    </div>
+    <div class="concept-box">
+      <h4>✓ 设计统一响应协议</h4>
+      <p class="dim">建立 success/data 和 success/message 两套 JSON 格式，覆盖全部异常场景。</p>
+    </div>
+  </div>
+  <div class="info-box mt-l" style="max-width:800px;margin-left:auto;margin-right:auto;text-align:left">
+    <p class="body-text" style="margin:0"><b>课外拓展方向：</b>REST API 规范 · OpenAPI 文档自动测试 · 了解实际产品还需要哪些模块（用户管理、权限控制、日志系统、任务队列、部署与监控）。</p>
+  </div>
+  <div class="slide-footer"><span class="brand-footer">检测应用原型 · 第13讲</span><span class="slide-num">37 / 37</span></div>
+</section>
+
+
+</div><!-- .deck -->
+
+<!-- ===== NAVIGATION CONTROLS ===== -->
+<div class="nav-controls">
+  <button class="nav-btn" id="prevBtn" onclick="navigate(-1)">&#8592;</button>
+  <button class="nav-btn" id="nextBtn" onclick="navigate(1)">&#8594;</button>
+</div>
+
+<div class="progress-dots" id="progressDots"></div>
+
+<script>
+(function() {
+  const deck = document.getElementById('deck');
+  const slides = deck.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  // Build progress dots
+  const dotsContainer = document.getElementById('progressDots');
+  for (let i = 0; i < total; i++) {
+    const dot = document.createElement('button');
+    dot.className = 'progress-dot' + (i === 0 ? ' active' : '');
+    dot.setAttribute('data-index', i);
+    dot.addEventListener('click', function() { goTo(parseInt(this.getAttribute('data-index'))); });
+    dotsContainer.appendChild(dot);
+  }
+
+  // Restore position from localStorage
+  const saved = localStorage.getItem('deck-slide-index');
+  if (saved !== null) {
+    const idx = parseInt(saved, 10);
+    if (!isNaN(idx) && idx >= 0 && idx < total) current = idx;
+  }
+
+  function goTo(idx) {
+    if (idx < 0 || idx >= total) return;
+    slides[current].classList.remove('is-active');
+    slides[idx].classList.add('is-active');
+    current = idx;
+
+    // Update dots
+    const dots = dotsContainer.querySelectorAll('.progress-dot');
+    dots.forEach(function(d, i) { d.classList.toggle('active', i === idx); });
+
+    // Update footer numbers
+    const slideNumEls = document.querySelectorAll('.slide-num');
+    slideNumEls.forEach(function(el) { el.textContent = (idx + 1) + ' / ' + total; });
+
+    // Scroll to top in slide
+    slides[idx].scrollTop = 0;
+
+    // Persist
+    try { localStorage.setItem('deck-slide-index', idx); } catch(e) {}
+  }
+
+  window.goTo = goTo;
+
+  window.navigate = function(dir) {
+    goTo(current + dir);
+  };
+
+  // Keyboard navigation
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+      e.preventDefault();
+      navigate(1);
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      navigate(-1);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      goTo(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      goTo(total - 1);
+    }
+  });
+
+  // Initialize
+  goTo(current);
+})();
+</script>
+
+</body>
+</html>

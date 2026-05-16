@@ -1,0 +1,2182 @@
+
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据采集、标注规范与YOLO数据集构建 · 目标检测课程</title>
+<style>
+:root {
+  --ink: #2a1e13;
+  --ink-rgb: 42,30,19;
+  --paper: #eedfc7;
+  --paper-rgb: 238,223,199;
+  --paper-tint: #e0d0b6;
+  --ink-tint: #3a2a1d;
+  --sidebar-bg: #e6d4b8;
+  --accent: #8b5e3c;
+  --accent-light: #c49a6c;
+  --code-bg: #f5ede0;
+  --font-serif: 'Noto Serif SC', 'Source Han Serif SC', Georgia, serif;
+  --font-sans: 'Noto Sans SC', 'Source Han Sans SC', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--ink);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+body::after{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:9998;opacity:0.5}
+#deck{position:fixed;inset:0;width:10000vw;height:100vh;display:flex;flex-wrap:nowrap;transition:transform .8s cubic-bezier(.77,0,.175,1);z-index:10;will-change:transform}
+.slide{width:100vw;height:100vh;flex:0 0 100vw;display:grid;grid-template-columns:300px 1fr;grid-template-rows:1fr;overflow:hidden;background:var(--paper);color:var(--ink)}
+.sidebar{background:var(--sidebar-bg);padding:5vh 20px 4vh;display:flex;flex-direction:column;border-right:1px solid rgba(42,30,19,0.12);overflow:hidden}
+.sidebar .module-label{font-family:var(--font-mono);font-size:13px;letter-spacing:.15em;text-transform:uppercase;opacity:.55;margin-bottom:2.4vh;white-space:nowrap}
+.sidebar .module-title{font-family:var(--font-serif);font-weight:700;font-size:22px;line-height:1.3;margin-bottom:3.6vh;color:var(--ink)}
+.sidebar .obj-title{font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;opacity:.45;margin-bottom:1.6vh}
+.sidebar .obj-list{list-style:none;display:flex;flex-direction:column;gap:1.6vh;flex:1}
+.sidebar .obj-list li{font-family:var(--font-sans);font-size:15px;line-height:1.45;padding-left:18px;position:relative;opacity:.82}
+.sidebar .obj-list li::before{content:'';position:absolute;left:0;top:9px;width:8px;height:8px;border-radius:50%;background:var(--accent);opacity:.5}
+.sidebar .page-nb{font-family:var(--font-mono);font-size:13px;letter-spacing:.12em;opacity:.4;margin-top:auto;padding-top:2vh}
+.main{padding:4vh 44px 3vh;display:flex;flex-direction:column;overflow:hidden}
+.main .section-title{font-family:var(--font-serif);font-weight:700;font-size:30px;line-height:1.25;margin-bottom:2.2vh;color:var(--ink);padding-bottom:1.2vh;border-bottom:2px solid var(--accent-light);border-bottom-color:rgba(139,94,60,0.25)}
+.main .content{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:1.6vh}
+.main .content::-webkit-scrollbar{width:4px}
+.main .content::-webkit-scrollbar-thumb{background:var(--accent-light);border-radius:2px}
+.main .content::-webkit-scrollbar-track{background:transparent}
+.body-text{font-family:var(--font-sans);font-size:19px;line-height:1.65;opacity:.88}
+.body-text strong{font-weight:700;color:var(--ink)}
+.serif-text{font-family:var(--font-serif);font-size:20px;line-height:1.6;opacity:.9}
+.label-mono{font-family:var(--font-mono);font-size:13px;letter-spacing:.12em;text-transform:uppercase;opacity:.55}
+.label-accent{font-family:var(--font-mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:500}
+.code-block{background:var(--code-bg);border:1px solid rgba(42,30,19,0.1);border-radius:6px;padding:14px 18px;font-family:var(--font-mono);font-size:15px;line-height:1.55;overflow-x:auto;white-space:pre;color:var(--ink);position:relative}
+.code-block .comment{opacity:.5;font-style:italic}
+.code-block .keyword{color:#8b5e3c;font-weight:500}
+.code-block .string{color:#6a8a5c}
+.code-block .number{color:#7a5a8a}
+.code-block .func{color:#3a6a8a}
+.code-block .tag{color:#8b5e3c}
+.code-block .attr{color:#5a7a3a}
+.code-block::before{content:attr(data-lang);position:absolute;top:6px;right:10px;font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;opacity:.35}
+.info-box{background:rgba(139,94,60,0.08);border-left:3px solid var(--accent);padding:12px 16px;border-radius:0 6px 6px 0}
+.info-box .info-title{font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+.info-box .info-body{font-family:var(--font-sans);font-size:17px;line-height:1.5;opacity:.85}
+.warn-box{background:rgba(180,100,60,0.08);border-left:3px solid #b4643c;padding:12px 16px;border-radius:0 6px 6px 0}
+.warn-box .warn-title{font-family:var(--font-mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#b4643c;margin-bottom:4px}
+.warn-box .warn-body{font-family:var(--font-sans);font-size:17px;line-height:1.5;opacity:.85}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.grid-2-1{display:grid;grid-template-columns:2fr 1fr;gap:20px}
+.grid-1-2{display:grid;grid-template-columns:1fr 2fr;gap:20px}
+.card{background:rgba(255,255,255,0.35);border:1px solid rgba(42,30,19,0.08);border-radius:8px;padding:16px 18px}
+.card .card-title{font-family:var(--font-serif);font-weight:600;font-size:18px;margin-bottom:8px}
+.card .card-body{font-family:var(--font-sans);font-size:16px;line-height:1.5;opacity:.82}
+.comp-box{padding:14px 16px;border-radius:6px}
+.comp-box.old{background:rgba(42,30,19,0.04);opacity:.7}
+.comp-box.new{background:rgba(139,94,60,0.08);border:1px solid rgba(139,94,60,0.15)}
+.comp-box .comp-title{font-family:var(--font-mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
+.comp-box .comp-body{font-family:var(--font-sans);font-size:17px;line-height:1.5}
+.ulist{list-style:none;display:flex;flex-direction:column;gap:8px}
+.ulist li{font-family:var(--font-sans);font-size:18px;line-height:1.5;padding-left:22px;position:relative}
+.ulist li::before{content:'';position:absolute;left:0;top:10px;width:7px;height:7px;background:var(--accent);border-radius:50%;opacity:.4}
+.olist{list-style:none;counter-reset:item;display:flex;flex-direction:column;gap:8px}
+.olist li{counter-increment:item;font-family:var(--font-sans);font-size:18px;line-height:1.5;padding-left:28px;position:relative}
+.olist li::before{content:counter(item);position:absolute;left:0;font-family:var(--font-mono);font-size:13px;color:var(--accent);font-weight:500}
+.simple-table{width:100%;border-collapse:collapse;font-family:var(--font-sans);font-size:16px}
+.simple-table th{font-family:var(--font-mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;text-align:left;padding:8px 10px;border-bottom:2px solid rgba(42,30,19,0.15);opacity:.6;font-weight:400}
+.simple-table td{padding:8px 10px;border-bottom:1px solid rgba(42,30,19,0.08);line-height:1.45}
+.simple-table tr:last-child td{border-bottom:none}
+.step-flow{display:flex;gap:8px;align-items:flex-start}
+.step-flow .step-item{flex:1;text-align:center;padding:10px 6px;background:rgba(139,94,60,0.06);border-radius:6px;position:relative}
+.step-flow .step-item .step-num{font-family:var(--font-mono);font-size:11px;color:var(--accent);margin-bottom:4px}
+.step-flow .step-item .step-label{font-family:var(--font-sans);font-size:15px;line-height:1.3}
+.step-flow .step-arrow{display:flex;align-items:center;font-size:20px;opacity:.3;padding:0 2px}
+.slide.cover{grid-template-columns:1fr;background:linear-gradient(135deg, var(--ink-tint) 0%, var(--ink) 100%);color:var(--paper)}
+.slide.cover .cover-inner{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:8vh 10vw}
+.slide.cover .cover-kicker{font-family:var(--font-mono);font-size:14px;letter-spacing:.3em;text-transform:uppercase;opacity:.5;margin-bottom:3vh}
+.slide.cover .cover-title{font-family:var(--font-serif);font-weight:900;font-size:clamp(36px,4.2vw,72px);line-height:1.15;margin-bottom:2.4vh}
+.slide.cover .cover-sub{font-family:var(--font-serif);font-weight:400;font-size:clamp(20px,2vw,34px);opacity:.7;margin-bottom:4vh}
+.slide.cover .cover-meta{font-family:var(--font-mono);font-size:13px;letter-spacing:.18em;opacity:.45}
+.slide.cover .cover-divider{width:60px;height:2px;background:var(--accent-light);margin:2.4vh auto;opacity:.5}
+.slide.end{grid-template-columns:1fr;background:linear-gradient(135deg, var(--ink) 0%, var(--ink-tint) 100%);color:var(--paper)}
+.slide.end .end-inner{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:8vh 10vw}
+.slide.end .end-title{font-family:var(--font-serif);font-weight:700;font-size:clamp(32px,3.6vw,60px);margin-bottom:2vh}
+.slide.end .end-sub{font-family:var(--font-sans);font-size:clamp(18px,1.6vw,28px);opacity:.6;margin-bottom:4vh}
+.slide.end .end-divider{width:40px;height:2px;background:var(--accent-light);margin:2vh auto;opacity:.4}
+#nav{position:fixed;left:50%;bottom:2.2vh;transform:translateX(-50%);z-index:30;display:flex;gap:8px;padding:6px 12px;border-radius:999px;background:rgba(42,30,19,0.12);backdrop-filter:blur(8px)}
+#nav .dot{width:7px;height:7px;border-radius:50%;background:rgba(42,30,19,0.25);cursor:pointer;transition:all .3s ease;border:0;padding:0}
+#nav .dot:hover{background:rgba(42,30,19,0.4);transform:scale(1.15)}
+#nav .dot.active{background:var(--accent);width:20px;border-radius:999px}
+#hint{position:fixed;bottom:2.6vh;right:2.6vw;z-index:30;font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;opacity:.3;color:var(--ink)}
+@media (max-width:1200px){
+  .slide{grid-template-columns:240px 1fr}
+  .sidebar{padding:3vh 14px}
+  .sidebar .module-title{font-size:18px}
+  .sidebar .obj-list li{font-size:14px}
+  .main{padding:3vh 24px}
+  .main .section-title{font-size:26px}
+  .body-text{font-size:17px}
+  .grid-2,.grid-3{grid-template-columns:1fr}
+}
+@media (max-width:900px){
+  .slide{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .sidebar{padding:2vh 20px;border-right:none;border-bottom:1px solid rgba(42,30,19,0.1);flex-direction:row;flex-wrap:wrap;gap:8px}
+  .sidebar .module-label{display:none}
+  .sidebar .module-title{font-size:16px;margin-bottom:0;margin-right:16px}
+  .sidebar .obj-title{display:none}
+  .sidebar .obj-list{flex-direction:row;flex-wrap:wrap;gap:4px 12px}
+  .sidebar .obj-list li{font-size:13px;padding-left:12px}
+  .sidebar .obj-list li::before{width:5px;height:5px;top:7px}
+  .sidebar .page-nb{display:none}
+}
+</style>
+<style>
+/* ===== inlined unified course styles for standalone distribution ===== */
+/* Course-wide visual normalization.
+   This file intentionally mirrors the warm academic style of 1.html while
+   preserving each deck's existing navigation/runtime structure. */
+:root{
+  --bg:#faf7f0!important;
+  --bg-soft:#f0ece0!important;
+  --surface:#ffffff!important;
+  --surface-2:#f7f1e3!important;
+  --border:rgba(90,60,30,.13)!important;
+  --border-strong:rgba(90,60,30,.28)!important;
+  --text-1:#2a1f12!important;
+  --text-2:#5a4a33!important;
+  --text-3:#8a7859!important;
+  --accent:#3b7a5a!important;
+  --accent-2:#c4812a!important;
+  --accent-3:#b8452e!important;
+  --paper:#faf7f0!important;
+  --paper-tint:#f0ece0!important;
+  --paper-rgb:250,247,240!important;
+  --ink:#2a1f12!important;
+  --ink-rgb:42,31,18!important;
+  --ink-tint:#5a4a33!important;
+  --code-bg:#2a1f12!important;
+  --radius:14px!important;
+  --radius-sm:12px!important;
+  --shadow:0 8px 24px rgba(90,60,30,.07)!important;
+  --font-sans:'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif!important;
+  --font-serif:'Playfair Display','Noto Serif SC',Georgia,serif!important;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace!important;
+}
+html,body,#deck,.deck{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+  font-family:var(--font-sans)!important;
+  letter-spacing:-.01em;
+}
+.slide,
+section[class*="slide"],
+.slide.light,
+.slide.dark,
+.slide-cover,
+.slide-divider{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+}
+.slide.full,
+.cover,
+.slide-cover{
+  background:var(--bg)!important;
+}
+.main,
+.content,
+.slide-content,
+.main-content,
+.right,
+.body,
+.stage{
+  color:var(--text-1)!important;
+  min-height:0!important;
+}
+h1,h2,h3,
+.h1,.h2,.h3,
+.slide-title,
+.cover-title,
+.end-title,
+.h-hero,
+.h-xl,
+.main h1,
+.main h2,
+.main h3{
+  font-family:var(--font-serif)!important;
+  color:var(--text-1)!important;
+  letter-spacing:-.02em!important;
+}
+h1,.h1,.cover-title,.slide-title,.h-hero{
+  font-weight:800!important;
+}
+h2,.h2,.h-xl{
+  font-weight:700!important;
+}
+p,li,td,th,.lede,.dim,.dim2,.fn-desc,.body-text,.txt,.label{
+  color:var(--text-2);
+}
+strong,b{color:var(--text-1)}
+.kicker,
+.eyebrow,
+.module-label,
+.sidebar-module-label,
+.module-code,
+.obj-label,
+.obj-title,
+.obj-header,
+.objectives-title,
+.lb-title,
+.sidebar-label{
+  color:var(--accent-2)!important;
+  font-family:var(--font-sans)!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  letter-spacing:.14em!important;
+  text-transform:uppercase!important;
+}
+.sidebar,
+aside.sidebar,
+.learning-sidebar,
+.slide-sidebar,
+.left-col{
+  background:transparent!important;
+  border-right:1px solid var(--border)!important;
+  border-left:0!important;
+  padding-right:24px!important;
+  color:var(--text-2)!important;
+  box-shadow:none!important;
+}
+.sidebar-title,
+.module-title,
+.sidebar-module,
+.lb-module,
+.brand,
+.sidebar .brand{
+  font-family:var(--font-serif)!important;
+  color:var(--accent)!important;
+  font-size:20px!important;
+  line-height:1.25!important;
+  font-weight:700!important;
+}
+.obj-list,
+.objectives,
+.objective-list,
+.learning-sidebar ul,
+.slide-sidebar ul{
+  list-style:none!important;
+  padding:0!important;
+  margin:0!important;
+  font-family:var(--font-sans)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+  color:var(--text-2)!important;
+}
+.obj-list li,
+.objectives li,
+.objective-list li,
+.learning-sidebar li,
+.slide-sidebar li{
+  position:relative!important;
+  padding:7px 0 7px 22px!important;
+  border-bottom:1px dashed var(--border)!important;
+  color:var(--text-2)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+}
+.obj-list li::before,
+.objectives li::before,
+.objective-list li::before,
+.learning-sidebar li::before,
+.slide-sidebar li::before{
+  content:"○"!important;
+  position:absolute!important;
+  left:0!important;
+  top:7px!important;
+  color:var(--accent)!important;
+  width:auto!important;
+  height:auto!important;
+  background:transparent!important;
+  border-radius:0!important;
+  opacity:1!important;
+}
+.obj-list li.current::before,
+.objectives li.current::before,
+.objective-list li.current::before,
+.obj-list li.highlight::before,
+.objectives li.highlight::before,
+.objective-list li.highlight::before{
+  content:"▸"!important;
+  color:var(--accent-2)!important;
+}
+.obj-list li.current,
+.objectives li.current,
+.objective-list li.current,
+.obj-list li.highlight,
+.objectives li.highlight,
+.objective-list li.highlight{
+  color:var(--text-1)!important;
+  font-weight:700!important;
+}
+.card,
+.concept-box,
+.col-item,
+.metric-card,
+.panel,
+.info-card,
+.tip-box,
+.callout-box,
+.comp-item,
+.diagram-box,
+.data-card,
+.feature-card,
+.task-card,
+.warning-card,
+.workflow-card{
+  background:var(--surface)!important;
+  border:1px solid var(--border)!important;
+  border-radius:var(--radius)!important;
+  box-shadow:var(--shadow)!important;
+  color:var(--text-1)!important;
+}
+.card-accent,
+.accent-card,
+.concept-box h4{
+  border-color:var(--border)!important;
+}
+.callout,
+.tip,
+.note-box{
+  background:var(--surface-2)!important;
+  border-left:4px solid var(--accent-2)!important;
+  border-radius:0 var(--radius) var(--radius) 0!important;
+  color:var(--text-2)!important;
+}
+.warn-box,
+.warning,
+.alert{
+  background:rgba(196,129,42,.08)!important;
+  border:1px solid rgba(196,129,42,.3)!important;
+  border-radius:var(--radius)!important;
+  color:var(--text-2)!important;
+}
+.course-bridge{
+  max-width:72ch;
+  margin-top:16px!important;
+  padding:10px 16px!important;
+  font-size:13px!important;
+  line-height:1.45!important;
+}
+.course-bridge b{
+  color:var(--accent-2)!important;
+}
+
+
+.slide > .sidebar + .main-content + .course-bridge{
+  left:calc(18vw + 3vw)!important;
+  max-width:min(760px,70vw)!important;
+}
+
+.slide > .course-bridge,
+.hero .course-bridge,
+.slide.full .course-bridge,
+section.full .course-bridge{
+  position:absolute!important;
+  left:6vw!important;
+  right:auto!important;
+  bottom:9vh!important;
+  max-width:min(760px,64vw)!important;
+  margin:0!important;
+  z-index:3!important;
+}
+.slide.compact .h2,
+section.compact .h2,
+.slide.compact h2,
+section.compact h2{
+  font-size:clamp(25px,2.15vw,34px)!important;
+  line-height:1.12!important;
+  margin-bottom:6px!important;
+}
+.slide.compact .lede,
+section.compact .lede,
+.slide.compact .fn-desc,
+section.compact .fn-desc,
+.slide.compact p,
+section.compact p{
+  font-size:clamp(13px,1.05vw,16px)!important;
+  line-height:1.45!important;
+}
+.slide.compact .card,
+section.compact .card,
+.slide.compact .concept-box,
+section.compact .concept-box,
+.slide.compact .col-item,
+section.compact .col-item{
+  padding:12px 15px!important;
+}
+.slide.compact .concept-box h4,
+section.compact .concept-box h4,
+.slide.compact .card h4,
+section.compact .card h4{
+  font-size:clamp(14px,1.1vw,17px)!important;
+  line-height:1.25!important;
+  margin-bottom:4px!important;
+}
+.slide.compact .grid,
+section.compact .grid{
+  gap:12px!important;
+}
+.slide.compact .mt-l,
+section.compact .mt-l{
+  margin-top:14px!important;
+}
+.slide.compact .mt-m,
+section.compact .mt-m{
+  margin-top:8px!important;
+}
+.problem-grid .concept-box{
+  min-height:118px;
+}
+.problem-grid .concept-box:last-child{
+  grid-column:1/-1;
+  min-height:96px;
+}
+.slide.code-heavy .code-block,
+section.code-heavy .code-block{
+  font-size:clamp(10px,.82vw,12px)!important;
+  line-height:1.28!important;
+  padding:10px 12px!important;
+}
+.slide.compact .data-table th,
+.slide.compact .data-table td,
+section.compact .data-table th,
+section.compact .data-table td{
+  padding:4px 7px!important;
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.3!important;
+}
+.slide.compact .code-block,
+section.compact .code-block{
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.35!important;
+  padding:10px 12px!important;
+}
+pre,
+code,
+.code,
+.code-block,
+.code-panel{
+  font-family:var(--font-mono)!important;
+}
+pre,
+.code,
+.code-block,
+.code-panel{
+  background:#2a1f12!important;
+  color:#f0ece0!important;
+  border:0!important;
+  border-radius:var(--radius)!important;
+  box-shadow:none!important;
+}
+code:not(pre code){
+  background:rgba(90,60,30,.08)!important;
+  color:var(--text-1)!important;
+}
+table,
+.data-table{
+  border-color:var(--border)!important;
+}
+th,
+.data-table th{
+  background:var(--surface-2)!important;
+  color:var(--text-1)!important;
+}
+td,
+.data-table td{
+  background:var(--surface)!important;
+  color:var(--text-2)!important;
+}
+.pill,
+.pill-academic,
+.tag,
+.badge{
+  background:var(--surface-2)!important;
+  color:var(--text-2)!important;
+  border:1px solid var(--border)!important;
+  border-radius:4px!important;
+  font-family:var(--font-mono)!important;
+}
+.pill-accent,
+.tag.accent,
+.badge.accent{
+  color:var(--accent)!important;
+  border-color:color-mix(in srgb,var(--accent) 28%,transparent)!important;
+}
+.deck-footer,
+.page-meta,
+.footer,
+.slide-meta{
+  color:var(--text-3)!important;
+}
+.progress-bar>span,
+.progress,
+.progress-dot.active,
+.dot.active{
+  background:var(--accent)!important;
+}
+svg text{font-family:var(--font-sans)!important}
+/* ===== end inlined unified course styles ===== */
+</style>
+</head>
+<body>
+<div id="hint">← → 翻页</div>
+<div id="deck">
+
+<!-- SLIDE 1: COVER -->
+<section class="slide cover">
+  <div class="cover-inner">
+    <div class="cover-kicker">目标检测课程 · 第七部分</div>
+    <div class="cover-divider"></div>
+    <h1 class="cover-title">数据采集、标注规范<br>与 YOLO 数据集构建</h1>
+    <p class="cover-sub">从数据源头到可训练数据集的全流程方法论</p>
+    <div class="cover-meta">课程专题 · 90 分钟连堂 · 2026</div>
+  </div>
+
+  <div class="callout course-bridge"><b>课程衔接。</b>承接模型结构与推理流程，本讲回到数据源头，系统说明采集、标注、划分和 YOLO 数据格式；数据质量将直接决定后续训练效果。</div>
+</section>
+
+<!-- MODULE 1: 数据决定模型上限 (Slides 2-5) -->
+
+<!-- SLIDE 2 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 01</div>
+    <div class="module-title">数据决定模型上限</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>理解数据质量对模型性能的决定性影响</li>
+      <li>掌握数据质量评估的五个关键维度</li>
+      <li>认识"中等模型+高质量数据"的工程价值</li>
+      <li>理解训练集与测试集分布一致性的重要性</li>
+      <li>识别类别不平衡问题的表现与影响</li>
+    </ul>
+    <div class="page-nb">02 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">数据为什么重要</div>
+    <div class="content">
+      <p class="body-text">在目标检测项目中，<strong>模型结构通常不是最大瓶颈</strong>。决定最终效果的往往是数据层面的因素：</p>
+      <div class="grid-2" style="margin-top:1.2vh">
+        <div class="card">
+          <div class="card-title">场景覆盖度</div>
+          <div class="card-body">训练数据是否覆盖了部署时可能遇到的所有光照、角度、遮挡、背景变化。场景覆盖不足是模型在真实环境中失效的首要原因。</div>
+        </div>
+        <div class="card">
+          <div class="card-title">标注一致性</div>
+          <div class="card-body">同一类别在不同图片中的标注标准是否统一。标注不一致引入的噪声会直接降低 mAP 指标，且难以通过模型优化弥补。</div>
+        </div>
+        <div class="card">
+          <div class="card-title">类别定义清晰度</div>
+          <div class="card-body">类别边界是否明确、互斥。模糊的类别定义导致标注人员各行其是，数据集内部产生系统性偏差。</div>
+        </div>
+        <div class="card">
+          <div class="card-title">分布一致性</div>
+          <div class="card-body">训练集与测试集是否来自同一分布。分布偏移会导致测试指标虚高或虚低，无法反映真实性能。</div>
+        </div>
+      </div>
+      <div class="info-box" style="margin-top:1.2vh">
+        <div class="info-title">核心结论</div>
+        <div class="info-body">一个"中等模型 + 高质量数据集"通常优于"先进模型 + 混乱数据集"。数据工程投入的边际回报远高于模型结构搜索。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 3 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 01</div>
+    <div class="module-title">数据决定模型上限</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>理解数据质量对模型性能的决定性影响</li>
+      <li>掌握数据质量评估的五个关键维度</li>
+      <li>认识"中等模型+高质量数据"的工程价值</li>
+      <li>理解训练集与测试集分布一致性的重要性</li>
+      <li>识别类别不平衡问题的表现与影响</li>
+    </ul>
+    <div class="page-nb">03 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">数据质量的关键维度</div>
+    <div class="content">
+      <p class="body-text">数据质量评估可从以下五个维度展开，每个维度都直接影响模型训练的最终效果：</p>
+      <table class="simple-table" style="margin-top:1.6vh">
+        <tr><th style="width:22%">维度</th><th style="width:48%">说明</th><th style="width:30%">评估方法</th></tr>
+        <tr><td><strong>完整性</strong></td><td>数据是否覆盖所有目标类别和场景变体</td><td>按类别统计样本数，检查长尾分布</td></tr>
+        <tr><td><strong>一致性</strong></td><td>标注标准是否统一，框的贴合程度是否一致</td><td>随机抽样 50 张，多人独立评估一致性</td></tr>
+        <tr><td><strong>准确性</strong></td><td>标注框位置、类别标签是否正确</td><td>可视化检查，对比原始图片与标注框</td></tr>
+        <tr><td><strong>时效性</strong></td><td>数据是否反映当前部署环境的状态</td><td>检查采集时间戳，评估场景变化程度</td></tr>
+        <tr><td><strong>平衡性</strong></td><td>各类别样本数量是否均衡</td><td>计算类别频率分布，检查是否严重偏斜</td></tr>
+      </table>
+      <div class="warn-box" style="margin-top:1.6vh">
+        <div class="warn-title">常见误区</div>
+        <div class="warn-body">类别不平衡并非必须完全消除。关键在于<strong>测试集的不平衡程度应与真实部署场景一致</strong>。人为平衡训练集但测试集不反映真实分布，反而会误导模型调优方向。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 4 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 01</div>
+    <div class="module-title">数据决定模型上限</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>理解数据质量对模型性能的决定性影响</li>
+      <li>掌握数据质量评估的五个关键维度</li>
+      <li>认识"中等模型+高质量数据"的工程价值</li>
+      <li>理解训练集与测试集分布一致性的重要性</li>
+      <li>识别类别不平衡问题的表现与影响</li>
+    </ul>
+    <div class="page-nb">04 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">数据质量与模型性能的关系</div>
+    <div class="content">
+      <div class="grid-2" style="gap:24px">
+        <div class="comp-box old">
+          <div class="comp-title">低质量数据 + 先进模型</div>
+          <div class="comp-body" style="margin-top:8px">
+            <ul class="ulist">
+              <li>模型容量被浪费在拟合标注噪声上</li>
+              <li>场景覆盖不足导致过拟合到有限样本</li>
+              <li>标注不一致引入梯度方向冲突</li>
+              <li>测试指标虚高，部署后性能断崖下降</li>
+              <li>典型结果：mAP@0.5 在 0.65-0.75 区间停滞</li>
+            </ul>
+          </div>
+        </div>
+        <div class="comp-box new">
+          <div class="comp-title">高质量数据 + 中等模型</div>
+          <div class="comp-body" style="margin-top:8px">
+            <ul class="ulist">
+              <li>模型参数被高效利用于学习真实特征</li>
+              <li>场景多样性带来良好的泛化能力</li>
+              <li>标注一致性确保梯度方向稳定收敛</li>
+              <li>测试指标真实反映部署性能</li>
+              <li>典型结果：mAP@0.5 可达 0.85-0.92</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="info-box" style="margin-top:1.6vh">
+        <div class="info-title">工程启示</div>
+        <div class="info-body">在项目资源有限的情况下，<strong>数据质量提升的投入产出比远高于模型结构优化</strong>。建议将 60% 以上的项目时间分配给数据工程环节，包括采集、清洗、标注审核和分布分析。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 5 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 01</div>
+    <div class="module-title">数据决定模型上限</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>理解数据质量对模型性能的决定性影响</li>
+      <li>掌握数据质量评估的五个关键维度</li>
+      <li>认识"中等模型+高质量数据"的工程价值</li>
+      <li>理解训练集与测试集分布一致性的重要性</li>
+      <li>识别类别不平衡问题的表现与影响</li>
+    </ul>
+    <div class="page-nb">05 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">类别不平衡问题分析</div>
+    <div class="content">
+      <p class="body-text">类别不平衡是目标检测数据集中最常见的问题之一，其表现形式和处理策略如下：</p>
+      <div class="grid-2" style="margin-top:1.6vh;gap:20px">
+        <div>
+          <div class="label-accent" style="margin-bottom:8px">不平衡的典型表现</div>
+          <ul class="ulist">
+            <li>头部类别样本数占总量 80% 以上</li>
+            <li>尾部类别样本数不足总量的 1%</li>
+            <li>模型对尾部类别召回率趋近于零</li>
+            <li>训练损失被头部类别主导</li>
+          </ul>
+        </div>
+        <div>
+          <div class="label-accent" style="margin-bottom:8px">常用处理策略</div>
+          <ul class="ulist">
+            <li>类别重采样：对少数类过采样</li>
+            <li>损失函数加权：Focal Loss 等</li>
+            <li>数据增强：对少数类做针对性增强</li>
+            <li>合成数据补充：生成少数类样本</li>
+          </ul>
+        </div>
+      </div>
+      <div class="code-block" data-lang="python" style="margin-top:1.6vh">
+<span class="comment"># 类别分布统计脚本</span>
+<span class="keyword">import</span> os
+<span class="keyword">from</span> collections <span class="keyword">import</span> Counter
+
+label_dir = <span class="string">"dataset/labels/train"</span>
+class_counter = Counter()
+<span class="keyword">for</span> fname <span class="keyword">in</span> os.listdir(label_dir):
+    <span class="keyword">with</span> open(os.path.join(label_dir, fname)) <span class="keyword">as</span> f:
+        <span class="keyword">for</span> line <span class="keyword">in</span> f:
+            cls_id = int(line.strip().split()[0])
+            class_counter[cls_id] += 1
+
+<span class="keyword">for</span> cls_id, count <span class="keyword">in</span> sorted(class_counter.items()):
+    print(<span class="string">f"Class {cls_id}: {count} instances"</span>)</div>
+    </div>
+  </div>
+</section>
+
+<!-- MODULE 2: 场景定义与类别设计 (Slides 6-8) -->
+
+<!-- SLIDE 6 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 02</div>
+    <div class="module-title">场景定义与类别设计</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>掌握从业务需求到类别定义的转化方法</li>
+      <li>理解不同类别设计方案对标注难度的影响</li>
+      <li>学会评估类别粒度的合理性</li>
+      <li>掌握处理遮挡、模糊等边界情况的策略</li>
+    </ul>
+    <div class="page-nb">06 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">类别设计：以安全帽检测为例</div>
+    <div class="content">
+      <p class="body-text">类别设计是数据集构建的第一步，直接影响标注难度和最终模型的业务适配能力。以安全帽佩戴检测为例，存在三种典型方案：</p>
+      <div class="grid-3" style="margin-top:1.6vh">
+        <div class="card">
+          <div class="card-title">方案 A</div>
+          <div class="card-body">
+            <div class="code-block" data-lang="yaml" style="font-size:14px;padding:10px 14px;margin-bottom:8px">
+<span class="comment"># 2 类别</span>
+<span class="attr">helmet</span>
+<span class="attr">person</span></div>
+            <p style="font-size:16px;line-height:1.5;opacity:.82">仅检测"安全帽"和"人"两个类别。无法直接判断人是否佩戴安全帽，需后处理推理。</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">方案 B</div>
+          <div class="card-body">
+            <div class="code-block" data-lang="yaml" style="font-size:14px;padding:10px 14px;margin-bottom:8px">
+<span class="comment"># 3 类别</span>
+<span class="attr">helmet</span>
+<span class="attr">head</span>
+<span class="attr">person</span></div>
+            <p style="font-size:16px;line-height:1.5;opacity:.82">增加"head"类别，通过 helmet 与 head 的空间关系判断佩戴状态。标注量增加但逻辑更清晰。</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">方案 C</div>
+          <div class="card-body">
+            <div class="code-block" data-lang="yaml" style="font-size:14px;padding:10px 14px;margin-bottom:8px">
+<span class="comment"># 2 类别</span>
+<span class="attr">with_helmet</span>
+<span class="attr">without_helmet</span></div>
+            <p style="font-size:16px;line-height:1.5;opacity:.82">直接以佩戴状态为类别。业务逻辑最直接，但标注难度高——需判断是否"佩戴"，而非仅框出物体。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 7 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 02</div>
+    <div class="module-title">场景定义与类别设计</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>掌握从业务需求到类别定义的转化方法</li>
+      <li>理解不同类别设计方案对标注难度的影响</li>
+      <li>学会评估类别粒度的合理性</li>
+      <li>掌握处理遮挡、模糊等边界情况的策略</li>
+    </ul>
+    <div class="page-nb">07 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">类别设计方案对比分析</div>
+    <div class="content">
+      <table class="simple-table" style="margin-top:0.8vh">
+        <tr><th style="width:16%">评估维度</th><th style="width:28%">方案 A</th><th style="width:28%">方案 B</th><th style="width:28%">方案 C</th></tr>
+        <tr><td><strong>标注难度</strong></td><td>低，只需框出物体</td><td>中，需区分 head 与 person</td><td>高，需判断佩戴状态</td></tr>
+        <tr><td><strong>业务适配</strong></td><td>需后处理逻辑</td><td>需空间关系推理</td><td>直接输出结果</td></tr>
+        <tr><td><strong>遮挡处理</strong></td><td>无法判断遮挡情况</td><td>可检测 head 被遮挡</td><td>遮挡时难以判断</td></tr>
+        <tr><td><strong>扩展性</strong></td><td>易扩展新类别</td><td>中等</td><td>每新增状态需新类别</td></tr>
+        <tr><td><strong>标注一致性</strong></td><td>容易保证</td><td>需明确 head 边界规则</td><td>佩戴判断主观性强</td></tr>
+      </table>
+      <div class="info-box" style="margin-top:1.6vh">
+        <div class="info-title">设计原则</div>
+        <div class="info-body">类别设计应遵循"<strong>最小可标注单元</strong>"原则：每个类别对应一个标注人员无需推理即可判断的视觉实体。业务逻辑应放在后处理阶段，而非强加给标注环节。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 8 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 02</div>
+    <div class="module-title">场景定义与类别设计</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>掌握从业务需求到类别定义的转化方法</li>
+      <li>理解不同类别设计方案对标注难度的影响</li>
+      <li>学会评估类别粒度的合理性</li>
+      <li>掌握处理遮挡、模糊等边界情况的策略</li>
+    </ul>
+    <div class="page-nb">08 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">类别设计决策流程</div>
+    <div class="content">
+      <p class="body-text">从业务需求到最终类别列表，建议遵循以下决策流程：</p>
+      <div class="step-flow" style="margin-top:1.6vh">
+        <div class="step-item">
+          <div class="step-num">STEP 01</div>
+          <div class="step-label">明确业务<br>检测目标</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step-item">
+          <div class="step-num">STEP 02</div>
+          <div class="step-label">拆解为<br>视觉实体</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step-item">
+          <div class="step-num">STEP 03</div>
+          <div class="step-label">定义类别<br>边界规则</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step-item">
+          <div class="step-num">STEP 04</div>
+          <div class="step-label">试标注<br>验证可行性</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step-item">
+          <div class="step-num">STEP 05</div>
+          <div class="step-label">迭代优化<br>类别定义</div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-top:2vh;gap:20px">
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">边界情况处理规则</div>
+          <ul class="ulist">
+            <li>被遮挡目标：只标注可见部分</li>
+            <li>过小目标（&lt; 20px）：不标注</li>
+            <li>模糊目标：不标注，记录为困难样本</li>
+            <li>截断目标：标注可见部分</li>
+          </ul>
+        </div>
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">类别命名规范</div>
+          <ul class="ulist">
+            <li>使用英文小写字母和下划线</li>
+            <li>名称应自描述：<code>helmet</code> 而非 <code>class_01</code></li>
+            <li>避免同义词：统一用 <code>person</code> 而非混用 <code>person/people/human</code></li>
+            <li>类别数量控制在 2-10 个为宜</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MODULE 3: 数据来源 (Slides 9-13) -->
+
+<!-- SLIDE 9 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 03</div>
+    <div class="module-title">数据来源</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>了解四种主要数据获取途径及其优劣</li>
+      <li>掌握开源数据集的检索与合规使用方法</li>
+      <li>理解视频抽帧的关键参数设置</li>
+      <li>认识合成数据的域差异问题</li>
+    </ul>
+    <div class="page-nb">09 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">数据来源总览</div>
+    <div class="content">
+      <p class="body-text">目标检测数据集的构建通常依赖以下四种来源，实际项目中往往组合使用：</p>
+      <div class="grid-2" style="margin-top:1.6vh;gap:20px">
+        <div class="card">
+          <div class="card-title">开源数据集</div>
+          <div class="card-body">
+            <p style="margin-bottom:6px">从 COCO、VOC、OpenImages 等公开数据集中筛选相关类别。获取快、规模大，但场景可能与目标项目不一致，需确认许可协议。</p>
+            <div class="label-accent" style="margin-top:6px">典型来源</div>
+            <p style="font-size:15px;opacity:.75">COCO (80类, 330K images), VOC (20类, 11K images), OpenImages (600类, 9M images)</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">自采数据</div>
+          <div class="card-body">
+            <p style="margin-bottom:6px">在目标部署场景中实地拍摄。最贴近真实任务，但采集成本高、数量有限，需处理隐私和授权问题。</p>
+            <div class="label-accent" style="margin-top:6px">采集要点</div>
+            <p style="font-size:15px;opacity:.75">覆盖不同光照、角度、距离、天气条件；每场景至少 50-100 张</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">视频抽帧</div>
+          <div class="card-body">
+            <p style="margin-bottom:6px">从视频中按固定间隔提取帧。可快速生成大量图片，但连续帧高度相似，需去重处理。</p>
+            <div class="label-accent" style="margin-top:6px">推荐参数</div>
+            <p style="font-size:15px;opacity:.75">30fps 视频每 15-30 帧抽 1 帧；去除结构相似度 &gt; 0.95 的重复帧</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">合成数据</div>
+          <div class="card-body">
+            <p style="margin-bottom:6px">通过 3D 渲染、图像贴图或 AIGC 生成。可精确控制场景和标注，但存在域差异问题。</p>
+            <div class="label-accent" style="margin-top:6px">常用工具</div>
+            <p style="font-size:15px;opacity:.75">Blender (3D渲染), Unity Perception, NVIDIA Omniverse, Stable Diffusion (AIGC)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 03</div>
+    <div class="module-title">数据来源</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>了解四种主要数据获取途径及其优劣</li>
+      <li>掌握开源数据集的检索与合规使用方法</li>
+      <li>理解视频抽帧的关键参数设置</li>
+      <li>认识合成数据的域差异问题</li>
+    </ul>
+    <div class="page-nb">10 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">开源数据集详解</div>
+    <div class="content">
+      <table class="simple-table" style="margin-top:0.8vh">
+        <tr><th style="width:18%">数据集</th><th style="width:20%">规模</th><th style="width:22%">许可协议</th><th style="width:40%">适用场景</th></tr>
+        <tr><td><strong>COCO</strong></td><td>330K 图片, 80 类</td><td>CC-BY-4.0</td><td>通用目标检测、实例分割、姿态估计</td></tr>
+        <tr><td><strong>PASCAL VOC</strong></td><td>11K 图片, 20 类</td><td>Flickr 协议</td><td>基础检测任务、教学演示、基准测试</td></tr>
+        <tr><td><strong>OpenImages</strong></td><td>9M 图片, 600 类</td><td>CC-BY-4.0</td><td>大规模多类别检测、层级分类</td></tr>
+        <tr><td><strong>VisDrone</strong></td><td>10K 图片, 10 类</td><td>非商业科研</td><td>无人机视角目标检测</td></tr>
+        <tr><td><strong>DOTA</strong></td><td>2.8K 图片, 15 类</td><td>科研用途</td><td>遥感图像旋转目标检测</td></tr>
+      </table>
+      <div class="warn-box" style="margin-top:1.6vh">
+        <div class="warn-title">许可协议注意事项</div>
+        <div class="warn-body">开源数据集的许可协议差异很大。CC-BY-4.0 允许商业使用但需署名；部分数据集仅限非商业科研用途。在商业项目中，<strong>必须逐条确认每个数据集的许可条款</strong>，尤其是涉及人脸、车辆牌照等敏感数据的数据集。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 03</div>
+    <div class="module-title">数据来源</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>了解四种主要数据获取途径及其优劣</li>
+      <li>掌握开源数据集的检索与合规使用方法</li>
+      <li>理解视频抽帧的关键参数设置</li>
+      <li>认识合成数据的域差异问题</li>
+    </ul>
+    <div class="page-nb">11 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">视频抽帧与自采数据</div>
+    <div class="content">
+      <p class="body-text">视频抽帧是从监控录像、无人机航拍等视频源中提取训练图片的常用方法。以下脚本实现按固定间隔抽帧并去重：</p>
+      <div class="code-block" data-lang="python" style="margin-top:1.2vh">
+<span class="keyword">import</span> cv2
+<span class="keyword">import</span> os
+<span class="keyword">from</span> skimage.metrics <span class="keyword">import</span> structural_similarity <span class="keyword">as</span> ssim
+
+video_path = <span class="string">"input_video.mp4"</span>
+output_dir = <span class="string">"extracted_frames"</span>
+os.makedirs(output_dir, exist_ok=<span class="keyword">True</span>)
+
+cap = cv2.VideoCapture(video_path)
+fps = cap.get(cv2.CAP_PROP_FPS)          <span class="comment"># 获取视频帧率</span>
+frame_interval = int(fps * <span class="number">0.5</span>)         <span class="comment"># 每 0.5 秒抽一帧</span>
+
+prev_frame = <span class="keyword">None</span>
+frame_count = <span class="number">0</span>
+saved_count = <span class="number">0</span>
+
+<span class="keyword">while</span> <span class="keyword">True</span>:
+    ret, frame = cap.read()
+    <span class="keyword">if</span> <span class="keyword">not</span> ret:
+        <span class="keyword">break</span>
+    <span class="keyword">if</span> frame_count % frame_interval == <span class="number">0</span>:
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        <span class="keyword">if</span> prev_frame <span class="keyword">is not None</span>:
+            score = ssim(gray, prev_frame)
+            <span class="keyword">if</span> score &gt; <span class="number">0.95</span>:               <span class="comment"># 跳过相似帧</span>
+                frame_count += <span class="number">1</span>
+                <span class="keyword">continue</span>
+        prev_frame = gray
+        cv2.imwrite(os.path.join(output_dir, <span class="string">f"frame_{saved_count:06d}.jpg"</span>), frame)
+        saved_count += <span class="number">1</span>
+    frame_count += <span class="number">1</span>
+
+cap.release()
+print(<span class="string">f"Extracted {saved_count} frames from {frame_count} total frames"</span>)</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 03</div>
+    <div class="module-title">数据来源</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>了解四种主要数据获取途径及其优劣</li>
+      <li>掌握开源数据集的检索与合规使用方法</li>
+      <li>理解视频抽帧的关键参数设置</li>
+      <li>认识合成数据的域差异问题</li>
+    </ul>
+    <div class="page-nb">12 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">合成数据技术</div>
+    <div class="content">
+      <p class="body-text">合成数据通过程序化生成或 AI 生成来补充训练数据，在数据稀缺场景中具有重要价值：</p>
+      <div class="grid-2" style="margin-top:1.6vh;gap:20px">
+        <div>
+          <div class="label-accent" style="margin-bottom:8px">3D 渲染合成</div>
+          <ul class="ulist">
+            <li>Blender + Python API 批量生成</li>
+            <li>精确控制光照、角度、遮挡程度</li>
+            <li>自动生成完美标注（无人工误差）</li>
+            <li>可生成极端场景（罕见光照、危险环境）</li>
+          </ul>
+          <div class="code-block" data-lang="bash" style="margin-top:10px;font-size:14px;padding:10px 14px">
+<span class="comment"># Blender 命令行批量渲染</span>
+blender -b scene.blend -P render_script.py -- \
+    --output_dir ./synthetic_data \
+    --num_variations <span class="number">1000</span> \
+    --resolution <span class="number">1920</span> <span class="number">1080</span></div>
+        </div>
+        <div>
+          <div class="label-accent" style="margin-bottom:8px">AIGC 合成</div>
+          <ul class="ulist">
+            <li>Stable Diffusion + ControlNet 生成</li>
+            <li>可指定物体类别、场景、布局</li>
+            <li>需人工审核生成质量</li>
+            <li>存在域差异风险</li>
+          </ul>
+          <div class="warn-box" style="margin-top:10px">
+            <div class="warn-title">域差异问题</div>
+            <div class="warn-body">合成数据与真实数据之间存在纹理、光照、背景分布差异。直接混合训练可能导致模型在真实场景中性能下降。建议使用<strong>域自适应</strong>技术（如 CycleGAN、域对抗训练）或渐进式混合策略缓解。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 03</div>
+    <div class="module-title">数据来源</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>了解四种主要数据获取途径及其优劣</li>
+      <li>掌握开源数据集的检索与合规使用方法</li>
+      <li>理解视频抽帧的关键参数设置</li>
+      <li>认识合成数据的域差异问题</li>
+    </ul>
+    <div class="page-nb">13 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">数据来源选择策略</div>
+    <div class="content">
+      <p class="body-text">不同项目阶段和资源条件下，数据来源的选择策略有所不同：</p>
+      <table class="simple-table" style="margin-top:1.6vh">
+        <tr><th style="width:18%">项目阶段</th><th style="width:28%">推荐策略</th><th style="width:28%">预算/时间</th><th style="width:26%">预期产出</th></tr>
+        <tr><td><strong>快速原型</strong></td><td>开源数据集 + 少量自采</td><td>1-2 周, 低预算</td><td>500-2000 张, 可验证可行性</td></tr>
+        <tr><td><strong>产品开发</strong></td><td>自采为主 + 开源补充 + 视频抽帧</td><td>4-8 周, 中预算</td><td>5000-20000 张, 覆盖主要场景</td></tr>
+        <tr><td><strong>高精度部署</strong></td><td>大规模自采 + 合成数据增强</td><td>8-16 周, 高预算</td><td>20000+ 张, 覆盖长尾场景</td></tr>
+        <tr><td><strong>持续迭代</strong></td><td>在线难例挖掘 + 主动学习</td><td>持续投入</td><td>按需补充, 持续提升</td></tr>
+      </table>
+      <div class="info-box" style="margin-top:1.6vh">
+        <div class="info-title">推荐组合策略</div>
+        <div class="info-body">建议采用"<strong>开源数据打底 + 自采数据覆盖核心场景 + 视频抽帧扩充数量 + 合成数据补充长尾</strong>"的组合策略。每种来源的数据在训练时按比例混合，并定期评估各来源数据对模型性能的边际贡献。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MODULE 4: 标注工具与规范 (Slides 14-18) -->
+
+<!-- SLIDE 14 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 04</div>
+    <div class="module-title">标注工具与规范</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>掌握 LabelImg 的安装与基本操作</li>
+      <li>了解 Label Studio 的协作标注能力</li>
+      <li>理解标注规范对数据一致性的关键作用</li>
+      <li>掌握标注边界情况的处理规则</li>
+      <li>学会建立标注质量审核流程</li>
+    </ul>
+    <div class="page-nb">14 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">标注工具对比</div>
+    <div class="content">
+      <p class="body-text">选择合适的标注工具是数据集构建效率的关键。以下是主流标注工具的对比：</p>
+      <table class="simple-table" style="margin-top:1.2vh">
+        <tr><th style="width:16%">工具</th><th style="width:18%">安装方式</th><th style="width:22%">核心功能</th><th style="width:22%">适用场景</th><th style="width:22%">协作支持</th></tr>
+        <tr><td><strong>LabelImg</strong></td><td>pip 安装</td><td>矩形框标注, YOLO/VOC 格式导出</td><td>单人小规模标注</td><td>无</td></tr>
+        <tr><td><strong>Label Studio</strong></td><td>pip / Docker</td><td>多类型标注, 项目管理, 导出格式丰富</td><td>团队协作, 多类型标注</td><td>多用户, 项目管理</td></tr>
+        <tr><td><strong>CVAT</strong></td><td>Docker Compose</td><td>自动标注, 跟踪, 语义分割</td><td>大规模团队标注</td><td>完整工作流管理</td></tr>
+        <tr><td><strong>Roboflow</strong></td><td>SaaS</td><td>标注 + 增强 + 导出一站式</td><td>快速原型验证</td><td>云端协作</td></tr>
+        <tr><td><strong>makesense.ai</strong></td><td>浏览器</td><td>轻量在线标注</td><td>快速小规模标注</td><td>无</td></tr>
+      </table>
+      <div class="info-box" style="margin-top:1.6vh">
+        <div class="info-title">课堂推荐</div>
+        <div class="info-body">小规模 YOLO 框标注推荐 <strong>LabelImg</strong>（上手快、零配置）；团队协作或多类型标注推荐 <strong>Label Studio</strong>（功能全面、导出格式丰富）。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 04</div>
+    <div class="module-title">标注工具与规范</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>掌握 LabelImg 的安装与基本操作</li>
+      <li>了解 Label Studio 的协作标注能力</li>
+      <li>理解标注规范对数据一致性的关键作用</li>
+      <li>掌握标注边界情况的处理规则</li>
+      <li>学会建立标注质量审核流程</li>
+    </ul>
+    <div class="page-nb">15 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">LabelImg 安装与使用</div>
+    <div class="content">
+      <p class="body-text">LabelImg 是轻量级矩形框标注工具，GitHub 仓库已归档但仍可用于教学演示。安装与基本使用流程如下：</p>
+      <div class="grid-2" style="margin-top:1.2vh;gap:20px">
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">安装方式</div>
+          <div class="code-block" data-lang="bash" style="font-size:14px;padding:12px 16px">
+<span class="comment"># 方式一：pip 安装（推荐）</span>
+pip install labelImg
+
+<span class="comment"># 方式二：源码安装</span>
+git clone https://github.com/HumanSignal/labelImg.git
+<span class="keyword">cd</span> labelImg
+pip install -r requirements/requirements-qt5.txt
+pyrcc5 -o resources.py resources.qrc
+python labelImg.py
+
+<span class="comment"># 方式三：conda 环境</span>
+conda create -n labelimg <span class="keyword">python=3.8</span>
+conda activate labelimg
+pip install labelImg</div>
+        </div>
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">基本操作流程</div>
+          <ol class="olist">
+            <li>启动：终端执行 <code>labelImg</code></li>
+            <li>设置：点击 "Open Dir" 选择图片目录</li>
+            <li>选择输出格式：YOLO（自动生成 .txt）</li>
+            <li>标注：按 <code>W</code> 键进入创建模式，拖拽画框</li>
+            <li>输入类别名称，确认</li>
+            <li>按 <code>D</code> / <code>A</code> 切换下一张/上一张</li>
+            <li>按 <code>Ctrl+S</code> 保存标注</li>
+          </ol>
+          <div class="label-accent" style="margin:10px 0 6px">快捷键汇总</div>
+          <div style="font-family:var(--font-sans);font-size:15px;line-height:1.6;opacity:.82">
+            <code>W</code> 创建框 · <code>Ctrl+S</code> 保存 · <code>D/A</code> 翻页 · <code>Del</code> 删除框 · <code>Space</code> 切换标注可见
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 04</div>
+    <div class="module-title">标注工具与规范</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>掌握 LabelImg 的安装与基本操作</li>
+      <li>了解 Label Studio 的协作标注能力</li>
+      <li>理解标注规范对数据一致性的关键作用</li>
+      <li>掌握标注边界情况的处理规则</li>
+      <li>学会建立标注质量审核流程</li>
+    </ul>
+    <div class="page-nb">16 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">Label Studio 介绍</div>
+    <div class="content">
+      <p class="body-text">Label Studio 是功能更全面的开源标注平台，支持多用户协作和多种标注类型：</p>
+      <div class="grid-2" style="margin-top:1.2vh;gap:20px">
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">安装与启动</div>
+          <div class="code-block" data-lang="bash" style="font-size:14px;padding:12px 16px">
+<span class="comment"># pip 安装</span>
+pip install label-studio
+
+<span class="comment"># 启动服务</span>
+label-studio start
+
+<span class="comment"># Docker 部署（生产环境推荐）</span>
+docker pull heartexlabs/label-studio:latest
+docker run -it -p <span class="number">8080</span>:8080 \
+  -v <span class="string">$(pwd)/label-studio-data:/label-studio/data</span> \
+  heartexlabs/label-studio:latest
+
+<span class="comment"># 访问 http://localhost:8080</span></div>
+        </div>
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">核心特性</div>
+          <ul class="ulist">
+            <li>支持目标检测、语义分割、OCR、分类等多种标注类型</li>
+            <li>多用户协作，项目管理与权限控制</li>
+            <li>标注结果可导出为 YOLO、COCO、Pascal VOC 等格式</li>
+            <li>支持机器学习辅助标注（预标注、主动学习）</li>
+            <li>REST API 接口，可集成到自动化流水线</li>
+          </ul>
+          <div class="info-box" style="margin-top:10px">
+            <div class="info-title">导出 YOLO 格式</div>
+            <div class="info-body">Label Studio 导出时选择 "YOLO" 格式，会自动生成与图片同名的 .txt 标注文件和 data.yaml 配置文件。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 17 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 04</div>
+    <div class="module-title">标注工具与规范</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>掌握 LabelImg 的安装与基本操作</li>
+      <li>了解 Label Studio 的协作标注能力</li>
+      <li>理解标注规范对数据一致性的关键作用</li>
+      <li>掌握标注边界情况的处理规则</li>
+      <li>学会建立标注质量审核流程</li>
+    </ul>
+    <div class="page-nb">17 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">标注规范核心规则</div>
+    <div class="content">
+      <p class="body-text">标注规范是数据集质量的制度保障。标注一致性比标注"看起来差不多"更重要。以下是必须明确的规则：</p>
+      <div class="grid-2" style="margin-top:1.6vh;gap:20px">
+        <div>
+          <div class="label-accent" style="margin-bottom:8px">框标注规则</div>
+          <ul class="ulist">
+            <li>框应尽量贴合可见目标边界，留 1-2px 余量</li>
+            <li>被遮挡目标：只标注可见部分，不推测完整轮廓</li>
+            <li>过小目标（面积 &lt; 20×20px）：不标注</li>
+            <li>模糊/运动模糊目标：不标注，记录为困难样本</li>
+            <li>同一目标不要重复标注（跨图片除外）</li>
+          </ul>
+        </div>
+        <div>
+          <div class="label-accent" style="margin-bottom:8px">类别标注规则</div>
+          <ul class="ulist">
+            <li>类别名称使用英文小写和下划线</li>
+            <li>不确定的样本集中讨论，不要各标各的</li>
+            <li>目标同时属于多个类别时，按优先级标注</li>
+            <li>背景中出现的无关目标不标注</li>
+            <li>标注完成后需二次审核</li>
+          </ul>
+        </div>
+      </div>
+      <div class="warn-box" style="margin-top:1.6vh">
+        <div class="warn-title">标注一致性检查</div>
+        <div class="warn-body">建议在标注过程中定期进行一致性检查：随机抽取 20-30 张已标注图片，由另一位标注人员重新标注，计算两组标注的 IoU 和类别一致性。若平均 IoU &lt; 0.85 或类别一致性 &lt; 95%，需重新培训标注人员或修订标注规范。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 04</div>
+    <div class="module-title">标注工具与规范</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>掌握 LabelImg 的安装与基本操作</li>
+      <li>了解 Label Studio 的协作标注能力</li>
+      <li>理解标注规范对数据一致性的关键作用</li>
+      <li>掌握标注边界情况的处理规则</li>
+      <li>学会建立标注质量审核流程</li>
+    </ul>
+    <div class="page-nb">18 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">标注质量审核流程</div>
+    <div class="content">
+      <p class="body-text">建立系统化的标注质量审核流程，是保证数据集质量的关键环节：</p>
+      <div class="step-flow" style="margin-top:1.6vh">
+        <div class="step-item">
+          <div class="step-num">PHASE 1</div>
+          <div class="step-label">标注<br>执行</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step-item">
+          <div class="step-num">PHASE 2</div>
+          <div class="step-label">自检<br>（标注者）</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step-item">
+          <div class="step-num">PHASE 3</div>
+          <div class="step-label">交叉<br>审核</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step-item">
+          <div class="step-num">PHASE 4</div>
+          <div class="step-label">可视化<br>检查</div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step-item">
+          <div class="step-num">PHASE 5</div>
+          <div class="step-label">统计<br>分析</div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-top:2vh;gap:20px">
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">审核检查清单</div>
+          <ul class="ulist">
+            <li>所有图片是否都有对应的标注文件</li>
+            <li>标注框是否贴合目标边界</li>
+            <li>类别标签是否正确</li>
+            <li>是否存在漏标的目标</li>
+            <li>是否存在重复标注</li>
+          </ul>
+        </div>
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">统计质量指标</div>
+          <ul class="ulist">
+            <li>每张图片平均目标数（异常值检查）</li>
+            <li>各类别目标数量分布</li>
+            <li>标注框面积分布（过小/过大框比例）</li>
+            <li>标注框长宽比分布（异常比例检查）</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MODULE 5: YOLO 数据格式 (Slides 19-22) -->
+
+<!-- SLIDE 19 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">YOLO 数据格式</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>理解 YOLO 归一化坐标的计算原理</li>
+      <li>掌握 YOLO 标注格式的转换方法</li>
+      <li>学会构建标准数据集目录结构</li>
+      <li>掌握 data.yaml 的配置方法</li>
+    </ul>
+    <div class="page-nb">19 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">YOLO 标注格式详解</div>
+    <div class="content">
+      <p class="body-text">YOLO 格式每张图片对应一个 <code>.txt</code> 文件，每行标注一个目标。格式为：</p>
+      <div class="code-block" data-lang="text" style="margin-top:1.2vh;font-size:16px;text-align:center;padding:16px">
+<span class="keyword">class_id</span>  <span class="number">x_center</span>  <span class="number">y_center</span>  <span class="number">width</span>  <span class="number">height</span></div>
+      <p class="body-text" style="margin-top:1.2vh">所有坐标均为<strong>相对图片宽高归一化</strong>后的值，范围 [0, 1]。归一化坐标的计算公式如下：</p>
+      <div class="grid-2" style="margin-top:1.6vh;gap:20px">
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">坐标转换公式</div>
+          <div class="code-block" data-lang="text" style="font-size:15px;padding:14px 18px">
+x_center = (x1 + x2) / 2 / image_width
+y_center = (y1 + y2) / 2 / image_height
+width    = (x2 - x1) / image_width
+height   = (y2 - y1) / image_height</div>
+          <p style="font-family:var(--font-sans);font-size:16px;line-height:1.5;opacity:.8;margin-top:8px">
+            其中 (x1, y1) 为框左上角像素坐标，(x2, y2) 为右下角像素坐标。
+          </p>
+        </div>
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">计算示例</div>
+          <div class="code-block" data-lang="text" style="font-size:15px;padding:14px 18px">
+<span class="comment"># 图片: 1000×500</span>
+<span class="comment"># 框: (100,50) → (300,200)</span>
+
+x_center = (100+300)/2/1000 = <span class="number">0.200</span>
+y_center = (50+200)/2/500   = <span class="number">0.250</span>
+width    = (300-100)/1000   = <span class="number">0.200</span>
+height   = (200-50)/500     = <span class="number">0.300</span>
+
+<span class="comment"># 若 helmet 的 class_id = 0:</span>
+<span class="number">0</span> <span class="number">0.200</span> <span class="number">0.250</span> <span class="number">0.200</span> <span class="number">0.300</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">YOLO 数据格式</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>理解 YOLO 归一化坐标的计算原理</li>
+      <li>掌握 YOLO 标注格式的转换方法</li>
+      <li>学会构建标准数据集目录结构</li>
+      <li>掌握 data.yaml 的配置方法</li>
+    </ul>
+    <div class="page-nb">20 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">格式转换：COCO → YOLO</div>
+    <div class="content">
+      <p class="body-text">实际项目中常需将 COCO 格式（JSON）转换为 YOLO 格式（TXT）。以下脚本实现批量转换：</p>
+      <div class="code-block" data-lang="python" style="margin-top:1.2vh">
+<span class="keyword">import</span> json
+<span class="keyword">import</span> os
+
+<span class="keyword">def</span> <span class="func">coco_to_yolo</span>(coco_json, output_dir):
+    <span class="keyword">with</span> open(coco_json) <span class="keyword">as</span> f:
+        coco = json.load(f)
+
+    <span class="comment"># 建立图片 ID → 文件名的映射</span>
+    img_map = {img[<span class="string">"id"</span>]: img[<span class="string">"file_name"</span>]
+               <span class="keyword">for</span> img <span class="keyword">in</span> coco[<span class="string">"images"</span>]}
+
+    <span class="comment"># 建立类别 ID 映射（COCO ID → 连续 ID）</span>
+    cat_map = {cat[<span class="string">"id"</span>]: idx
+               <span class="keyword">for</span> idx, cat <span class="keyword">in</span> enumerate(coco[<span class="string">"categories"</span>])}
+
+    <span class="comment"># 按图片分组标注</span>
+    anns_by_img = {}
+    <span class="keyword">for</span> ann <span class="keyword">in</span> coco[<span class="string">"annotations"</span>]:
+        img_id = ann[<span class="string">"image_id"</span>]
+        anns_by_img.setdefault(img_id, []).append(ann)
+
+    os.makedirs(output_dir, exist_ok=<span class="keyword">True</span>)
+
+    <span class="keyword">for</span> img_id, anns <span class="keyword">in</span> anns_by_img.items():
+        fname = img_map[img_id]
+        txt_name = os.path.splitext(fname)[<span class="number">0</span>] + <span class="string">".txt"</span>
+        img_info = <span class="keyword">next</span>(i <span class="keyword">for</span> i <span class="keyword">in</span> coco[<span class="string">"images"</span>]
+                    <span class="keyword">if</span> i[<span class="string">"id"</span>] == img_id)
+        W, H = img_info[<span class="string">"width"</span>], img_info[<span class="string">"height"</span>]
+
+        <span class="keyword">with</span> open(os.path.join(output_dir, txt_name), <span class="string">"w"</span>) <span class="keyword">as</span> f:
+            <span class="keyword">for</span> ann <span class="keyword">in</span> anns:
+                cat_id = cat_map[ann[<span class="string">"category_id"</span>]]
+                x, y, w, h = ann[<span class="string">"bbox"</span>]  <span class="comment"># COCO: [x, y, width, height]</span>
+                x_center = (x + w / <span class="number">2</span>) / W
+                y_center = (y + h / <span class="number">2</span>) / H
+                w_norm = w / W
+                h_norm = h / H
+                f.write(<span class="string">f"{cat_id} {x_center:.6f} {y_center:.6f} {w_norm:.6f} {h_norm:.6f}\n"</span>)</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">YOLO 数据格式</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>理解 YOLO 归一化坐标的计算原理</li>
+      <li>掌握 YOLO 标注格式的转换方法</li>
+      <li>学会构建标准数据集目录结构</li>
+      <li>掌握 data.yaml 的配置方法</li>
+    </ul>
+    <div class="page-nb">21 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">数据集目录结构</div>
+    <div class="content">
+      <p class="body-text">YOLO 训练要求数据集采用标准目录结构，图片和标注文件分开放置但保持同名：</p>
+      <div class="grid-2" style="margin-top:1.2vh;gap:20px">
+        <div>
+          <div class="code-block" data-lang="text" style="font-size:15px;padding:16px 20px">
+dataset/
+├── images/
+│   ├── train/
+│   │   ├── 0001.jpg
+│   │   ├── 0002.jpg
+│   │   └── ...
+│   ├── val/
+│   │   ├── 0101.jpg
+│   │   └── ...
+│   └── test/
+│       ├── 0201.jpg
+│       └── ...
+├── labels/
+│   ├── train/
+│   │   ├── 0001.txt
+│   │   ├── 0002.txt
+│   │   └── ...
+│   ├── val/
+│   │   ├── 0101.txt
+│   │   └── ...
+│   └── test/
+│       ├── 0201.txt
+│       └── ...
+└── data.yaml</div>
+        </div>
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">目录结构要点</div>
+          <ul class="ulist">
+            <li>图片文件和标注文件<strong>必须同名</strong>（扩展名不同）</li>
+            <li>train/val/test 三个子集目录结构一致</li>
+            <li>标注文件为空表示该图片无目标</li>
+            <li>建议图片统一为 JPG 格式</li>
+            <li>文件名建议使用数字编号，补零对齐</li>
+          </ul>
+          <div class="warn-box" style="margin-top:12px">
+            <div class="warn-title">常见错误</div>
+            <div class="warn-body">图片路径和标注路径不匹配是最常见的数据加载错误。建议使用脚本验证：遍历 labels 目录，检查每个 .txt 文件在 images 对应子集中是否存在同名 .jpg 文件。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">YOLO 数据格式</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>理解 YOLO 归一化坐标的计算原理</li>
+      <li>掌握 YOLO 标注格式的转换方法</li>
+      <li>学会构建标准数据集目录结构</li>
+      <li>掌握 data.yaml 的配置方法</li>
+    </ul>
+    <div class="page-nb">22 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">data.yaml 配置详解</div>
+    <div class="content">
+      <p class="body-text"><code>data.yaml</code> 是 YOLO 训练的数据集配置文件，定义数据集路径和类别映射：</p>
+      <div class="grid-2" style="margin-top:1.2vh;gap:20px">
+        <div>
+          <div class="code-block" data-lang="yaml" style="font-size:15px;padding:16px 20px">
+<span class="comment"># 数据集根路径（相对或绝对）</span>
+<span class="attr">path:</span> ./dataset
+
+<span class="comment"># 各子集路径（相对于 path）</span>
+<span class="attr">train:</span> images/train
+<span class="attr">val:</span> images/val
+<span class="attr">test:</span> images/test
+
+<span class="comment"># 类别名称列表</span>
+<span class="attr">names:</span>
+  <span class="number">0</span>: helmet
+  <span class="number">1</span>: person
+
+<span class="comment"># 可选：类别数量</span>
+<span class="comment"># nc: 2</span></div>
+        </div>
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">配置要点</div>
+          <ul class="ulist">
+            <li><code>path</code> 可以是相对路径或绝对路径</li>
+            <li><code>train/val/test</code> 路径相对于 <code>path</code></li>
+            <li><code>names</code> 的索引从 0 开始，与标注文件中的 class_id 对应</li>
+            <li><code>nc</code> 可省略，YOLO 会自动从 names 长度推断</li>
+            <li>YOLOv5/v8/v10 均使用相同的 data.yaml 格式</li>
+          </ul>
+          <div class="info-box" style="margin-top:12px">
+            <div class="info-title">验证命令</div>
+            <div class="info-body">使用 <code>yolo checks</code> 或 <code>yolo task=detect mode=val data=data.yaml</code> 验证配置是否正确。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MODULE 6: 数据清洗与划分 (Slides 23-26) -->
+
+<!-- SLIDE 23 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 06</div>
+    <div class="module-title">数据清洗与划分</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>掌握训练/验证/测试集的划分策略</li>
+      <li>理解按场景分组划分的重要性</li>
+      <li>学会编写数据可视化检查脚本</li>
+      <li>掌握常见数据问题的排查方法</li>
+    </ul>
+    <div class="page-nb">23 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">数据划分策略</div>
+    <div class="content">
+      <p class="body-text">数据划分是模型评估可信度的基础。常见划分比例和策略如下：</p>
+      <div class="grid-2" style="margin-top:1.2vh;gap:20px">
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">标准划分比例</div>
+          <div class="card" style="margin-bottom:12px">
+            <div style="display:flex;gap:12px;align-items:center">
+              <div style="flex:7;height:24px;background:#8b5e3c;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--font-mono);font-size:12px">70% Train</div>
+              <div style="flex:2;height:24px;background:#c49a6c;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--font-mono);font-size:12px">20% Val</div>
+              <div style="flex:1;height:24px;background:#a07050;border-radius:4px;display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--font-mono);font-size:12px">10% Test</div>
+            </div>
+          </div>
+          <ul class="ulist">
+            <li>Train：模型训练，占比最大</li>
+            <li>Val：调参和早停，不参与训练</li>
+            <li>Test：最终评估，仅在最后使用</li>
+          </ul>
+        </div>
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">关键原则：按场景分组</div>
+          <div class="warn-box">
+            <div class="warn-title">避免数据泄露</div>
+            <div class="warn-body">不要将同一个视频的连续帧随机分配到 train 和 test。连续帧高度相似，会导致测试指标虚高（数据泄露）。应<strong>按场景、视频或采集时间分组</strong>划分。</div>
+          </div>
+          <div class="info-box" style="margin-top:10px">
+            <div class="info-title">推荐做法</div>
+            <div class="info-body">按视频文件分组：将每个视频的所有帧作为一个组，按组随机分配到 train/val/test。确保同一视频的帧不会跨组出现。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 24 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 06</div>
+    <div class="module-title">数据清洗与划分</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>掌握训练/验证/测试集的划分策略</li>
+      <li>理解按场景分组划分的重要性</li>
+      <li>学会编写数据可视化检查脚本</li>
+      <li>掌握常见数据问题的排查方法</li>
+    </ul>
+    <div class="page-nb">24 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">数据划分代码实现</div>
+    <div class="content">
+      <p class="body-text">以下脚本实现按视频分组的数据划分，避免数据泄露：</p>
+      <div class="code-block" data-lang="python" style="margin-top:1.2vh">
+<span class="keyword">import</span> os, random, shutil
+<span class="keyword">from</span> glob <span class="keyword">import</span> glob
+
+image_dir = <span class="string">"all_images"</span>
+label_dir = <span class="string">"all_labels"</span>
+output_root = <span class="string">"dataset"</span>
+
+<span class="comment"># 按视频源分组（假设文件名含视频ID: "vid01_0001.jpg"）</span>
+files = os.listdir(image_dir)
+groups = {}
+<span class="keyword">for</span> f <span class="keyword">in</span> files:
+    video_id = f.split(<span class="string">"_"</span>)[<span class="number">0</span>]  <span class="comment"># 提取视频ID</span>
+    groups.setdefault(video_id, []).append(f)
+
+<span class="comment"># 按组随机划分</span>
+group_ids = list(groups.keys())
+random.shuffle(group_ids)
+n = len(group_ids)
+train_ids = group_ids[:int(n * <span class="number">0.7</span>)]
+val_ids = group_ids[int(n * <span class="number">0.7</span>):int(n * <span class="number">0.9</span>)]
+test_ids = group_ids[int(n * <span class="number">0.9</span>):]
+
+<span class="keyword">def</span> <span class="func">copy_files</span>(ids, subset):
+    <span class="keyword">for</span> vid <span class="keyword">in</span> ids:
+        <span class="keyword">for</span> fname <span class="keyword">in</span> groups[vid]:
+            shutil.copy(os.path.join(image_dir, fname),
+                        os.path.join(output_root, <span class="string">"images"</span>, subset, fname))
+            txt_name = os.path.splitext(fname)[<span class="number">0</span>] + <span class="string">".txt"</span>
+            src_txt = os.path.join(label_dir, txt_name)
+            <span class="keyword">if</span> os.path.exists(src_txt):
+                shutil.copy(src_txt,
+                            os.path.join(output_root, <span class="string">"labels"</span>, subset, txt_name))
+
+copy_files(train_ids, <span class="string">"train"</span>)
+copy_files(val_ids, <span class="string">"val"</span>)
+copy_files(test_ids, <span class="string">"test"</span>)
+
+print(<span class="string">f"Train: {len(train_ids)} groups"</span>)
+print(<span class="string">f"Val: {len(val_ids)} groups"</span>)
+print(<span class="string">f"Test: {len(test_ids)} groups"</span>)</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 25 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 06</div>
+    <div class="module-title">数据清洗与划分</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>掌握训练/验证/测试集的划分策略</li>
+      <li>理解按场景分组划分的重要性</li>
+      <li>学会编写数据可视化检查脚本</li>
+      <li>掌握常见数据问题的排查方法</li>
+    </ul>
+    <div class="page-nb">25 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">数据质量可视化检查</div>
+    <div class="content">
+      <p class="body-text">可视化检查是发现数据问题的最后一道防线。以下脚本读取 YOLO 标注并在原图上绘制检测框：</p>
+      <div class="code-block" data-lang="python" style="margin-top:1.2vh">
+<span class="keyword">import</span> cv2
+<span class="keyword">import</span> os
+<span class="keyword">import</span> numpy <span class="keyword">as</span> np
+
+image_dir = <span class="string">"dataset/images/train"</span>
+label_dir = <span class="string">"dataset/labels/train"</span>
+output_dir = <span class="string">"visualization_check"</span>
+os.makedirs(output_dir, exist_ok=<span class="keyword">True</span>)
+
+<span class="comment"># 类别名称和颜色</span>
+class_names = [<span class="string">"helmet"</span>, <span class="string">"person"</span>]
+colors = [(<span class="number">0</span>, <span class="number">200</span>, <span class="number">0</span>), (<span class="number">200</span>, <span class="number">0</span>, <span class="number">0</span>)]
+
+<span class="keyword">for</span> fname <span class="keyword">in</span> os.listdir(image_dir)[:<span class="number">50</span>]:  <span class="comment"># 检查前 50 张</span>
+    img = cv2.imread(os.path.join(image_dir, fname))
+    H, W = img.shape[:<span class="number">2</span>]
+    txt_name = os.path.splitext(fname)[<span class="number">0</span>] + <span class="string">".txt"</span>
+    txt_path = os.path.join(label_dir, txt_name)
+
+    <span class="keyword">if</span> <span class="keyword">not</span> os.path.exists(txt_path):
+        print(<span class="string">f"WARNING: {fname} has no label file"</span>)
+        <span class="keyword">continue</span>
+
+    <span class="keyword">with</span> open(txt_path) <span class="keyword">as</span> f:
+        <span class="keyword">for</span> line <span class="keyword">in</span> f:
+            parts = line.strip().split()
+            <span class="keyword">if</span> len(parts) != <span class="number">5</span>:
+                print(<span class="string">f"ERROR: {txt_name} malformed line: {line}"</span>)
+                <span class="keyword">continue</span>
+            cls_id, xc, yc, w, h = map(float, parts)
+            <span class="keyword">if</span> cls_id &gt;= len(class_names):
+                print(<span class="string">f"ERROR: {txt_name} class_id {cls_id} out of range"</span>)
+                <span class="keyword">continue</span>
+            <span class="comment"># 还原像素坐标</span>
+            x1 = int((xc - w / <span class="number">2</span>) * W)
+            y1 = int((yc - h / <span class="number">2</span>) * H)
+            x2 = int((xc + w / <span class="number">2</span>) * W)
+            y2 = int((yc + h / <span class="number">2</span>) * H)
+            cv2.rectangle(img, (x1, y1), (x2, y2), colors[int(cls_id)], <span class="number">2</span>)
+            cv2.putText(img, class_names[int(cls_id)], (x1, y1 - <span class="number">5</span>),
+                        cv2.FONT_HERSHEY_SIMPLEX, <span class="number">0.6</span>, colors[int(cls_id)], <span class="number">2</span>)
+
+    cv2.imwrite(os.path.join(output_dir, fname), img)
+
+print(<span class="string">f"Visualization saved to {output_dir}"</span>)</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 26 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 06</div>
+    <div class="module-title">数据清洗与划分</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>掌握训练/验证/测试集的划分策略</li>
+      <li>理解按场景分组划分的重要性</li>
+      <li>学会编写数据可视化检查脚本</li>
+      <li>掌握常见数据问题的排查方法</li>
+    </ul>
+    <div class="page-nb">26 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">常见数据问题排查</div>
+    <div class="content">
+      <p class="body-text">数据准备阶段常见问题及其排查方法：</p>
+      <table class="simple-table" style="margin-top:1.2vh">
+        <tr><th style="width:22%">问题</th><th style="width:40%">表现</th><th style="width:38%">排查方法</th></tr>
+        <tr><td><strong>坐标未归一化</strong></td><td>标注框巨大或超出图片边界</td><td>检查 x_center/width 是否 &gt; 1.0；可视化检查框位置</td></tr>
+        <tr><td><strong>宽高写反</strong></td><td>框形状与目标不匹配</td><td>可视化检查框比例；检查标注脚本中 x/y 顺序</td></tr>
+        <tr><td><strong>类别 ID 超范围</strong></td><td>训练时 class 索引错误</td><td>统计所有 label 文件中的 class_id 最大值，与 data.yaml 对比</td></tr>
+        <tr><td><strong>label 文件为空</strong></td><td>图片有目标但无标注</td><td>遍历 label 目录，统计空文件数量；与图片内容对比</td></tr>
+        <tr><td><strong>路径不匹配</strong></td><td>训练时找不到图片或 label</td><td>脚本验证：每个 label 文件是否有对应图片文件</td></tr>
+        <tr><td><strong>图片损坏</strong></td><td>训练时 OpenCV 无法读取</td><td>使用 <code>cv2.imread()</code> 批量检查，统计返回 None 的文件</td></tr>
+      </table>
+      <div class="code-block" data-lang="bash" style="margin-top:1.6vh;font-size:14px;padding:12px 16px">
+<span class="comment"># 快速数据完整性检查脚本</span>
+<span class="keyword">for</span> split <span class="keyword">in</span> train val test; <span class="keyword">do</span>
+    echo <span class="string">"=== $split ==="</span>
+    <span class="comment"># 检查图片-label 配对</span>
+    <span class="keyword">for</span> f <span class="keyword">in</span> dataset/labels/<span class="keyword">$split</span>/*.txt; <span class="keyword">do</span>
+        base=<span class="keyword">$(basename</span> <span class="keyword">$f</span> .txt<span class="keyword">)</span>
+        <span class="keyword">if</span> [ ! -f dataset/images/<span class="keyword">$split</span>/<span class="keyword">$base</span>.jpg ]; <span class="keyword">then</span>
+            echo <span class="string">"MISSING: $base.jpg"</span>
+        <span class="keyword">fi</span>
+    <span class="keyword">done</span>
+    <span class="comment"># 统计</span>
+    echo <span class="string">"Images: $(ls dataset/images/$split/*.jpg 2>/dev/null | wc -l)"</span>
+    echo <span class="string">"Labels: $(ls dataset/labels/$split/*.txt 2>/dev/null | wc -l)"</span>
+<span class="keyword">done</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- MODULE 7: 数据伦理与课堂任务 (Slides 27-32) -->
+
+<!-- SLIDE 27 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 07</div>
+    <div class="module-title">数据伦理与课堂任务</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>理解数据合规的基本要求</li>
+      <li>掌握隐私保护的技术手段</li>
+      <li>能够独立完成小型检测数据集的构建</li>
+      <li>了解主动学习等进阶数据策略</li>
+    </ul>
+    <div class="page-nb">27 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">数据伦理与合规</div>
+    <div class="content">
+      <p class="body-text">涉及人脸、车牌、企业生产线、实验室设备等敏感数据时，必须从项目第一天建立数据合规意识：</p>
+      <div class="grid-2" style="margin-top:1.6vh;gap:20px">
+        <div>
+          <div class="label-accent" style="margin-bottom:8px">合规检查清单</div>
+          <ul class="ulist">
+            <li>是否获得数据采集授权</li>
+            <li>是否需要对人脸、车牌进行打码处理</li>
+            <li>是否允许公开展示或用于训练</li>
+            <li>是否可上传到第三方平台（如云端标注平台）</li>
+            <li>数据存储是否符合数据保护法规要求</li>
+          </ul>
+        </div>
+        <div>
+          <div class="label-accent" style="margin-bottom:8px">隐私保护技术</div>
+          <ul class="ulist">
+            <li>人脸模糊：OpenCV 高斯模糊或像素化</li>
+            <li>车牌遮盖：矩形遮盖或替换</li>
+            <li>数据脱敏：去除 EXIF 元数据</li>
+            <li>差分隐私：训练时添加噪声</li>
+            <li>联邦学习：数据不出本地</li>
+          </ul>
+        </div>
+      </div>
+      <div class="code-block" data-lang="python" style="margin-top:1.6vh;font-size:14px;padding:12px 16px">
+<span class="comment"># 人脸模糊处理示例</span>
+<span class="keyword">import</span> cv2
+
+img = cv2.imread(<span class="string">"input.jpg"</span>)
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + <span class="string">"haarcascade_frontalface_default.xml"</span>)
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+faces = face_cascade.detectMultiScale(gray, <span class="number">1.1</span>, <span class="number">4</span>)
+
+<span class="keyword">for</span> (x, y, w, h) <span class="keyword">in</span> faces:
+    face_roi = img[y:y+h, x:x+w]
+    face_roi = cv2.GaussianBlur(face_roi, (<span class="number">99</span>, <span class="number">99</span>), <span class="number">30</span>)
+    img[y:y+h, x:x+w] = face_roi
+
+cv2.imwrite(<span class="string">"output_blurred.jpg"</span>, img)</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 28 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 07</div>
+    <div class="module-title">数据伦理与课堂任务</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>理解数据合规的基本要求</li>
+      <li>掌握隐私保护的技术手段</li>
+      <li>能够独立完成小型检测数据集的构建</li>
+      <li>了解主动学习等进阶数据策略</li>
+    </ul>
+    <div class="page-nb">28 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">合规操作指南</div>
+    <div class="content">
+      <p class="body-text">不同数据类型对应的合规处理要求：</p>
+      <table class="simple-table" style="margin-top:1.2vh">
+        <tr><th style="width:18%">数据类型</th><th style="width:28%">风险等级</th><th style="width:28%">处理要求</th><th style="width:26%">注意事项</th></tr>
+        <tr><td><strong>公开数据集</strong></td><td>低</td><td>确认许可协议，保留署名</td><td>CC-BY 需署名，CC-NC 不可商用</td></tr>
+        <tr><td><strong>公共场所拍摄</strong></td><td>中</td><td>人脸/车牌打码</td><td>不同国家/地区法规差异大</td></tr>
+        <tr><td><strong>企业内部数据</strong></td><td>高</td><td>签署保密协议，数据脱敏</td><td>禁止上传至第三方平台</td></tr>
+        <tr><td><strong>实验室/医疗数据</strong></td><td>极高</td><td>伦理审查，知情同意</td><td>需专门的数据保护方案</td></tr>
+        <tr><td><strong>合成数据</strong></td><td>低</td><td>标注生成方式</td><td>避免生成真实人物肖像</td></tr>
+      </table>
+      <div class="info-box" style="margin-top:1.6vh">
+        <div class="info-title">基本原则</div>
+        <div class="info-body">数据合规的核心原则是"<strong>知情、同意、最小化</strong>"。采集前获得明确授权，仅收集任务所需的最少数据，建立数据访问和使用的审计日志。AI 项目应从第一天建立数据合规意识，而非在项目后期补救。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 29 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 07</div>
+    <div class="module-title">数据伦理与课堂任务</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>理解数据合规的基本要求</li>
+      <li>掌握隐私保护的技术手段</li>
+      <li>能够独立完成小型检测数据集的构建</li>
+      <li>了解主动学习等进阶数据策略</li>
+    </ul>
+    <div class="page-nb">29 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">课堂任务：构建小型检测数据集</div>
+    <div class="content">
+      <p class="body-text">本次课堂任务要求每组独立完成一个完整的小型目标检测数据集构建流程：</p>
+      <div class="grid-2" style="margin-top:1.6vh;gap:20px">
+        <div>
+          <div class="label-accent" style="margin-bottom:8px">任务步骤</div>
+          <ol class="olist">
+            <li>选择 1 个检测场景（如教室物品、校园交通、实验室设备）</li>
+            <li>定义 2-4 个检测类别</li>
+            <li>收集不少于 50 张图片（手机拍摄即可）</li>
+            <li>使用 LabelImg 完成标注，不少于 100 个目标框</li>
+            <li>按 70/20/10 划分训练/验证/测试集</li>
+            <li>生成 data.yaml 配置文件</li>
+            <li>运行可视化检查脚本，输出 10 张标注样例</li>
+          </ol>
+        </div>
+        <div>
+          <div class="label-accent" style="margin-bottom:8px">交付物清单</div>
+          <ul class="ulist">
+            <li>标准目录结构的数据集（images + labels）</li>
+            <li>data.yaml 配置文件</li>
+            <li>10 张标注可视化样例图片</li>
+            <li>数据划分脚本（Python）</li>
+            <li>类别分布统计报告</li>
+          </ul>
+          <div class="info-box" style="margin-top:12px">
+            <div class="info-title">时间分配</div>
+            <div class="info-body">场景选择 10 分钟 → 数据采集 20 分钟 → 标注 30 分钟 → 数据整理 15 分钟 → 可视化检查 15 分钟。总计约 90 分钟。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 30 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 07</div>
+    <div class="module-title">数据伦理与课堂任务</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>理解数据合规的基本要求</li>
+      <li>掌握隐私保护的技术手段</li>
+      <li>能够独立完成小型检测数据集的构建</li>
+      <li>了解主动学习等进阶数据策略</li>
+    </ul>
+    <div class="page-nb">30 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">任务交付物规范</div>
+    <div class="content">
+      <p class="body-text">各交付物的具体格式要求：</p>
+      <div class="grid-2" style="margin-top:1.2vh;gap:20px">
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">数据集目录结构</div>
+          <div class="code-block" data-lang="text" style="font-size:14px;padding:12px 16px">
+submission/
+├── dataset/
+│   ├── images/
+│   │   ├── train/  (35 images)
+│   │   ├── val/    (10 images)
+│   │   └── test/   (5 images)
+│   ├── labels/
+│   │   ├── train/
+│   │   ├── val/
+│   │   └── test/
+│   └── data.yaml
+├── visualization/
+│   ├── 0001_checked.jpg
+│   ├── 0002_checked.jpg
+│   └── ... (10 files)
+├── split_data.py
+└── class_distribution.txt</div>
+        </div>
+        <div>
+          <div class="label-accent" style="margin-bottom:6px">评分标准</div>
+          <table class="simple-table" style="font-size:15px">
+            <tr><th style="width:50%">项目</th><th style="width:25%">分值</th><th style="width:25%">占比</th></tr>
+            <tr><td>目录结构正确性</td><td>20</td><td>20%</td></tr>
+            <tr><td>标注质量（框贴合度）</td><td>30</td><td>30%</td></tr>
+            <tr><td>类别定义合理性</td><td>15</td><td>15%</td></tr>
+            <tr><td>数据划分合理性</td><td>15</td><td>15%</td></tr>
+            <tr><td>可视化检查完整性</td><td>20</td><td>20%</td></tr>
+          </table>
+          <div class="warn-box" style="margin-top:12px">
+            <div class="warn-title">注意事项</div>
+            <div class="warn-body">标注时注意隐私保护：如拍摄到人脸，需在提交前进行模糊处理。提交物中不得包含未经授权的个人身份信息。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 31 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 07</div>
+    <div class="module-title">数据伦理与课堂任务</div>
+    <div class="obj-title">学习目标</div>
+    <ul class="obj-list">
+      <li>理解数据合规的基本要求</li>
+      <li>掌握隐私保护的技术手段</li>
+      <li>能够独立完成小型检测数据集的构建</li>
+      <li>了解主动学习等进阶数据策略</li>
+    </ul>
+    <div class="page-nb">31 / 32</div>
+  </div>
+  <div class="main">
+    <div class="section-title">课外拓展与进阶话题</div>
+    <div class="content">
+      <p class="body-text">以下进阶方向供课后深入学习和研究：</p>
+      <div class="grid-2" style="margin-top:1.6vh;gap:20px">
+        <div class="card">
+          <div class="card-title">主动学习</div>
+          <div class="card-body">
+            <p style="font-size:16px;line-height:1.5;opacity:.85;margin-bottom:8px">先标注少量数据训练初始模型，然后让模型对未标注数据预测，筛选出模型"最不确定"的样本进行补充标注。迭代多轮后，可用更少的标注量达到同等性能。</p>
+            <div class="label-accent" style="margin-top:6px">常用策略</div>
+            <p style="font-size:15px;opacity:.75">不确定性采样 · 边缘采样 · 委员会查询 · 预期模型变化</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">数据集规模与性能关系</div>
+          <div class="card-body">
+            <p style="font-size:16px;line-height:1.5;opacity:.85;margin-bottom:8px">数据集规模与质量的权衡：在类别清晰、场景覆盖充分、标注一致性高的情况下，"小而精"的数据更具训练价值。</p>
+            <div class="label-accent" style="margin-top:6px">思考方向</div>
+            <p style="font-size:15px;opacity:.75">数据质量 vs 数量的边际收益 · 场景覆盖 vs 样本重复 · 标注噪声的影响 · 小样本学习方法的适用条件</p>
+          </div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-top:1.2vh;gap:20px">
+        <div class="card">
+          <div class="card-title">半监督与弱监督学习</div>
+          <div class="card-body">
+            <p style="font-size:16px;line-height:1.5;opacity:.85">利用少量标注数据 + 大量未标注数据训练。常用方法包括伪标签、一致性正则化、自训练等。在标注成本高昂的场景中具有重要实用价值。</p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">数据增强策略</div>
+          <div class="card-body">
+            <p style="font-size:16px;line-height:1.5;opacity:.85">YOLO 内置了丰富的在线数据增强：马赛克增强、混合增强、随机仿射变换、HSV 扰动等。理解每种增强对模型泛化能力的影响，有助于针对性地配置增强参数。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 32: END -->
+<section class="slide end">
+  <div class="end-inner">
+    <div class="end-divider"></div>
+    <h1 class="end-title">本讲总结</h1>
+    <p class="end-sub">数据采集、标注规范与 YOLO 数据集构建 · 第七部分</p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px;max-width:860px;margin:3vh auto 0;text-align:left">
+      <div class="card"><div class="card-title">数据来源</div><p>围绕业务场景确定采集对象、拍摄角度、光照条件与样本覆盖范围。</p></div>
+      <div class="card"><div class="card-title">标注质量</div><p>统一类别命名、框选边界、遮挡规则与质检流程，减少训练噪声。</p></div>
+      <div class="card"><div class="card-title">数据集构建</div><p>完成 YOLO 目录结构、标签格式、训练/验证划分与版本记录。</p></div>
+    </div>
+    <div class="end-divider"></div>
+    <div style="font-family:var(--font-mono);font-size:13px;letter-spacing:.18em;opacity:.4;margin-top:3vh">目标检测课程 · 2026</div>
+  </div>
+</section>
+
+</div>
+<div id="nav"></div>
+<script>
+const deck=document.getElementById('deck');
+const slides=deck.querySelectorAll('.slide');
+const nav=document.getElementById('nav');
+let idx=0,total=slides.length,lock=false;
+deck.style.width=(total*100)+'vw';
+slides.forEach((s,i)=>{
+  const b=document.createElement('button');
+  b.className='dot';b.dataset.i=i;b.setAttribute('aria-label','Page '+(i+1));
+  b.onclick=()=>go(i);
+  nav.appendChild(b);
+});
+function go(n){
+  if(lock)return;
+  idx=Math.max(0,Math.min(total-1,n));
+  deck.style.transform=`translateX(${-idx*100}vw)`;
+  slides.forEach((s,i)=>s.classList.toggle('active',i===idx));
+  nav.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===idx));
+  lock=true;setTimeout(()=>lock=false,700);
+}
+addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key==='PageDown'||e.key==='ArrowDown')go(idx+1);
+  if(e.key==='ArrowLeft'||e.key==='PageUp'||e.key==='ArrowUp')go(idx-1);
+  if(e.key==='Home')go(0);
+  if(e.key==='End')go(total-1);
+});
+let wheelAcc=0,wheelTO=null;
+addEventListener('wheel',e=>{
+  wheelAcc+=e.deltaY+e.deltaX;
+  if(Math.abs(wheelAcc)>50){go(idx+(wheelAcc>0?1:-1));wheelAcc=0;}
+  clearTimeout(wheelTO);wheelTO=setTimeout(()=>wheelAcc=0,150);
+},{passive:true});
+let tx=0,ty=0;
+addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY},{passive:true});
+addEventListener('touchend',e=>{
+  const dx=(e.changedTouches[0].clientX-tx);
+  const dy=(e.changedTouches[0].clientY-ty);
+  if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy))go(idx+(dx<0?1:-1));
+},{passive:true});
+go(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,1841 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>目标检测范式与YOLO系列原理 · 课程专题</title>
+<style>
+:root {
+  --paper:      oklch(94% 0.018 70);
+  --paper-dark: oklch(88% 0.022 65);
+  --paper-darker: oklch(82% 0.025 60);
+  --ink:        oklch(22% 0.025 50);
+  --ink-light:  oklch(42% 0.02 50);
+  --ink-muted:  oklch(55% 0.015 50);
+  --accent:     oklch(42% 0.12 30);
+  --accent-light: oklch(55% 0.10 40);
+  --border:     oklch(80% 0.02 60);
+  --sidebar-w:  280px;
+  --font-display: 'Noto Serif SC', Georgia, 'Times New Roman', serif;
+  --font-body:    'Noto Serif SC', Georgia, 'Times New Roman', serif;
+  --font-sans:    'Noto Sans SC', 'Segoe UI', system-ui, sans-serif;
+  --font-mono:    'IBM Plex Mono', 'JetBrains Mono', 'Cascadia Code', ui-monospace, monospace;
+}
+html { font-size: 17px; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; font-family: var(--font-body); color: var(--ink); background: var(--paper); }
+#deck { display: flex; width: 100%; height: 100%; transition: transform 0.45s cubic-bezier(0.4, 0, 0.2, 1); will-change: transform; }
+.slide { flex: 0 0 100vw; height: 100vh; display: flex; overflow: hidden; position: relative; }
+
+/* Sidebar */
+.sidebar { width: var(--sidebar-w); min-width: var(--sidebar-w); height: 100vh; background: var(--paper-dark); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 2rem 1.2rem; overflow-y: auto; }
+.sidebar .module-label { font-family: var(--font-sans); font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin-bottom: 0.5rem; }
+.sidebar .module-title { font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; line-height: 1.35; color: var(--ink); margin-bottom: 1.5rem; }
+.sidebar .obj-header { font-family: var(--font-sans); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); font-weight: 600; margin-bottom: 0.6rem; }
+.sidebar .obj-list { list-style: none; }
+.sidebar .obj-list li { position: relative; padding-left: 1.1rem; margin-bottom: 0.6rem; font-size: 0.82rem; line-height: 1.4; color: var(--ink-light); }
+.sidebar .obj-list li::before { content: ""; position: absolute; left: 0; top: 0.5em; width: 5px; height: 5px; border-radius: 50%; background: var(--accent-light); }
+.sidebar .page-indicator { margin-top: auto; font-family: var(--font-mono); font-size: 0.7rem; color: var(--ink-muted); letter-spacing: 0.05em; padding-top: 0.8rem; border-top: 1px solid var(--border); }
+
+/* Content area — tighter padding, flex to fill vertical space */
+.content { flex: 1; height: 100vh; padding: 1.6rem 2.2rem; overflow-y: auto; display: flex; flex-direction: column; }
+.content .slide-nb { position: absolute; top: 0.8rem; right: 1.5rem; font-family: var(--font-mono); font-size: 0.75rem; color: var(--ink-muted); }
+.content h2 { font-family: var(--font-display); font-size: 2.2rem; font-weight: 700; color: var(--ink); margin-bottom: 0.5rem; line-height: 1.2; padding-bottom: 0.3rem; border-bottom: 2px solid var(--accent); flex-shrink: 0; }
+.content h3 { font-family: var(--font-display); font-size: 1.4rem; font-weight: 600; color: var(--ink); margin: 0.5rem 0 0.25rem; line-height: 1.3; flex-shrink: 0; }
+.content h4 { font-family: var(--font-sans); font-size: 0.95rem; font-weight: 600; color: var(--accent); margin: 0.4rem 0 0.2rem; letter-spacing: 0.03em; flex-shrink: 0; }
+.content p { font-size: 1.05rem; line-height: 1.5; margin-bottom: 0.35rem; color: var(--ink); }
+.content ul, .content ol { margin: 0.2rem 0 0.35rem 1.3rem; }
+.content li { font-size: 1rem; line-height: 1.45; margin-bottom: 0.1rem; color: var(--ink); }
+.content strong { font-weight: 700; color: var(--ink); }
+.content em { font-style: italic; color: var(--ink-light); }
+
+/* Code blocks — slightly larger for readability */
+.code-block { background: var(--paper-darker); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 4px; padding: 0.5rem 0.85rem; margin: 0.3rem 0; font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.4; overflow-x: auto; white-space: pre; color: var(--ink); flex-shrink: 0; }
+.code-inline { font-family: var(--font-mono); font-size: 0.88rem; background: var(--paper-darker); padding: 0.1em 0.35em; border-radius: 3px; color: var(--accent); }
+
+/* Tables */
+.data-table { width: 100%; border-collapse: collapse; margin: 0.35rem 0; font-size: 0.88rem; flex-shrink: 0; }
+.data-table th { background: var(--paper-dark); font-family: var(--font-sans); font-weight: 600; text-align: left; padding: 0.35rem 0.5rem; border: 1px solid var(--border); color: var(--ink); }
+.data-table td { padding: 0.3rem 0.5rem; border: 1px solid var(--border); color: var(--ink); vertical-align: top; }
+.data-table tr:nth-child(even) td { background: oklch(91% 0.015 65); }
+
+/* Callout boxes — compact */
+.callout { background: oklch(90% 0.025 60); border-left: 3px solid var(--accent); padding: 0.4rem 0.85rem; margin: 0.3rem 0; border-radius: 0 4px 4px 0; flex-shrink: 0; }
+.callout.warn { border-left-color: oklch(55% 0.15 60); background: oklch(92% 0.02 55); }
+.callout.info { border-left-color: oklch(50% 0.08 220); background: oklch(91% 0.015 200); }
+.callout p { font-size: 0.92rem; margin-bottom: 0.15rem; }
+.callout .label { font-family: var(--font-sans); font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); margin-bottom: 0.15rem; }
+
+/* Grid layouts */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; margin: 0.25rem 0; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.6rem; margin: 0.25rem 0; }
+.grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 0.8rem; margin: 0.25rem 0; }
+.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 0.5rem; margin: 0.25rem 0; }
+.card { background: var(--paper-dark); border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; }
+.card h4 { margin-top: 0; font-size: 0.85rem; }
+.card p { font-size: 0.88rem; margin-bottom: 0; }
+
+/* Flow diagram */
+.flow-row { display: flex; align-items: center; justify-content: center; gap: 0.2rem; margin: 0.4rem 0; flex-wrap: wrap; flex-shrink: 0; }
+.flow-box { background: var(--paper-dark); border: 1.5px solid var(--accent-light); border-radius: 4px; padding: 0.3rem 0.6rem; font-family: var(--font-sans); font-size: 0.82rem; font-weight: 500; text-align: center; color: var(--ink); }
+.flow-arrow { font-size: 1.1rem; color: var(--accent-light); font-family: var(--font-sans); }
+
+/* Step list */
+.steps { counter-reset: step; list-style: none; margin: 0.25rem 0; flex-shrink: 0; }
+.steps li { counter-increment: step; position: relative; padding-left: 2rem; margin-bottom: 0.25rem; font-size: 0.95rem; line-height: 1.4; }
+.steps li::before { content: counter(step); position: absolute; left: 0; top: 0.1em; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--accent); color: #fff; font-family: var(--font-mono); font-size: 0.7rem; display: flex; align-items: center; justify-content: center; font-weight: 600; }
+
+/* Tag pills */
+.tag { display: inline-block; font-family: var(--font-sans); font-size: 0.7rem; font-weight: 600; padding: 0.1em 0.45em; border-radius: 3px; margin-right: 0.25em; letter-spacing: 0.03em; }
+.tag-red { background: oklch(85% 0.08 30); color: oklch(35% 0.12 30); }
+.tag-blue { background: oklch(85% 0.06 220); color: oklch(30% 0.10 220); }
+.tag-green { background: oklch(85% 0.08 140); color: oklch(30% 0.12 140); }
+.tag-yellow { background: oklch(88% 0.08 85); color: oklch(35% 0.12 70); }
+
+/* Title slide */
+.title-slide .content { justify-content: center; align-items: center; text-align: center; }
+.title-slide .content h1 { font-family: var(--font-display); font-size: 2.8rem; font-weight: 900; color: var(--ink); line-height: 1.2; margin-bottom: 0.6rem; }
+.title-slide .content .subtitle { font-family: var(--font-display); font-size: 1.3rem; color: var(--ink-light); margin-bottom: 1.2rem; }
+.title-slide .content .meta { font-family: var(--font-sans); font-size: 0.95rem; color: var(--ink-muted); letter-spacing: 0.05em; }
+.title-slide .content .course-bridge { width: min(720px, 86%); margin-top: 1.4rem !important; text-align: left; }
+.title-slide .sidebar { background: var(--accent); }
+.title-slide .sidebar .module-label, .title-slide .sidebar .module-title, .title-slide .sidebar .obj-list li, .title-slide .sidebar .obj-header { color: oklch(90% 0.02 50); }
+.title-slide .sidebar .obj-list li::before { background: oklch(90% 0.02 50); }
+.title-slide .sidebar .page-indicator { color: oklch(80% 0.02 50); border-top-color: oklch(70% 0.02 50); }
+
+/* Navigation */
+#nav-dots { position: fixed; bottom: 0.8rem; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; z-index: 100; }
+#nav-dots .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); border: none; cursor: pointer; transition: all 0.2s; }
+#nav-dots .dot.active { background: var(--accent); transform: scale(1.3); }
+#nav-arrows { position: fixed; bottom: 0.8rem; right: 1.5rem; display: flex; gap: 0.4rem; z-index: 100; }
+#nav-arrows button { background: var(--paper-dark); border: 1px solid var(--border); border-radius: 4px; width: 1.8rem; height: 1.8rem; cursor: pointer; font-size: 0.85rem; color: var(--ink); display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+#nav-arrows button:hover { background: var(--paper-darker); }
+#nav-arrows button:disabled { opacity: 0.3; cursor: default; }
+
+/* Scrollbar styling */
+.content::-webkit-scrollbar { width: 4px; }
+.content::-webkit-scrollbar-track { background: transparent; }
+.content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.sidebar::-webkit-scrollbar { width: 3px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Print */
+@media print { .slide { page-break-after: always; height: auto; } #nav-dots, #nav-arrows { display: none; } }
+
+/* Responsive */
+@media (max-width: 900px) {
+  :root { --sidebar-w: 200px; }
+  .content { padding: 1rem 1.2rem; }
+  .content h2 { font-size: 1.6rem; }
+  .content p { font-size: 0.95rem; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+}
+</style>
+<style>
+/* ===== inlined unified course styles for standalone distribution ===== */
+/* Course-wide visual normalization.
+   This file intentionally mirrors the warm academic style of 1.html while
+   preserving each deck's existing navigation/runtime structure. */
+:root{
+  --bg:#faf7f0!important;
+  --bg-soft:#f0ece0!important;
+  --surface:#ffffff!important;
+  --surface-2:#f7f1e3!important;
+  --border:rgba(90,60,30,.13)!important;
+  --border-strong:rgba(90,60,30,.28)!important;
+  --text-1:#2a1f12!important;
+  --text-2:#5a4a33!important;
+  --text-3:#8a7859!important;
+  --accent:#3b7a5a!important;
+  --accent-2:#c4812a!important;
+  --accent-3:#b8452e!important;
+  --paper:#faf7f0!important;
+  --paper-tint:#f0ece0!important;
+  --paper-rgb:250,247,240!important;
+  --ink:#2a1f12!important;
+  --ink-rgb:42,31,18!important;
+  --ink-tint:#5a4a33!important;
+  --code-bg:#2a1f12!important;
+  --radius:14px!important;
+  --radius-sm:12px!important;
+  --shadow:0 8px 24px rgba(90,60,30,.07)!important;
+  --font-sans:'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif!important;
+  --font-serif:'Playfair Display','Noto Serif SC',Georgia,serif!important;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace!important;
+}
+html,body,#deck,.deck{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+  font-family:var(--font-sans)!important;
+  letter-spacing:-.01em;
+}
+.slide,
+section[class*="slide"],
+.slide.light,
+.slide.dark,
+.slide-cover,
+.slide-divider{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+}
+.slide.full,
+.cover,
+.slide-cover{
+  background:var(--bg)!important;
+}
+.main,
+.content,
+.slide-content,
+.main-content,
+.right,
+.body,
+.stage{
+  color:var(--text-1)!important;
+  min-height:0!important;
+}
+h1,h2,h3,
+.h1,.h2,.h3,
+.slide-title,
+.cover-title,
+.end-title,
+.h-hero,
+.h-xl,
+.main h1,
+.main h2,
+.main h3{
+  font-family:var(--font-serif)!important;
+  color:var(--text-1)!important;
+  letter-spacing:-.02em!important;
+}
+h1,.h1,.cover-title,.slide-title,.h-hero{
+  font-weight:800!important;
+}
+h2,.h2,.h-xl{
+  font-weight:700!important;
+}
+p,li,td,th,.lede,.dim,.dim2,.fn-desc,.body-text,.txt,.label{
+  color:var(--text-2);
+}
+strong,b{color:var(--text-1)}
+.kicker,
+.eyebrow,
+.module-label,
+.sidebar-module-label,
+.module-code,
+.obj-label,
+.obj-title,
+.obj-header,
+.objectives-title,
+.lb-title,
+.sidebar-label{
+  color:var(--accent-2)!important;
+  font-family:var(--font-sans)!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  letter-spacing:.14em!important;
+  text-transform:uppercase!important;
+}
+.sidebar,
+aside.sidebar,
+.learning-sidebar,
+.slide-sidebar,
+.left-col{
+  background:transparent!important;
+  border-right:1px solid var(--border)!important;
+  border-left:0!important;
+  padding-right:24px!important;
+  color:var(--text-2)!important;
+  box-shadow:none!important;
+}
+.sidebar-title,
+.module-title,
+.sidebar-module,
+.lb-module,
+.brand,
+.sidebar .brand{
+  font-family:var(--font-serif)!important;
+  color:var(--accent)!important;
+  font-size:20px!important;
+  line-height:1.25!important;
+  font-weight:700!important;
+}
+.obj-list,
+.objectives,
+.objective-list,
+.learning-sidebar ul,
+.slide-sidebar ul{
+  list-style:none!important;
+  padding:0!important;
+  margin:0!important;
+  font-family:var(--font-sans)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+  color:var(--text-2)!important;
+}
+.obj-list li,
+.objectives li,
+.objective-list li,
+.learning-sidebar li,
+.slide-sidebar li{
+  position:relative!important;
+  padding:7px 0 7px 22px!important;
+  border-bottom:1px dashed var(--border)!important;
+  color:var(--text-2)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+}
+.obj-list li::before,
+.objectives li::before,
+.objective-list li::before,
+.learning-sidebar li::before,
+.slide-sidebar li::before{
+  content:"○"!important;
+  position:absolute!important;
+  left:0!important;
+  top:7px!important;
+  color:var(--accent)!important;
+  width:auto!important;
+  height:auto!important;
+  background:transparent!important;
+  border-radius:0!important;
+  opacity:1!important;
+}
+.obj-list li.current::before,
+.objectives li.current::before,
+.objective-list li.current::before,
+.obj-list li.highlight::before,
+.objectives li.highlight::before,
+.objective-list li.highlight::before{
+  content:"▸"!important;
+  color:var(--accent-2)!important;
+}
+.obj-list li.current,
+.objectives li.current,
+.objective-list li.current,
+.obj-list li.highlight,
+.objectives li.highlight,
+.objective-list li.highlight{
+  color:var(--text-1)!important;
+  font-weight:700!important;
+}
+.card,
+.concept-box,
+.col-item,
+.metric-card,
+.panel,
+.info-card,
+.tip-box,
+.callout-box,
+.comp-item,
+.diagram-box,
+.data-card,
+.feature-card,
+.task-card,
+.warning-card,
+.workflow-card{
+  background:var(--surface)!important;
+  border:1px solid var(--border)!important;
+  border-radius:var(--radius)!important;
+  box-shadow:var(--shadow)!important;
+  color:var(--text-1)!important;
+}
+.card-accent,
+.accent-card,
+.concept-box h4{
+  border-color:var(--border)!important;
+}
+.callout,
+.tip,
+.note-box{
+  background:var(--surface-2)!important;
+  border-left:4px solid var(--accent-2)!important;
+  border-radius:0 var(--radius) var(--radius) 0!important;
+  color:var(--text-2)!important;
+}
+.warn-box,
+.warning,
+.alert{
+  background:rgba(196,129,42,.08)!important;
+  border:1px solid rgba(196,129,42,.3)!important;
+  border-radius:var(--radius)!important;
+  color:var(--text-2)!important;
+}
+.course-bridge{
+  max-width:72ch;
+  margin-top:16px!important;
+  padding:10px 16px!important;
+  font-size:13px!important;
+  line-height:1.45!important;
+}
+.course-bridge b{
+  color:var(--accent-2)!important;
+}
+.title-slide .content .course-bridge{
+  width:min(720px,86%)!important;
+  align-self:center!important;
+  margin-top:1.4rem!important;
+  text-align:left!important;
+}
+
+
+
+.slide > .sidebar + .main-content + .course-bridge{
+  left:calc(18vw + 3vw)!important;
+  max-width:min(760px,70vw)!important;
+}
+
+.slide > .course-bridge,
+.hero .course-bridge,
+.slide.full .course-bridge,
+section.full .course-bridge{
+  position:absolute!important;
+  left:6vw!important;
+  right:auto!important;
+  bottom:9vh!important;
+  max-width:min(760px,64vw)!important;
+  margin:0!important;
+  z-index:3!important;
+}
+.slide.compact .h2,
+section.compact .h2,
+.slide.compact h2,
+section.compact h2{
+  font-size:clamp(25px,2.15vw,34px)!important;
+  line-height:1.12!important;
+  margin-bottom:6px!important;
+}
+.slide.compact .lede,
+section.compact .lede,
+.slide.compact .fn-desc,
+section.compact .fn-desc,
+.slide.compact p,
+section.compact p{
+  font-size:clamp(13px,1.05vw,16px)!important;
+  line-height:1.45!important;
+}
+.slide.compact .card,
+section.compact .card,
+.slide.compact .concept-box,
+section.compact .concept-box,
+.slide.compact .col-item,
+section.compact .col-item{
+  padding:12px 15px!important;
+}
+.slide.compact .concept-box h4,
+section.compact .concept-box h4,
+.slide.compact .card h4,
+section.compact .card h4{
+  font-size:clamp(14px,1.1vw,17px)!important;
+  line-height:1.25!important;
+  margin-bottom:4px!important;
+}
+.slide.compact .grid,
+section.compact .grid{
+  gap:12px!important;
+}
+.slide.compact .mt-l,
+section.compact .mt-l{
+  margin-top:14px!important;
+}
+.slide.compact .mt-m,
+section.compact .mt-m{
+  margin-top:8px!important;
+}
+.problem-grid .concept-box{
+  min-height:118px;
+}
+.problem-grid .concept-box:last-child{
+  grid-column:1/-1;
+  min-height:96px;
+}
+.slide.code-heavy .code-block,
+section.code-heavy .code-block{
+  font-size:clamp(10px,.82vw,12px)!important;
+  line-height:1.28!important;
+  padding:10px 12px!important;
+}
+.slide.compact .data-table th,
+.slide.compact .data-table td,
+section.compact .data-table th,
+section.compact .data-table td{
+  padding:4px 7px!important;
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.3!important;
+}
+.slide.compact .code-block,
+section.compact .code-block{
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.35!important;
+  padding:10px 12px!important;
+}
+pre,
+code,
+.code,
+.code-block,
+.code-panel{
+  font-family:var(--font-mono)!important;
+}
+pre,
+.code,
+.code-block,
+.code-panel{
+  background:#2a1f12!important;
+  color:#f0ece0!important;
+  border:0!important;
+  border-radius:var(--radius)!important;
+  box-shadow:none!important;
+}
+code:not(pre code){
+  background:rgba(90,60,30,.08)!important;
+  color:var(--text-1)!important;
+}
+table,
+.data-table{
+  border-color:var(--border)!important;
+}
+th,
+.data-table th{
+  background:var(--surface-2)!important;
+  color:var(--text-1)!important;
+}
+td,
+.data-table td{
+  background:var(--surface)!important;
+  color:var(--text-2)!important;
+}
+.pill,
+.pill-academic,
+.tag,
+.badge{
+  background:var(--surface-2)!important;
+  color:var(--text-2)!important;
+  border:1px solid var(--border)!important;
+  border-radius:4px!important;
+  font-family:var(--font-mono)!important;
+}
+.pill-accent,
+.tag.accent,
+.badge.accent{
+  color:var(--accent)!important;
+  border-color:color-mix(in srgb,var(--accent) 28%,transparent)!important;
+}
+.deck-footer,
+.page-meta,
+.footer,
+.slide-meta{
+  color:var(--text-3)!important;
+}
+.progress-bar>span,
+.progress,
+.progress-dot.active,
+.dot.active{
+  background:var(--accent)!important;
+}
+svg text{font-family:var(--font-sans)!important}
+/* ===== end inlined unified course styles ===== */
+</style>
+</head>
+<body>
+
+<div id="deck">
+
+<!-- ====== SLIDE 1: Title ====== -->
+<section class="slide title-slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">01 / 30</div>
+  </div>
+  <div class="content">
+    <h1>目标检测范式<br>与YOLO系列原理</h1>
+    <div class="subtitle">Object Detection Paradigms &amp; YOLO Series Fundamentals</div>
+    <div class="meta">课程专题 · 计算机视觉专题 · 90分钟（两节连堂）</div>
+    <div class="callout course-bridge"><b>课程衔接。</b>承接 CNN 与训练机制，本讲聚焦目标检测问题本身，梳理两阶段、一阶段和 Transformer 检测范式，并以 YOLO 系列建立工业检测的主线框架。</div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 2: Outline ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">02 / 30</div>
+  </div>
+  <div class="content">
+    <h2>课程内容结构与时间分配</h2>
+    <div class="grid-4" style="margin-top:0.2rem;">
+      <div class="card">
+        <h4>第一部分 · 检测范式</h4>
+        <p>两阶段、一阶段、Transformer三大范式的发展脉络与核心设计思想。约20分钟。</p>
+      </div>
+      <div class="card">
+        <h4>第二部分 · YOLO原理</h4>
+        <p>网格/锚框机制、Backbone-Neck-Head架构、多尺度检测、NMS后处理。约25分钟。</p>
+      </div>
+      <div class="card">
+        <h4>第三部分 · 轻量化部署</h4>
+        <p>YOLOv5-lite网络优化、ONNX/NCNN/TensorRT导出与部署。约15分钟。</p>
+      </div>
+      <div class="card">
+        <h4>第四部分 · 课堂实践</h4>
+        <p>环境搭建、预训练模型推理、参数调优与结果分析。完整可复现流程。约30分钟。</p>
+      </div>
+    </div>
+    <div class="callout info" style="margin-top:0.3rem;">
+      <div class="label">课程安排说明</div>
+      <p>总时长90分钟（两节连堂）。理论讲解约60分钟，实操环节约30分钟。建议课前完成Python 3.8+与PyTorch 1.8+环境配置。课间休息时可将模型下载任务提前执行，节省课堂时间。</p>
+    </div>
+    <h3>前置知识要求</h3>
+    <p>卷积神经网络基础（卷积、池化、全连接层操作原理）；Python编程与NumPy基础操作；了解图像分类任务与常用数据集（ImageNet、COCO）。本节课程将在上述基础上展开目标检测的专项讲解。</p>
+  </div>
+</section>
+
+<!-- ====== SLIDE 3: Detection Task Definition ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">03 / 30</div>
+  </div>
+  <div class="content">
+    <h2>目标检测任务定义与数学形式</h2>
+    <p>目标检测（Object Detection）是计算机视觉的核心任务，要求模型同时解决两个子问题：<strong>目标定位</strong>（确定目标在图像中的空间位置）和<strong>目标分类</strong>（判断目标所属类别）。与图像分类不同，检测任务需要输出可变数量的检测结果，每张图像中目标的数量和位置均未知。</p>
+    <p><strong>数学形式化定义：</strong>给定输入图像 <em>I</em> ∈ ℝ<sup>H×W×3</sup>，检测模型输出检测结果集合 <em>D</em> = {<em>d</em><sub>1</sub>, <em>d</em><sub>2</sub>, ..., <em>d</em><sub>N</sub>}，每个 <em>d<sub>i</sub></em> = (<em>x</em>, <em>y</em>, <em>w</em>, <em>h</em>, <em>c</em>, <em>s</em>) 包含边界框中心坐标、宽高、类别标签和置信度分数。</p>
+    <div class="grid-2">
+      <div class="card">
+        <h4>关键挑战</h4>
+        <p>目标尺度差异大（小目标仅数十像素）；密集遮挡导致边界模糊；光照变化与形变；实时性要求（视频流需≥30 FPS）；类别不平衡（背景远多于前景）。</p>
+      </div>
+      <div class="card">
+        <h4>核心评估指标</h4>
+        <p>mAP（mean Average Precision）是检测精度核心指标。IoU阈值通常设为0.5（mAP@0.5）或0.50:0.95（mAP@0.5:0.95，COCO官方指标）。FPS衡量推理速度。</p>
+      </div>
+    </div>
+    <div class="code-block"># 边界框标注格式与IoU计算（核心评价指标）
+def compute_iou(box1, box2):
+    # box: [x1, y1, x2, y2] 左上角+右下角坐标
+    x1 = max(box1[0], box2[0]); y1 = max(box1[1], box2[1])
+    x2 = min(box1[2], box2[2]); y2 = min(box1[3], box2[3])
+    inter = max(0, x2 - x1) * max(0, y2 - y1)
+    area1 = (box1[2]-box1[0]) * (box1[3]-box1[1])
+    area2 = (box2[2]-box2[0]) * (box2[3]-box2[1])
+    return inter / (area1 + area2 - inter)   # IoU = 交集/并集</div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 4: Development Roadmap ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">04 / 30</div>
+  </div>
+  <div class="content">
+    <h2>目标检测技术发展路线</h2>
+    <div class="flow-row">
+      <span class="flow-box">R-CNN<br><span style="font-size:0.65rem;font-weight:400;">2014</span></span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-box">Fast R-CNN<br><span style="font-size:0.65rem;font-weight:400;">2015</span></span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-box">Faster R-CNN<br><span style="font-size:0.65rem;font-weight:400;">2015</span></span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-box">Mask R-CNN<br><span style="font-size:0.65rem;font-weight:400;">2017</span></span>
+    </div>
+    <div class="flow-row" style="margin-top:0.15rem;">
+      <span class="flow-box" style="border-color:var(--accent);">YOLOv1<br><span style="font-size:0.65rem;font-weight:400;">2016</span></span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-box" style="border-color:var(--accent);">YOLOv3<br><span style="font-size:0.65rem;font-weight:400;">2018</span></span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-box" style="border-color:var(--accent);">YOLOv5<br><span style="font-size:0.65rem;font-weight:400;">2020</span></span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-box" style="border-color:var(--accent);">YOLOv8/11<br><span style="font-size:0.65rem;font-weight:400;">2023-24</span></span>
+    </div>
+    <div class="flow-row" style="margin-top:0.15rem;">
+      <span class="flow-box" style="border-color:oklch(50% 0.08 220);">DETR<br><span style="font-size:0.65rem;font-weight:400;">2020</span></span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-box" style="border-color:oklch(50% 0.08 220);">Deformable DETR<br><span style="font-size:0.65rem;font-weight:400;">2021</span></span>
+      <span class="flow-arrow">→</span>
+      <span class="flow-box" style="border-color:oklch(50% 0.08 220);">DINO / GroundingDINO<br><span style="font-size:0.65rem;font-weight:400;">2022-23</span></span>
+    </div>
+    <div class="grid-3" style="margin-top:0.3rem;">
+      <div class="card">
+        <h4><span class="tag tag-red">两阶段</span> 先粗后精</h4>
+        <p>第一阶段生成候选区域（Region Proposals），第二阶段逐区域分类回归。精度高，速度慢。代表：Faster R-CNN（~5-10 FPS）。</p>
+      </div>
+      <div class="card">
+        <h4><span class="tag tag-green">一阶段</span> 密集预测</h4>
+        <p>在特征图上直接预测类别和边界框。速度快，适合实时场景。代表：YOLO（30-140 FPS）、SSD、RetinaNet。</p>
+      </div>
+      <div class="card">
+        <h4><span class="tag tag-blue">Transformer</span> 端到端</h4>
+        <p>消除锚框和NMS等手工设计组件。全局感受野，易于扩展到开放词表检测。代表：DETR、DINO。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 5: Two-stage R-CNN Series ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">05 / 30</div>
+  </div>
+  <div class="content">
+    <h2>两阶段检测器：R-CNN → Fast → Faster</h2>
+    <p>两阶段检测器的核心思想是"<strong>先粗后精</strong>"：第一阶段生成候选区域，第二阶段对每个区域精细分类和回归。这种解耦设计使每个阶段可专注于各自任务。</p>
+    <div class="grid-3" style="margin-top:0.2rem;">
+      <div class="card">
+        <h4>R-CNN（2014）</h4>
+        <p>Selective Search生成约2000候选区域，逐区域缩放后送入CNN分类。重复计算量大，训练分多个阶段。推理约47秒/张。</p>
+      </div>
+      <div class="card">
+        <h4>Fast R-CNN（2015）</h4>
+        <p>引入RoI Pooling层，整图仅过一遍CNN，在特征图上提取候选区域特征。使用多任务损失联合训练，速度提升约10倍（~2秒/张）。</p>
+      </div>
+      <div class="card">
+        <h4>Faster R-CNN（2015）</h4>
+        <p>用RPN（Region Proposal Network）替代Selective Search。RPN在特征图滑动锚框，输出前景/背景分类和粗略框回归。真正端到端训练，速度约0.2秒/张。</p>
+      </div>
+    </div>
+    <h3>RPN 工作原理</h3>
+    <p>RPN在特征图每个位置放置 <em>k</em> 个锚框（通常 <em>k</em>=9，对应3种尺度×3种长宽比）。对每个锚框输出二分类分数和4个回归偏移 (<em>Δx, Δy, Δw, Δh</em>)。正负样本按IoU划分：IoU &gt; 0.7为正样本，IoU &lt; 0.3为负样本。</p>
+    <div class="callout">
+      <div class="label">关键设计思想</div>
+      <p>RPN与检测Head共享Backbone特征，几乎不增加额外计算量。这是两阶段范式从外部算法（Selective Search）到可学习网络模块的关键演进。后续RoI Align解决了RoI Pooling的量化误差问题，在Mask R-CNN中首次提出。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 6: One-stage ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">06 / 30</div>
+  </div>
+  <div class="content">
+    <h2>一阶段检测器：YOLO / SSD / RetinaNet</h2>
+    <p>一阶段检测器<strong>不显式生成候选区域</strong>，而是在特征图上直接预测类别和边界框。这种密集预测策略将检测视为统一的回归问题，大幅提升推理速度。</p>
+    <div class="grid-3" style="margin-top:0.2rem;">
+      <div class="card">
+        <h4>YOLO（2016）</h4>
+        <p>图像划分为 <em>S</em>×<em>S</em> 网格，每个网格预测 <em>B</em> 个边界框和 <em>C</em> 个类别。统一回归框架，速度45-150 FPS。早期版本（v1/v2）对小目标和密集目标检测效果较差。</p>
+      </div>
+      <div class="card">
+        <h4>SSD（2016）</h4>
+        <p>在多个尺度的特征图上设置锚框，直接预测类别分数和框偏移。VGG16作为Backbone，额外卷积层生成多尺度特征图。小目标检测优于YOLOv1，速度与YOLO相当。</p>
+      </div>
+      <div class="card">
+        <h4>RetinaNet（2017）</h4>
+        <p>提出<strong>Focal Loss</strong>解决正负样本极端不平衡问题。Focal Loss降低易分类负样本的损失权重，使模型聚焦于难样本。首次使一阶段检测器精度超越Faster R-CNN。</p>
+      </div>
+    </div>
+    <div class="code-block"># Focal Loss 公式与实现
+# FL(p_t) = -α_t · (1 - p_t)^γ · log(p_t)
+# 当 γ=0 时退化为标准交叉熵损失；通常取 γ=2, α=0.25
+
+def focal_loss(pred, target, gamma=2.0, alpha=0.25):
+    pt = torch.where(target == 1, pred, 1 - pred)   # 对正/负样本分别计算
+    focal_weight = (1 - pt) ** gamma
+    if alpha is not None:
+        focal_weight = focal_weight * (alpha * target + (1 - alpha) * (1 - target))
+    return -focal_weight * pt.log()</div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 7: Transformer ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">07 / 30</div>
+  </div>
+  <div class="content">
+    <h2>Transformer检测器：DETR 与 DINO</h2>
+    <p>DETR（Detection Transformer）由Facebook AI于2020年提出，将Transformer架构引入检测，<strong>消除了对锚框、RPN和NMS等手工设计组件的依赖</strong>，实现端到端检测。</p>
+    <div class="grid-2" style="margin-top:0.2rem;">
+      <div class="card">
+        <h4>DETR 核心组件</h4>
+        <p><strong>CNN Backbone</strong>提取图像特征后展平为序列；<strong>Transformer Encoder</strong>通过自注意力建模全局特征关系；<strong>Decoder</strong>使用 <em>N</em> 个可学习目标查询并行解码结果；<strong>二分图匹配损失</strong>（匈牙利算法）将预测与真值最优匹配。</p>
+      </div>
+      <div class="card">
+        <h4>优势与局限</h4>
+        <p>优势：简化流程，无需NMS；全局感受野，大目标检测效果好；易于扩展到开放词表检测。局限：训练收敛慢（需500 epoch）；小目标检测差；计算量大。DINO、Deformable DETR等改进缓解了上述问题。</p>
+      </div>
+    </div>
+    <div class="callout">
+      <div class="label">从DETR到Grounding DINO</div>
+      <p>DETR证明了Transformer可以端到端解决检测问题，为后续开放词表检测（Grounding DINO）、指代检测（Referring Expression Comprehension）等任务奠定了基础。Grounding DINO将detection与grounding统一到一个框架，实现了"用自然语言描述检测目标"的能力。</p>
+    </div>
+    <h3>二分图匹配损失原理</h3>
+    <p>匈牙利算法计算预测集合与真值集合的最小匹配代价。匹配代价 = 分类负对数似然 + 边界框L1损失 + GIoU损失。该机制使模型无需NMS即可自动避免重复检测。</p>
+  </div>
+</section>
+
+<!-- ====== SLIDE 8: Three Paradigm Comparison ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">08 / 30</div>
+  </div>
+  <div class="content">
+    <h2>三种范式综合对比</h2>
+    <table class="data-table">
+      <thead>
+        <tr><th>维度</th><th>两阶段（Faster R-CNN）</th><th>一阶段（YOLOv5）</th><th>Transformer（DETR）</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>推理速度</td><td>中（~5-10 FPS）</td><td>快（30-140 FPS）</td><td>慢（&lt;10 FPS）</td></tr>
+        <tr><td>小目标检测</td><td>优</td><td>良</td><td>一般</td></tr>
+        <tr><td>大目标检测</td><td>优</td><td>优</td><td>优</td></tr>
+        <tr><td>训练收敛速度</td><td>快（~12 epoch）</td><td>快（~50 epoch）</td><td>慢（~500 epoch）</td></tr>
+        <tr><td>部署生态成熟度</td><td>中</td><td>低（生态系统完善）</td><td>高</td></tr>
+        <tr><td>NMS后处理</td><td>需要</td><td>需要</td><td>不需要</td></tr>
+        <tr><td>锚框依赖</td><td>需要</td><td>需要</td><td>不需要</td></tr>
+        <tr><td>开放词表扩展</td><td>不支持</td><td>不支持</td><td>天然支持</td></tr>
+      </tbody>
+    </table>
+    <div class="callout" style="margin-top:0.2rem;">
+      <p>选择检测器需在精度、速度、部署成本和任务需求间权衡。实时应用（自动驾驶、安防）首选一阶段检测器。精度敏感且对速度不敏感的场景（医学影像分析、遥感解译），两阶段检测器仍有不可替代的优势。需要自然语言交互或多模态检测时，Transformer方案最合适。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 9: YOLO Core + Grid ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">09 / 30</div>
+  </div>
+  <div class="content">
+    <h2>YOLO核心哲学与网格划分</h2>
+    <p><strong>核心哲学："只看一次"（You Only Look Once）。</strong>模型对输入图像执行单次前向传播，同时输出所有目标的边界框位置、类别和置信度。检测从"分类+定位"的组合问题简化为一个端到端的回归问题。与两阶段"先看哪里可能有目标，再看是什么"不同，YOLO一眼看完，同时回答位置和类别。</p>
+    <div class="grid-2" style="margin-top:0.25rem;">
+      <div class="card">
+        <h4>YOLOv1 网格预测方案</h4>
+        <p>输入图像划分为 <em>S</em> × <em>S</em> 网格（<em>S</em>=7）。每个网格负责检测中心落在该网格内的目标。输出张量形状：<em>S</em> × <em>S</em> × (<em>B</em>×5 + <em>C</em>)。以PASCAL VOC（20类）为例：7×7×(2×5+20)=7×7×30。</p>
+      </div>
+      <div class="card">
+        <h4>现代YOLO的演变</h4>
+        <p>YOLOv3及以后不再使用固定网格，而是在<strong>多尺度特征图</strong>每个位置密集预测。每个位置对应原图的一个区域，通过锚框覆盖不同形状和尺寸的目标。网格越密（特征图分辨率越高），可检测的目标越小。</p>
+      </div>
+    </div>
+    <div class="callout">
+      <div class="label">核心理解</div>
+      <p>网格划分的本质是将空间位置离散化。每个网格/特征图位置相当于一个"检测锚点"，模型在该位置预测以该点为中心的目标。YOLO的关键突破在于证明了"一个统一的卷积网络可以同时预测边界框和类别概率"这一设计范式的可行性。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 10: Bbox + Loss ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">10 / 30</div>
+  </div>
+  <div class="content">
+    <h2>预测框数学表示与损失函数</h2>
+    <p>一个完整的检测框预测包含三个组成部分，各自承担不同的语义角色：</p>
+    <div class="code-block">bbox = (x, y, w, h)          # 边界框坐标（中心点 + 宽高），相对于网格归一化
+objectness = P(Object)       # 该位置存在目标的概率，取值范围 [0,1]
+class_probs = P(Class|Object) # 给定目标条件下的类别分布，使用 Softmax/Sigmoid
+score = objectness × max(class_probs)  # 最终置信度分数，用于 NMS 排序</div>
+    <div class="grid-2" style="margin-top:0.2rem;">
+      <div class="card">
+        <h4>Objectness 目标置信度</h4>
+        <p>表示预测框包含目标的概率。训练时，若锚框与真值框IoU超过0.5设为1，否则设为0。推理时用于过滤低质量预测。Objectness使模型学会区分"有目标"和"只有背景"两种状态。</p>
+      </div>
+      <div class="card">
+        <h4>损失函数三部分构成</h4>
+        <p><strong>框回归损失</strong>：MSE或CIoU损失，权重最大。预测框与真值框的坐标差异。<strong>Objectness损失</strong>：二分类交叉熵。<strong>分类损失</strong>：交叉熵。三部分加权求和，通常框回归损失占比最高。</p>
+      </div>
+    </div>
+    <div class="code-block"># YOLO 损失函数（简化版本）
+loss_box = λ_coord * Σ(2 - w_i * h_i) * CIoU_loss   # 边界框回归
+loss_obj = λ_obj * Σ BCEWithLogits(objectness, target_obj)  # objectness
+loss_cls = λ_cls * Σ BCEWithLogits(class_probs, target_cls) # 分类
+total_loss = loss_box + loss_obj + loss_cls</div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 11: Anchor + Clustering ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">11 / 30</div>
+  </div>
+  <div class="content">
+    <h2>锚框（Anchor Box）原理与聚类</h2>
+    <p>锚框是<strong>预设的候选框形状</strong>，作为边界框回归的参考基准。模型在锚框基础上预测<strong>偏移量</strong>而非绝对坐标，这降低了回归难度且提高了训练稳定性。若没有锚框，模型需从零学习预测任意形状的框，梯度更新方向不稳定。</p>
+    <div class="grid-2" style="margin-top:0.2rem;">
+      <div class="card">
+        <h4>为什么需要锚框</h4>
+        <p>目标尺度差异大（如行人vs汽车相差数十倍），长宽比多样（横向车辆、纵向行人、方形标志）。锚框提供了先验形状约束，使模型专注于学习精确偏移。</p>
+      </div>
+      <div class="card">
+        <h4>K-means 聚类获取锚框</h4>
+        <p>YOLO使用K-means从训练数据自动学习锚框尺寸。距离度量使用IoU：<em>d</em>(box, centroid) = 1 - IoU(box, centroid)。使用IoU距离确保聚类结果与检测性能直接相关。</p>
+      </div>
+    </div>
+    <div class="code-block"># YOLOv5 默认锚框（COCO数据集聚类结果）
+anchors:
+  - [10,13, 16,30, 33,23]    # P3/8   小尺度特征图 → 小目标  (80×80)
+  - [30,61, 62,45, 59,119]   # P4/16  中尺度特征图 → 中目标  (40×40)
+  - [116,90, 156,198, 373,326] # P5/32 大尺度特征图 → 大目标  (20×20)
+
+# 锚框重聚类命令（更换数据集后必做）
+python utils/autoanchor.py --data data/custom.yaml --cfg models/yolov5s.yaml</div>
+    <div class="callout warn">
+      <div class="label">实践关键提示</div>
+      <p>更换数据集后务必重新聚类锚框。安全帽检测等专用数据集中目标普遍较小（占图像面积&lt;5%），默认COCO锚框偏大，需聚类得到[4,5, 8,10, 12,15]等适合小目标的锚框。使用不匹配的锚框会导致mAP下降3-5个百分点。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 12: Backbone ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">12 / 30</div>
+  </div>
+  <div class="content">
+    <h2>Backbone：CSPDarknet53特征提取</h2>
+    <p>Backbone是检测器的"眼睛"，负责从输入图像提取多层次视觉特征。YOLOv5使用<strong>CSPDarknet53</strong>，融合了Cross Stage Partial（CSP）结构和Darknet残差设计。CSP结构将特征图拆分为两部分，一部分经卷积处理，另一部分直接拼接，既减少计算量又保证梯度流通。</p>
+    <div class="grid-2" style="margin-top:0.2rem;">
+      <div class="card">
+        <h4>浅层特征（高分辨率）</h4>
+        <p>靠近输入层的特征图分辨率高（160×160），含丰富的空间细节和边缘信息。感受野小，适合检测小目标但语义信息较弱。对应P2/P3输出。</p>
+      </div>
+      <div class="card">
+        <h4>深层特征（低分辨率）</h4>
+        <p>靠近输出层的特征图分辨率低（20×20），含高级语义信息。感受野大，适合检测大目标和类别判断。对应P5输出。</p>
+      </div>
+    </div>
+    <div class="code-block"># YOLOv5s Backbone 结构（640×640 输入）
+Focus(3, 32, k=6, s=2)        # 640→320  切片下采样（减少信息丢失）
+Conv(32, 64, k=3, s=2)         # 320→160  特征图 P1
+CSPLayer(64, 64, n=1)          # 160→160  残差块堆叠 P2
+Conv(64, 128, k=3, s=2)        # 160→80    P3  ← 小目标检测分支
+CSPLayer(128, 128, n=3)        # 80→80     增强特征表达
+Conv(128, 256, k=3, s=2)       # 80→40     P4  ← 中目标检测分支
+CSPLayer(256, 256, n=3)        # 40→40
+Conv(256, 512, k=3, s=2)       # 40→20     P5  ← 大目标检测分支
+CSPLayer(512, 512, n=1)        # 20→20
+SPP(512, 512)                   # 空间金字塔池化（多尺度感受野）</div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 13: Neck ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">13 / 30</div>
+  </div>
+  <div class="content">
+    <h2>Neck：FPN+PAN 双向特征融合</h2>
+    <p>Neck位于Backbone和Head之间，负责<strong>融合不同尺度特征</strong>。YOLOv5使用<strong>FPN+PAN</strong>结构实现双向特征融合：FPN自顶向下传递语义信息，PAN自底向上传递定位信息。</p>
+    <div class="flow-row" style="gap:0.15rem;">
+      <span class="flow-box" style="font-size:0.75rem;">P5 20×20</span>
+      <span class="flow-arrow" style="font-size:0.9rem;">↑上采样</span>
+      <span class="flow-box" style="font-size:0.75rem;">P4 40×40</span>
+      <span class="flow-arrow" style="font-size:0.9rem;">↑上采样</span>
+      <span class="flow-box" style="font-size:0.75rem;">P3 80×80</span>
+      <span style="font-family:var(--font-sans);font-size:0.75rem;color:var(--ink-muted);margin-left:0.5rem;">FPN: 深层语义 → 浅层</span>
+    </div>
+    <div class="flow-row" style="gap:0.15rem;margin-top:0.05rem;">
+      <span class="flow-box" style="font-size:0.75rem;">P3 80×80</span>
+      <span class="flow-arrow" style="font-size:0.9rem;">↓下采样</span>
+      <span class="flow-box" style="font-size:0.75rem;">P4 40×40</span>
+      <span class="flow-arrow" style="font-size:0.9rem;">↓下采样</span>
+      <span class="flow-box" style="font-size:0.75rem;">P5 20×20</span>
+      <span style="font-family:var(--font-sans);font-size:0.75rem;color:var(--ink-muted);margin-left:0.5rem;">PAN: 浅层定位 → 深层</span>
+    </div>
+    <div class="grid-2" style="margin-top:0.2rem;">
+      <div class="card">
+        <h4>FPN 自顶向下路径</h4>
+        <p>将深层语义信息通过上采样传递到浅层（P5→P4→P3），增强浅层特征图"看懂内容"的能力。解决浅层特征"有细节但语义弱"的问题。每个融合层与对应Backbone层通过横向连接（1×1卷积）相加。</p>
+      </div>
+      <div class="card">
+        <h4>PAN 自底向上路径</h4>
+        <p>将浅层定位信息通过下采样传递到深层（P3→P4→P5），增强深层特征图"找准位置"的能力。解决深层特征"语义强但定位模糊"的问题。两条路径形成完整的双向信息通道。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 14: Head + Full Pipeline ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">14 / 30</div>
+  </div>
+  <div class="content">
+    <h2>Head 检测头与完整流水线</h2>
+    <p>Head将Neck融合后的特征映射为最终检测结果。YOLOv5使用<strong>解耦检测头</strong>，分别预测边界框回归、objectness和类别概率，避免分类和回归任务竞争特征表示。</p>
+    <div class="flow-row" style="gap:0.15rem;">
+      <span class="flow-box" style="background:var(--accent);color:#fff;border-color:var(--accent);font-size:0.75rem;">输入 640²×3</span>
+      <span class="flow-arrow" style="font-size:0.9rem;">→</span>
+      <span class="flow-box" style="font-size:0.75rem;">Backbone<br><span style="font-size:0.6rem;">CSPDarknet53</span></span>
+      <span class="flow-arrow" style="font-size:0.9rem;">→</span>
+      <span class="flow-box" style="font-size:0.75rem;">Neck<br><span style="font-size:0.6rem;">FPN+PAN</span></span>
+      <span class="flow-arrow" style="font-size:0.9rem;">→</span>
+      <span class="flow-box" style="font-size:0.75rem;">Head×3<br><span style="font-size:0.6rem;">检测头</span></span>
+      <span class="flow-arrow" style="font-size:0.9rem;">→</span>
+      <span class="flow-box" style="background:var(--accent);color:#fff;border-color:var(--accent);font-size:0.75rem;">25,200候选</span>
+    </div>
+    <div class="code-block"># YOLOv5 Head 输出通道计算
+# 每特征图位置预测 3 个框（对应 3 个锚框）
+# 每框输出：4(bbox) + 1(objectness) + 80(COCO类) = 85
+# 输出通道 = 3 × 85 = 255
+# 三个尺度输出：
+# P3: [B, 255, 80, 80]  → 80×80×3 = 19,200 候选框  (小目标)
+# P4: [B, 255, 40, 40]  → 40×40×3 =  4,800 候选框  (中目标)
+# P5: [B, 255, 20, 20]  → 20×20×3 =  1,200 候选框  (大目标)
+# 总计: 19,200 + 4,800 + 1,200 = 25,200 个候选框 → NMS 筛选</div>
+    <div class="callout">
+      <div class="label">解耦头的设计优势</div>
+      <p>分类分支关注"目标是什么"，回归分支关注"目标在哪"。在YOLOv8中进一步改进为Task-Specific Decoupled Head，分类和回归分支使用独立的卷积层而非共享，各自学习最相关的特征表示，避免了任务冲突导致的梯度干扰。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 15: Multi-Scale Detection ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">15 / 30</div>
+  </div>
+  <div class="content">
+    <h2>多尺度检测原理与对应关系</h2>
+    <p>目标检测必须处理<strong>不同大小的目标</strong>：一张图像中可能同时包含占据画面大半的车辆和仅数十像素的行人。YOLO在多个尺度的特征图上分别预测，每个尺度负责特定大小范围的目标。核心设计原则是"用合适的特征图检测合适大小的目标"。</p>
+    <table class="data-table">
+      <thead>
+        <tr><th>特征图尺度</th><th>下采样倍数</th><th>每像素对应原图</th><th>负责目标大小</th><th>锚框范围</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>80 × 80</td><td>8</td><td>8 × 8 像素</td><td>0 ~ 32² 像素（小目标）</td><td>10×13 ~ 33×23</td></tr>
+        <tr><td>40 × 40</td><td>16</td><td>16 × 16 像素</td><td>32² ~ 96² 像素（中目标）</td><td>30×61 ~ 59×119</td></tr>
+        <tr><td>20 × 20</td><td>32</td><td>32 × 32 像素</td><td>&gt; 96² 像素（大目标）</td><td>116×90 ~ 373×326</td></tr>
+      </tbody>
+    </table>
+    <div class="callout" style="margin-top:0.15rem;">
+      <div class="label">小目标检测的核心挑战</div>
+      <p>小目标在图像中仅占数十到数百像素。在20×20特征图上，一个32×32像素的小目标仅对应约1个特征点，信息量严重不足。因此小目标检测依赖高分辨率特征图（80×80或更高）。改进方向包括：高分辨率输入（如1280×1280）、特征增强模块（如注意力机制）、生成式数据增强、专门的小目标检测层。</p>
+    </div>
+    <div class="code-block"># YOLOv5 多尺度训练配置（数据增强，每10个epoch随机改变输入尺寸）
+# 在 data/hyps/hyp.scratch-low.yaml 中设置
+gpu_ids: 0
+multi_scale: True  # 启用多尺度训练
+stride: 32         # 网络下采样倍数，确保输入尺寸为32的倍数
+# 训练时输入尺寸在 [640×0.5, 640×1.5] 之间随机变换
+# 增强模型对不同尺度目标的鲁棒性</div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 16: NMS Algorithm ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">16 / 30</div>
+  </div>
+  <div class="content">
+    <h2>NMS 非极大值抑制算法</h2>
+    <p>模型对同一目标会输出<strong>多个高度重叠的候选框</strong>（相邻特征图位置、不同锚框都可能检测到同一目标）。NMS从这些重叠框中选出最优的一个，删除冗余框。这是YOLO推理流水线中的关键后处理步骤。</p>
+    <ol class="steps">
+      <li>将所有检测框按置信度分数<strong>从高到低排序</strong></li>
+      <li>选择分数最高的框，<strong>保留</strong>为最终检测结果</li>
+      <li>计算其余框与保留框的<strong>IoU</strong>（交并比）</li>
+      <li>删除IoU超过阈值（通常0.5）的框——它们检测的是同一目标</li>
+      <li>从剩余框中重复步骤2-4，直到没有候选框</li>
+    </ol>
+    <div class="code-block">def nms(boxes, scores, iou_threshold=0.5):
+    """非极大值抑制 —— 完整实现"""
+    # boxes: [N, 4] (x1,y1,x2,y2); scores: [N]
+    indices = scores.argsort(descending=True)  # 按置信度降序排列
+    keep = []
+    while len(indices) > 0:
+        i = indices[0]          # 取当前最高分框的索引
+        keep.append(i)
+        # 计算其余框与保留框的 IoU
+        ious = compute_iou(boxes[i], boxes[indices[1:]])
+        # 保留 IoU < 阈值（不重叠）的框
+        mask = ious &lt; iou_threshold
+        indices = indices[1:][mask]
+    return keep  # 保留框的索引列表</div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 17: NMS Threshold + Variants ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">17 / 30</div>
+  </div>
+  <div class="content">
+    <h2>NMS 阈值影响与改进变体</h2>
+    <p>NMS阈值是影响检测结果的关键超参数，在<strong>召回率</strong>和<strong>精确率</strong>间取得平衡。不同场景需要不同的阈值策略。</p>
+    <div class="grid-3" style="margin-top:0.2rem;">
+      <div class="card">
+        <h4>阈值过低（&lt; 0.3）</h4>
+        <p>相邻的不同目标可能被误删。密集人群中两个紧挨的行人IoU可达0.4，过低阈值导致其中一个被错误抑制。召回率下降，漏检增多。</p>
+      </div>
+      <div class="card">
+        <h4>阈值适中（0.5）</h4>
+        <p>通用场景的默认选择。在COCO等通用数据集上经广泛验证，召回率和精确率平衡较好。YOLO系列默认值。</p>
+      </div>
+      <div class="card">
+        <h4>阈值过高（&gt; 0.7）</h4>
+        <p>同一目标保留过多重复框，假阳性增多。精确率下降，后处理计算量增大。适用于重叠容忍度高的场景。</p>
+      </div>
+    </div>
+    <h3>改进变体对比</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>方法</th><th>核心思想</th><th>适用场景</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Soft-NMS</td><td>不直接删除重叠框，根据IoU衰减其置信度。IoU越大衰减越强，避免"一刀切"漏检</td><td>密集人群、细胞检测等严重重叠场景</td></tr>
+        <tr><td>DIoU-NMS</td><td>在IoU中加入两框中心点距离作为惩罚项。对包含关系的检测更鲁棒</td><td>同一目标的多尺度预测合并</td></tr>
+        <tr><td>CIoU-NMS</td><td>进一步考虑长宽比一致性，对形状差异大的重叠框更宽容</td><td>宽高比差异大的多类别检测</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ====== SLIDE 18: YOLO Evolution ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">18 / 30</div>
+  </div>
+  <div class="content">
+    <h2>YOLO系列版本演进图谱</h2>
+    <table class="data-table">
+      <thead>
+        <tr><th>版本</th><th>年份</th><th>核心改进</th><th>mAP@0.5</th><th>FPS</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>v1</td><td>2016</td><td>开创性工作：将检测统一为回归问题，S×S网格预测</td><td>63.4</td><td>45</td></tr>
+        <tr><td>v2</td><td>2017</td><td>引入Anchor + BatchNorm + 多尺度训练</td><td>78.6</td><td>67</td></tr>
+        <tr><td>v3</td><td>2018</td><td>多尺度预测（3尺度）、Darknet53、Logistic分类器</td><td>55.3*</td><td>78</td></tr>
+        <tr><td>v4</td><td>2020</td><td>Mish激活、CSP结构、Mosaic数据增强、自对抗训练</td><td>65.7*</td><td>65</td></tr>
+        <tr><td>v5</td><td>2020</td><td>工程优化：CSPDarknet53、FPN+PAN、AutoAnchor</td><td>68.9*</td><td>140</td></tr>
+        <tr><td>v8</td><td>2023</td><td>解耦检测头、Anchor-Free、Task-Specific分支</td><td>53.9*</td><td>180</td></tr>
+        <tr><td>v11</td><td>2024</td><td>C2f增强模块、更优特征融合、梯度流优化</td><td>55.3*</td><td>210</td></tr>
+      </tbody>
+    </table>
+    <div class="callout" style="margin-top:0.15rem;">
+      <div class="label">演进趋势总结</div>
+      <p>每代YOLO在保持实时性的前提下持续提升精度。关键趋势：从单尺度到多尺度预测、从手调锚框到自动聚类、从共享头到解耦头、从Anchor-Based到Anchor-Free、从单一任务到多任务统一。*标注为COCO AP@0.5:0.95指标。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 19: YOLOv5-lite ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">19 / 30</div>
+  </div>
+  <div class="content">
+    <h2>YOLOv5-lite 轻量化优化技术</h2>
+    <p>轻量化不是简单"把模型变小"，而是在<strong>精度、速度、模型体积、硬件适配</strong>间寻找最优平衡。YOLOv5-lite面向移动端和边缘设备，参数量约为原始YOLOv5s的1/3，计算量从16.5 GFLOPs降至约5-8 GFLOPs。</p>
+    <table class="data-table">
+      <thead>
+        <tr><th>优化手段</th><th>实现方式</th><th>效果</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>减少网络宽度和深度</td><td>通道数减半（64→32），CSPLayer堆叠层数减少</td><td>参数量降至原始1/3~1/2</td></tr>
+        <tr><td>深度可分离卷积</td><td>标准卷积 <em>K</em>²×<em>C<sub>in</sub></em>×<em>C<sub>out</sub></em> → 逐通道+逐点卷积</td><td>参数量降低约<em>K</em>²=9倍</td></tr>
+        <tr><td>激活函数ReLU替代SiLU</td><td>ReLU仅需一次比较操作，不需Sigmoid计算</td><td>移动端推理速度提升15-20%</td></tr>
+        <tr><td>结构化剪枝</td><td>去除不重要的通道和层，基于BN层γ值排序</td><td>模型体积压缩30-50%</td></tr>
+        <tr><td>INT8量化</td><td>权重从FP32压缩为INT8</td><td>体积缩小4倍，速度提升2-3倍</td></tr>
+      </tbody>
+    </table>
+    <div class="code-block"># 深度可分离卷积参数量对比（以 k=3, C_in=64, C_out=128 为例）
+# 标准卷积: K² × C_in × C_out = 9 × 64 × 128 = 73,728
+# 深度可分离: K² × C_in + C_in × C_out = 9×64 + 64×128 = 576 + 8,192 = 8,768
+# 节约比例: (73,728 - 8,768) / 73,728 = 88.1%</div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 20: Deployment ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">20 / 30</div>
+  </div>
+  <div class="content">
+    <h2>YOLOv5-lite 部署路径与工具链</h2>
+    <p>YOLOv5-lite支持多种部署后端，覆盖从服务器到移动端的全场景。官方仓库：<span class="code-inline">https://github.com/ppogg/YOLOv5-Lite</span></p>
+    <table class="data-table">
+      <thead>
+        <tr><th>部署后端</th><th>适用平台</th><th>推理精度</th><th>核心特点</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>ONNX Runtime</td><td>CPU / GPU（跨平台）</td><td>FP32 / FP16</td><td>工业标准格式，生态最完善</td></tr>
+        <tr><td>NCNN</td><td>Android / Linux ARM</td><td>FP32 / INT8</td><td>腾讯开源，移动端深度优化</td></tr>
+        <tr><td>TensorRT</td><td>NVIDIA GPU（Jetson/服务器）</td><td>FP32/FP16/INT8</td><td>算子融合+内核自动调优，速度最快</td></tr>
+        <tr><td>OpenVINO</td><td>Intel CPU / VPU</td><td>FP32 / FP16</td><td>Intel平台CPU推理效率最高</td></tr>
+        <tr><td>Core ML</td><td>iOS / macOS</td><td>FP16 / INT8</td><td>Apple Neural Engine加速</td></tr>
+        <tr><td>TFLite</td><td>Android / iOS / 嵌入式</td><td>FP32 / INT8</td><td>Google移动端框架，硬件加速</td></tr>
+      </tbody>
+    </table>
+    <div class="code-block"># ONNX 导出及 NCNN/TensorRT 部署命令
+python export.py --weights yolov5s-lite.pt --include onnx --img 640
+
+# NCNN 部署流程（需先导出 ONNX 模型）
+onnx2ncnn yolov5s-lite.onnx yolov5s-lite.param yolov5s-lite.bin
+
+# TensorRT 导出（支持 FP16 半精度推理）
+python export.py --weights yolov5s-lite.pt --include engine --img 640 --half</div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 21: Preprocess + Letterbox ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">21 / 30</div>
+  </div>
+  <div class="content">
+    <h2>推理流程：图像预处理与Letterbox</h2>
+    <p>预处理步骤直接影响检测精度。错误的预处理会导致目标变形、位置偏移或检测失败。YOLO使用<strong>Letterbox</strong>缩放保持原始宽高比。</p>
+    <ol class="steps">
+      <li><strong>读取图像</strong>：使用OpenCV或PIL读取，保持原始宽高比</li>
+      <li><strong>Letterbox缩放</strong>：等比例缩放到目标尺寸（640×640），不足部分用灰色(114,114,114)填充。保持宽高比不变，避免目标形变</li>
+      <li><strong>像素归一化</strong>：像素值从[0,255]缩放到[0,1]（除以255.0）</li>
+      <li><strong>维度调整</strong>：HWC → CHW，添加batch维度，最终形状[1, 3, 640, 640]</li>
+    </ol>
+    <div class="grid-2" style="margin-top:0.15rem;">
+      <div class="card">
+        <h4>直接拉伸 vs Letterbox</h4>
+        <p>将1280×720直接拉伸为640×640，宽高比从16:9变为1:1，圆形目标变为椭圆。Letterbox保持形状不变，填充灰色区域不会引入干扰信号。</p>
+      </div>
+      <div class="card">
+        <h4>坐标反映射</h4>
+        <p>模型输出框在640×640坐标系中，需通过缩放比例scale和填充偏移(dw, dh)映射回原图坐标系。映射公式见右侧代码。</p>
+      </div>
+    </div>
+    <div class="code-block">def preprocess(image_path, input_size=640):
+    img = cv2.imread(image_path);  img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    h, w = img.shape[:2]
+    scale = min(input_size / h, input_size / w)        # 保持宽高比的缩放比
+    new_h, new_w = int(h * scale), int(w * scale)
+    resized = cv2.resize(img, (new_w, new_h))
+    dw, dh = (input_size - new_w)//2, (input_size - new_h)//2  # 填充偏移
+    canvas = np.full((input_size, input_size, 3), 114, dtype=np.uint8)
+    canvas[dh:dh+new_h, dw:dw+new_w] = resized
+    canvas = canvas.astype(np.float32) / 255.0          # 归一化
+    canvas = canvas.transpose(2, 0, 1)[np.newaxis, ...] # CHW + Batch
+    return canvas, (scale, dw, dh, h, w)                # 返回元数据供后处理</div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 22: Forward + Decode ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">22 / 30</div>
+  </div>
+  <div class="content">
+    <h2>前向传播与解码</h2>
+    <p>预处理后的图像送入模型前向传播，得到原始输出张量。需经过<strong>解码</strong>将张量转换为可读的检测坐标。模型输出的 <em>xy</em> 是相对于网格的偏移（0~1），<em>wh</em> 是相对于锚框的缩放因子。</p>
+    <div class="code-block">import torch
+model = torch.load('yolov5s-lite.pt', map_location='cpu')['model'].float()
+model.eval()
+
+with torch.no_grad():
+    outputs = model(torch.from_numpy(input_tensor))  # list of 3 tensors
+
+def decode_output(pred, anchors, stride):
+    """将模型原始输出解码为边界框坐标"""
+    bs, _, ny, nx = pred.shape            # 如 [1, 255, 80, 80]
+    pred = pred.view(bs, 3, 85, ny, nx).permute(0, 1, 3, 4, 2)
+    pred[..., 0:2] = pred[..., 0:2].sigmoid()    # xy: 网格内偏移→sigmoid归一化
+    pred[..., 4:] = pred[..., 4:].sigmoid()      # objectness + 类别分数
+    grid_y, grid_x = torch.meshgrid(torch.arange(ny), torch.arange(nx))
+    xy = (pred[..., 0:2] + torch.stack([grid_x, grid_y], dim=-1)) * stride
+    wh = pred[..., 2:4].exp() * anchors * stride  # 锚框缩放 + 步长还原
+    return xy, wh, pred[..., 4:5], pred[..., 5:]  # xy, wh, obj, cls_probs</div>
+    <div class="callout">
+      <div class="label">解码要点</div>
+      <p><em>xy</em> 加上网格坐标再乘以步长得到原图坐标；<em>wh</em> 乘以锚框尺寸和步长得到实际宽高；Objectness和类别分数需通过Sigmoid激活。注意网格坐标 <em>grid_x, grid_y</em> 的形状需与预测张量对齐。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 23: Post-process + Mapping ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">23 / 30</div>
+  </div>
+  <div class="content">
+    <h2>NMS后处理与坐标映射</h2>
+    <p>解码后的候选框约25,200个，需经置信度过滤 + NMS去重 + 坐标映射回原图。三个后处理步骤缺一不可。</p>
+    <div class="code-block">def postprocess(predictions, conf_thres=0.25, iou_thres=0.5, scale, dw, dh):
+    """完整后处理：合并→筛选→NMS→坐标映射"""
+    boxes, scores, class_ids = [], [], []
+    for pred in predictions:              # 遍历3个尺度
+        xy, wh, obj, cls_probs = pred
+        conf = obj * cls_probs.max(dim=-1, keepdim=True)[0]  # 综合置信度
+        mask = conf.squeeze(-1) > conf_thres
+        if not mask.any(): continue
+        xy, wh, conf, cls = xy[mask], wh[mask], conf[mask], cls_probs[mask].argmax(dim=-1)
+        boxes.append(torch.cat([xy - wh/2, xy + wh/2], dim=-1))       # [x1,y1,x2,y2]
+        scores.append(conf.squeeze(-1))
+        class_ids.append(cls)
+    if not boxes: return []
+    boxes, scores, class_ids = torch.cat(boxes), torch.cat(scores), torch.cat(class_ids)
+    keep = torch.ops.torchvision.nms(boxes, scores, iou_thres)        # NMS
+    results = []
+    for idx in keep:
+        x1 = max(0, (boxes[idx,0]-dw)/scale); y1 = max(0, (boxes[idx,1]-dh)/scale)
+        x2 = min(orig_w, (boxes[idx,2]-dw)/scale); y2 = min(orig_h, (boxes[idx,3]-dh)/scale)
+        results.append({'box':[x1,y1,x2,y2], 'score':scores[idx].item(), 'class':int(class_ids[idx])})
+    return results</div>
+    <div class="callout">
+      <div class="label">坐标映射关键公式</div>
+      <p>模型输出坐标 → 原图坐标：(box_coord - padding_offset) / scale。其中padding_offset为Letterbox填充的(dw, dh)，scale为缩放比例。裁剪到[0, orig_w]和[0, orig_h]防止越界。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 24: Evaluation Metrics ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">24 / 30</div>
+  </div>
+  <div class="content">
+    <h2>检测评估指标：mAP / IoU / F1 Score</h2>
+    <p>理解评估指标是正确解读模型性能的前提。目标检测使用多个互补指标全面衡量模型表现。</p>
+    <div class="grid-3" style="margin-top:0.2rem;">
+      <div class="card">
+        <h4>IoU（交并比）</h4>
+        <p>预测框与真值框重叠程度的度量：交集面积/并集面积。用于判断检测是否正确（正样本判定依据）和NMS筛选。IoU≥0.5通常视为正确检测。</p>
+      </div>
+      <div class="card">
+        <h4>mAP（平均精度均值）</h4>
+        <p>对所有类别计算Average Precision后取平均。mAP@0.5使用IoU=0.5阈值，mAP@0.5:0.95在[0.5,0.95]区间以0.05步长取10个阈值的平均值，后者是COCO官方标准，更严格。</p>
+      </div>
+      <div class="card">
+        <h4>F1 Score</h4>
+        <p>精确率（Precision）和召回率（Recall）的调和平均。F1 = 2×P×R/(P+R)。反映模型在精确率和召回率间的平衡情况。F1最高对应的置信度阈值通常为最优阈值。</p>
+      </div>
+    </div>
+    <div class="code-block"># 计算 mAP 的核心流程
+def compute_ap( detections, ground_truths, iou_threshold=0.5):
+    # 1. 按置信度降序排列所有检测结果
+    # 2. 对每个检测框，计算与同一类别真值框的 IoU
+    # 3. 若 IoU ≥ 阈值→True Positive，否则→False Positive
+    # 4. 计算累积 Precision 和 Recall 曲线下面积（AUC）= AP
+    # 5. 对所有类别 AP 取平均 = mAP
+    pass  # 完整实现约 100 行，详见 pycocotools 库</div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 25: Data Augmentation ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">25 / 30</div>
+  </div>
+  <div class="content">
+    <h2>YOLO数据增强策略</h2>
+    <p>数据增强是YOLO训练管线的重要组成部分，对模型泛化能力影响显著。YOLOv5使用多种数据增强组合，以有限的标注数据产生多样化的训练样本。</p>
+    <table class="data-table">
+      <thead>
+        <tr><th>增强方法</th><th>操作方式</th><th>作用</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Mosaic</td><td>将4张图像随机裁剪后拼接为1张，同时拼接对应的边界框标注</td><td>大幅增加小目标样本数量，提升小目标检测能力</td></tr>
+        <tr><td>MixUp</td><td>两张图像按比例混合（alpha混合），边界框取并集</td><td>提升模型鲁棒性，减少过拟合</td></tr>
+        <tr><td>HSV扰动</td><td>在HSV色彩空间随机调整色相(H±0.015)、饱和度(S±0.7)、明度(V±0.4)</td><td>增强对光照变化的鲁棒性</td></tr>
+        <tr><td>随机缩放/平移</td><td>以0.5概率随机缩放(0.5~1.5倍)和平移(±0.1倍图像尺寸)</td><td>增强尺度不变性和位置鲁棒性</td></tr>
+        <tr><td>随机翻转</td><td>50%概率水平翻转图像和对应的边界框</td><td>相当于训练数据翻倍，减少过拟合</td></tr>
+      </tbody>
+    </table>
+    <div class="code-block"># YOLOv5 数据增强配置文件 data/hyps/hyp.scratch-low.yaml
+hsv_h: 0.015       # 色相扰动范围
+hsv_s: 0.7         # 饱和度扰动范围
+hsv_v: 0.4         # 明度扰动范围
+degrees: 0.0       # 旋转角度（YOLOv5默认不使用旋转，避免目标方向歧义）
+translate: 0.1     # 平移比例
+scale: 0.5         # 缩放范围 [1-scale, 1+scale]
+mosaic: 1.0        # Mosaic概率（训练初期1.0，最后10个epoch关闭）
+mixup: 0.0         # MixUp概率（YOLOv5默认关闭，需手动开启）</div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 26: Environment Setup ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">26 / 30</div>
+  </div>
+  <div class="content">
+    <h2>课堂实践：环境搭建与验证</h2>
+    <p>本节为实操环节，在本地环境完成YOLOv5-lite安装配置并运行预训练模型。建议使用Python 3.8+和PyTorch 1.8+。推荐conda创建独立虚拟环境，避免依赖冲突。</p>
+    <div class="grid-2" style="margin-top:0.2rem;">
+      <div class="card">
+        <h4>步骤：安装依赖</h4>
+        <p><strong>1.</strong> conda create -n yolo python=3.9 &amp;&amp; conda activate yolo<br>
+        <strong>2.</strong> pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu<br>
+        <strong>3.</strong> git clone https://github.com/ppogg/YOLOv5-Lite.git &amp;&amp; cd YOLOv5-Lite<br>
+        <strong>4.</strong> pip install -r requirements.txt</p>
+      </div>
+      <div class="card">
+        <h4>步骤：环境验证</h4>
+        <p><strong>5.</strong> python -c "import torch; print(torch.__version__)"<br>
+        <strong>6.</strong> python -c "import cv2; print(cv2.__version__)"<br>
+        <strong>7.</strong> 下载预训练模型放入weights/<br>
+        <strong>8.</strong> python detect.py --weights weights/yolov5s-lite.pt --source data/images/bus.jpg</p>
+      </div>
+    </div>
+    <div class="callout warn" style="margin-top:0.2rem;">
+      <div class="label">常见问题</div>
+      <p>Windows用户若pycocotools安装失败，改用 <span class="code-inline">pip install pycocotools-windows</span>。macOS建议CPU版PyTorch。CUDA版本需与显卡驱动匹配：<span class="code-inline">nvidia-smi</span> 查看驱动支持的CUDA版本，再选择对应的PyTorch CUDA包。</p>
+    </div>
+    <div class="code-block"># PyTorch 版本与 CUDA 兼容性速查
+# CUDA 11.8 → pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# CUDA 12.1 → pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# CPU only  → pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu</div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 27: Run Demo ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">27 / 30</div>
+  </div>
+  <div class="content">
+    <h2>课堂任务：推理演示与参数调优</h2>
+    <div class="grid-2" style="margin-top:0.2rem;">
+      <div class="card">
+        <h4>任务1：基础推理</h4>
+        <p>运行detect.py对测试图像检测，保存结果图。观察检测框准确性和置信度分布。检查是否有漏检或误检。</p>
+        <div class="code-block" style="font-size:0.75rem;margin-top:0.2rem;">python detect.py --weights weights/yolov5s-lite.pt \
+                 --source data/images/bus.jpg \
+                 --conf-thres 0.25 --iou-thres 0.5 \
+                 --save-txt --save-conf</div>
+      </div>
+      <div class="card">
+        <h4>任务2：参数调优实验</h4>
+        <p>分别设置 --conf-thres 为0.1、0.25、0.5、0.8，观察结果变化。分析不同阈值对检测数量和置信度分布的影响。</p>
+        <div class="code-block" style="font-size:0.75rem;margin-top:0.2rem;"># 参数调优对比命令
+python detect.py --source data/images/bus.jpg \
+  --conf-thres 0.1 --save-txt --project runs/detect/conf01
+python detect.py --source data/images/bus.jpg \
+  --conf-thres 0.5 --save-txt --project runs/detect/conf05</div>
+      </div>
+    </div>
+    <table class="data-table" style="margin-top:0.15rem;">
+      <thead>
+        <tr><th>参数</th><th>默认值</th><th>说明</th><th>调优建议</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>--conf-thres</td><td>0.25</td><td>置信度阈值，低于此值的检测框被丢弃</td><td>精度优先→0.5；召回优先→0.1</td></tr>
+        <tr><td>--iou-thres</td><td>0.5</td><td>NMS的IoU阈值</td><td>密集场景→0.4-0.45；常规→0.5</td></tr>
+        <tr><td>--img-size</td><td>640</td><td>推理输入尺寸</td><td>小目标→1280；速度优先→320</td></tr>
+        <tr><td>--max-det</td><td>1000</td><td>每张图最大检测数</td><td>密集场景→增大</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ====== SLIDE 28: Troubleshooting ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">28 / 30</div>
+  </div>
+  <div class="content">
+    <h2>常见问题排查与解决</h2>
+    <table class="data-table">
+      <thead>
+        <tr><th>问题现象</th><th>可能原因</th><th>解决方案</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>推理结果为空白/无检测框</td><td>置信度阈值过高；模型未正确加载；图像预处理错误</td><td>降低conf-thres至0.1调试；检查模型文件路径；验证preprocess输出形状</td></tr>
+        <tr><td>检测框位置严重偏移</td><td>Letterbox填充偏移计算错误；坐标映射公式有误</td><td>检查(dw,dh)计算是否与缩放比例scale匹配；验证map_to_original函数</td></tr>
+        <tr><td>GPU显存不足（OOM）</td><td>batch_size过大；输入分辨率过高；模型过大</td><td>减小batch_size至1；降低输入尺寸至320或416；使用轻量化模型</td></tr>
+        <tr><td>训练损失不收敛</td><td>学习率设置不当；锚框与数据集不匹配；数据标注有误</td><td>使用warmup策略；重新聚类锚框；检查标注文件格式和坐标范围</td></tr>
+        <tr><td>ONNX导出失败</td><td>算子不兼容；PyTorch版本与ONNX版本不匹配</td><td>使用torch.onnx.export的opset_version=12；升级/降级onnx包</td></tr>
+        <tr><td>TensorRT推理精度下降</td><td>INT8量化校准数据不足；FP16精度损失</td><td>增加校准数据集（≥500张）；回退到FP32模式对比精度</td></tr>
+      </tbody>
+    </table>
+    <div class="callout" style="margin-top:0.15rem;">
+      <div class="label">调试三板斧</div>
+      <p><strong>1)</strong> 打印张量形状：在每个关键步骤后添加 print(tensor.shape) 确认维度正确。<strong>2)</strong> 可视化中间结果：将预处理后的图像和模型输出分别保存为图片检查。<strong>3)</strong> 使用小规模测试：先用单张图像、单batch验证流程正确性，再扩展到全量数据。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ====== SLIDE 29: Summary ====== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module 05</div>
+    <div class="module-title">目标检测范式与YOLO系列原理</div>
+    <div class="obj-header">学习目标</div>
+    <ul class="obj-list">
+      <li>理解目标检测的主要范式与发展脉络</li>
+      <li>掌握YOLO系列的核心原理与设计思想</li>
+      <li>理解锚框、多尺度检测与NMS等关键技术</li>
+      <li>掌握YOLOv5-lite的轻量化方法与部署路径</li>
+      <li>能够独立完成YOLO模型的推理与结果分析</li>
+    </ul>
+    <div class="page-indicator">29 / 29</div>
+  </div>
+  <div class="content">
+    <h2>课程核心回顾与知识体系</h2>
+    <table class="data-table">
+      <thead>
+        <tr><th>知识模块</th><th>核心要点</th><th>关键技术</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>检测范式</td><td>两阶段（高精度）、一阶段（高速度）、Transformer（端到端）三种范式，各自适用场景不同</td><td>RPN + RoI Align / 密集预测 + Focal Loss / 二分图匹配 + 自注意力</td></tr>
+        <tr><td>YOLO核心思想</td><td>将检测视为统一回归问题，一次前向传播同时输出位置和类别</td><td>网格划分、Backbone-Neck-Head架构、Anchor机制</td></tr>
+        <tr><td>多尺度检测</td><td>不同尺度特征图（80×80/40×40/20×20）分别负责不同大小目标</td><td>FPN+PAN双向融合、特征金字塔、多尺度训练</td></tr>
+        <tr><td>后处理策略</td><td>NMS从重叠候选框中选出最优结果</td><td>Soft-NMS / DIoU-NMS / CIoU-NMS 改进变体</td></tr>
+        <tr><td>轻量化部署</td><td>深度可分离卷积、剪枝、量化、多后端适配</td><td>ONNX / NCNN / TensorRT / Core ML / TFLite</td></tr>
+      </tbody>
+    </table>
+    <div class="callout" style="margin-top:0.15rem;">
+      <div class="label">课外拓展方向</div>
+      <p><strong>1)</strong> 从YOLOv1到v11的完整演进：v2(Anchor)、v3(多尺度)、v4(Mish+Mosaic)、v8(解耦头+Anchor-Free)、v11(C2f)。<strong>2)</strong> 深入比较一阶段vs两阶段在小目标检测上的差异根源。<strong>3)</strong> 小目标检测改进：高分辨率输入、特征增强、生成式数据增强、专门检测层。官方仓库: github.com/ultralytics/yolov5</p>
+    </div>
+  </div>
+</section>
+
+
+</div><!-- /#deck -->
+
+<!-- Navigation dots -->
+<div id="nav-dots"></div>
+<div id="nav-arrows">
+  <button id="prev-btn" aria-label="上一页">&larr;</button>
+  <button id="next-btn" aria-label="下一页">&rarr;</button>
+</div>
+
+<script>
+(function() {
+  const deck = document.getElementById('deck');
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  // Build dots
+  const dotsContainer = document.getElementById('nav-dots');
+  for (let i = 0; i < total; i++) {
+    const dot = document.createElement('button');
+    dot.className = 'dot' + (i === 0 ? ' active' : '');
+    dot.dataset.index = i;
+    dot.addEventListener('click', function() { goTo(parseInt(this.dataset.index)); });
+    dotsContainer.appendChild(dot);
+  }
+
+  function goTo(idx) {
+    if (idx < 0) idx = 0;
+    if (idx >= total) idx = total - 1;
+    current = idx;
+    deck.style.transform = 'translateX(-' + (current * 100) + 'vw)';
+    document.querySelectorAll('.dot').forEach((d, i) => {
+      d.classList.toggle('active', i === current);
+    });
+    document.getElementById('prev-btn').disabled = current === 0;
+    document.getElementById('next-btn').disabled = current === total - 1;
+  }
+
+  document.getElementById('prev-btn').addEventListener('click', function() { goTo(current - 1); });
+  document.getElementById('next-btn').addEventListener('click', function() { goTo(current + 1); });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); goTo(current - 1); }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); goTo(current + 1); }
+    if (e.key === 'Home') { e.preventDefault(); goTo(0); }
+    if (e.key === 'End') { e.preventDefault(); goTo(total - 1); }
+  });
+
+  // Touch swipe
+  let touchStartX = 0;
+  document.addEventListener('touchstart', function(e) { touchStartX = e.changedTouches[0].screenX; });
+  document.addEventListener('touchend', function(e) {
+    const diff = touchStartX - e.changedTouches[0].screenX;
+    if (Math.abs(diff) > 50) { goTo(current + (diff > 0 ? 1 : -1)); }
+  });
+
+  // Click navigation (left/right 15% edges)
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('#nav-arrows') || e.target.closest('#nav-dots') || e.target.closest('.sidebar')) return;
+    const x = e.clientX;
+    const w = window.innerWidth;
+    if (x < w * 0.15) goTo(current - 1);
+    else if (x > w * 0.85) goTo(current + 1);
+  });
+
+  // Restore position
+  try {
+    const saved = parseInt(localStorage.getItem('yolo-deck-pos'));
+    if (!isNaN(saved) && saved >= 0 && saved < total) goTo(saved);
+  } catch(e) {}
+
+  // Save position on change
+  const origGoTo = goTo;
+  window.goTo = function(idx) {
+    origGoTo(idx);
+    try { localStorage.setItem('yolo-deck-pos', current); } catch(e) {}
+  };
+  goTo(current);
+})();
+</script>
+</body>
+</html>

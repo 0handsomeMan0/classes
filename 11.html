@@ -1,0 +1,2432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FsDet 少样本目标检测：原理、训练与适用边界 · 教学演示</title>
+<style>
+/* ============ 主题色：牛皮纸（暖色纸张质感） ============ */
+:root{
+  --ink:#2a1e13;
+  --ink-rgb:42,30,19;
+  --paper:#eedfc7;
+  --paper-rgb:238,223,199;
+  --paper-tint:#e0d0b6;
+  --ink-tint:#3a2a1d;
+  --sidebar-bg:#e6d4b8;
+  --accent:#8b5e3c;
+  --accent-rgb:139,94,60;
+  --code-bg:rgba(42,30,19,0.08);
+  --code-border:rgba(42,30,19,0.18);
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --serif-zh:"Noto Serif SC",source-han-serif-sc,serif;
+  --sans-zh:"Noto Sans SC",source-han-sans-sc,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--ink);color:var(--paper);font-family:var(--serif-zh);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+
+/* ============ 暖纸纹理背景 ============ */
+body::before{
+  content:"";position:fixed;inset:0;z-index:0;
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(139,94,60,0.015) 2px, rgba(139,94,60,0.015) 4px),
+    repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(139,94,60,0.01) 3px, rgba(139,94,60,0.01) 5px),
+    radial-gradient(ellipse at 30% 40%, rgba(200,170,130,0.15) 0%, transparent 60%),
+    radial-gradient(ellipse at 70% 60%, rgba(180,150,110,0.1) 0%, transparent 50%);
+}
+
+/* ============ Deck 容器 ============ */
+#deck{position:fixed;inset:0;width:10000vw;height:100vh;display:flex;flex-wrap:nowrap;transition:transform .9s cubic-bezier(.77,0,.175,1);z-index:10;will-change:transform}
+
+/* ============ Slide 基础 ============ */
+.slide{width:100vw;height:100vh;flex:0 0 100vw;position:relative;display:flex;overflow:hidden}
+.slide.light{color:var(--ink)}
+.slide.dark{color:var(--paper)}
+.slide.light .sidebar{background:var(--sidebar-bg)}
+.slide.dark .sidebar{background:rgba(255,255,255,0.06)}
+.slide.light .main-content{background:var(--paper)}
+.slide.dark .main-content{background:var(--ink-tint)}
+
+/* ============ 左侧学习目标栏 ============ */
+.sidebar{
+  width:18vw;min-width:200px;height:100vh;
+  display:flex;flex-direction:column;
+  padding:5vh 1.2vw 8vh 1.2vw;
+  flex-shrink:0;position:relative;z-index:2;
+  border-right:1px solid rgba(42,30,19,0.12);
+}
+.slide.dark .sidebar{border-right:1px solid rgba(255,255,255,0.08)}
+.sidebar-title{
+  font-family:var(--serif-zh);font-weight:700;
+  font-size:1.1vw;letter-spacing:0.08em;
+  opacity:0.7;margin-bottom:2.8vh;
+  padding-bottom:1.2vh;
+  border-bottom:2px solid var(--accent);
+}
+.slide.dark .sidebar-title{border-bottom-color:rgba(255,255,255,0.3)}
+.objectives{list-style:none;display:flex;flex-direction:column;gap:1.6vh;flex:1}
+.objectives li{
+  font-family:var(--sans-zh);font-weight:400;
+  font-size:max(12px,0.85vw);line-height:1.45;
+  opacity:0.78;padding-left:1em;
+  position:relative;
+}
+.objectives li::before{
+  content:"";position:absolute;left:0;top:0.55em;
+  width:5px;height:5px;border-radius:50%;
+  background:var(--accent);opacity:0.6;
+}
+.slide.dark .objectives li::before{background:rgba(255,255,255,0.5)}
+.objectives li.highlight{opacity:1;font-weight:500}
+.objectives li.highlight::before{opacity:1;width:6px;height:6px}
+
+/* ============ 主内容区 ============ */
+.main-content{
+  flex:1;display:flex;flex-direction:column;
+  padding:3vh 3vw 6vh 3vw;position:relative;z-index:1;
+  overflow:hidden;
+}
+
+/* ============ Chrome & Foot ============ */
+.chrome{
+  display:flex;justify-content:space-between;align-items:flex-start;
+  font-family:var(--mono);font-size:max(11px,0.75vw);
+  letter-spacing:0.15em;text-transform:uppercase;
+  opacity:0.55;margin-bottom:1.2vh;
+  flex-shrink:0;
+}
+.chrome .left{display:flex;gap:1.6em;align-items:center}
+.chrome .sep{width:30px;height:1px;background:currentColor;opacity:0.35}
+.foot{
+  margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;
+  font-family:var(--mono);font-size:max(10px,0.7vw);
+  letter-spacing:0.12em;text-transform:uppercase;
+  opacity:0.45;flex-shrink:0;padding-top:1.2vh;
+}
+
+/* ============ 内容区域 ============ */
+.content-area{
+  flex:1;display:flex;flex-direction:column;
+  gap:1.2vh;overflow-y:auto;padding-right:0.5vw;
+  min-height:0;
+}
+.content-area::-webkit-scrollbar{width:3px}
+.content-area::-webkit-scrollbar-thumb{background:rgba(42,30,19,0.15);border-radius:3px}
+
+/* ============ 字体系统（整体放大） ============ */
+.module-label{
+  font-family:var(--mono);font-size:max(11px,0.7vw);
+  letter-spacing:0.2em;text-transform:uppercase;
+  opacity:0.5;margin-bottom:0.4vh;
+}
+.slide-title{
+  font-family:var(--serif-zh);font-weight:700;
+  font-size:max(24px,2.4vw);line-height:1.2;
+  letter-spacing:-0.005em;margin-bottom:1.2vh;
+}
+.slide-subtitle{
+  font-family:var(--serif-zh);font-weight:500;
+  font-size:max(18px,1.3vw);line-height:1.3;
+  opacity:0.7;margin-bottom:1.6vh;
+}
+.body-text{
+  font-family:var(--sans-zh);font-weight:400;
+  font-size:max(16px,1.3vw);line-height:1.65;
+  opacity:0.82;
+}
+.body-text-sm{
+  font-family:var(--sans-zh);font-weight:400;
+  font-size:max(14px,1.05vw);line-height:1.55;
+  opacity:0.78;
+}
+.body-serif{
+  font-family:var(--serif-zh);font-weight:400;
+  font-size:max(16px,1.3vw);line-height:1.6;
+  opacity:0.85;
+}
+.label-mono{
+  font-family:var(--mono);font-size:max(11px,0.75vw);
+  letter-spacing:0.12em;opacity:0.55;
+}
+
+/* ============ 代码块 ============ */
+.code-block{
+  background:var(--code-bg);
+  border:1px solid var(--code-border);
+  border-radius:4px;padding:1.6vh 1.4vw;
+  font-family:var(--mono);font-size:max(13px,0.95vw);
+  line-height:1.5;overflow-x:auto;
+  white-space:pre;margin:0.6vh 0;
+}
+.slide.dark .code-block{
+  background:rgba(255,255,255,0.06);
+  border-color:rgba(255,255,255,0.1);
+}
+.code-block .comment{opacity:0.5;font-style:italic}
+.code-block .keyword{color:var(--accent);font-weight:500}
+.slide.dark .code-block .keyword{color:#c49a6c}
+.code-block .string{opacity:0.7}
+.code-block .highlight-line{background:rgba(139,94,60,0.12);display:block;margin:0 -1.4vw;padding:0 1.4vw}
+.slide.dark .code-block .highlight-line{background:rgba(255,255,255,0.05)}
+
+/* ============ 命令行 ============ */
+.cmd-block{
+  background:var(--ink-tint);color:#e8ddd0;
+  border-radius:4px;padding:1.4vh 1.4vw;
+  font-family:var(--mono);font-size:max(13px,0.95vw);
+  line-height:1.5;overflow-x:auto;
+  white-space:pre;margin:0.6vh 0;
+}
+.cmd-block .prompt{opacity:0.5;user-select:none}
+.cmd-block .output{opacity:0.65}
+.cmd-block .comment{opacity:0.4;font-style:italic}
+
+/* ============ 提示框 ============ */
+.note-box{
+  display:flex;gap:0.8vw;align-items:flex-start;
+  padding:1.2vh 1.2vw;
+  border-left:3px solid var(--accent);
+  background:rgba(139,94,60,0.06);
+  margin:0.6vh 0;border-radius:0 4px 4px 0;
+}
+.slide.dark .note-box{
+  background:rgba(255,255,255,0.04);
+  border-left-color:rgba(255,255,255,0.3);
+}
+.note-box .note-icon{font-family:var(--mono);font-size:max(11px,0.75vw);opacity:0.5;flex-shrink:0}
+.note-box .note-text{
+  font-family:var(--sans-zh);font-weight:400;
+  font-size:max(13px,0.95vw);line-height:1.5;opacity:0.8;
+}
+
+/* ============ 表格 ============ */
+.data-table{
+  width:100%;border-collapse:collapse;
+  font-size:max(13px,0.95vw);margin:0.6vh 0;
+}
+.data-table th{
+  font-family:var(--serif-zh);font-weight:600;
+  text-align:left;padding:0.8vh 0.8vw;
+  border-bottom:2px solid var(--accent);
+  opacity:0.85;
+}
+.slide.dark .data-table th{border-bottom-color:rgba(255,255,255,0.25)}
+.data-table td{
+  font-family:var(--sans-zh);font-weight:400;
+  padding:0.7vh 0.8vw;border-bottom:1px solid rgba(42,30,19,0.1);
+  line-height:1.4;
+}
+.slide.dark .data-table td{border-bottom-color:rgba(255,255,255,0.06)}
+.data-table tr:last-child td{border-bottom:none}
+
+/* ============ 网格布局 ============ */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.6vw;flex:1;align-content:start}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.2vw;flex:1;align-content:start}
+.grid-2-7-5{display:grid;grid-template-columns:7fr 5fr;gap:1.6vw;flex:1;align-content:start}
+.grid-2-6-6{display:grid;grid-template-columns:1fr 1fr;gap:1.6vw;flex:1;align-content:start}
+.grid-4{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:1.2vh 1.6vw;flex:1;align-content:start}
+
+/* ============ 架构图/流程图 ============ */
+.diagram-box{
+  display:flex;align-items:center;justify-content:center;
+  gap:0.6vw;padding:1.2vh 0;flex-wrap:wrap;
+}
+.diagram-box .box{
+  padding:0.8vh 1vw;border:1.5px solid var(--accent);
+  border-radius:4px;font-family:var(--sans-zh);
+  font-size:max(12px,0.85vw);font-weight:500;
+  text-align:center;background:rgba(139,94,60,0.04);
+}
+.slide.dark .diagram-box .box{
+  border-color:rgba(255,255,255,0.25);
+  background:rgba(255,255,255,0.03);
+}
+.diagram-box .arrow{
+  font-family:var(--mono);font-size:max(14px,1vw);
+  opacity:0.4;padding:0 0.3vw;
+}
+.diagram-box .label{
+  font-family:var(--mono);font-size:max(10px,0.65vw);
+  opacity:0.5;text-align:center;margin-top:0.3vh;
+}
+
+/* ============ 列表 ============ */
+.ulist{
+  list-style:none;display:flex;flex-direction:column;
+  gap:0.6vh;padding:0;
+}
+.ulist li{
+  font-family:var(--sans-zh);font-weight:400;
+  font-size:max(14px,1.05vw);line-height:1.5;
+  opacity:0.8;padding-left:1.2em;
+  position:relative;
+}
+.ulist li::before{
+  content:"";position:absolute;left:0;top:0.6em;
+  width:4px;height:4px;border-radius:50%;
+  background:var(--accent);opacity:0.5;
+}
+.slide.dark .ulist li::before{background:rgba(255,255,255,0.4)}
+.ulist li strong{font-weight:600;opacity:1}
+
+/* ============ 数字卡片 ============ */
+.stat-row{display:flex;gap:1.6vw;margin:0.6vh 0}
+.stat-item{flex:1;padding:1vh 0.8vw;border-top:2px solid var(--accent)}
+.slide.dark .stat-item{border-top-color:rgba(255,255,255,0.2)}
+.stat-item .num{
+  font-family:var(--serif-zh);font-weight:700;
+  font-size:max(22px,2.2vw);line-height:1.1;
+  color:var(--accent);
+}
+.slide.dark .stat-item .num{color:#c49a6c}
+.stat-item .desc{
+  font-family:var(--sans-zh);font-weight:400;
+  font-size:max(12px,0.85vw);line-height:1.4;
+  opacity:0.7;margin-top:0.3vh;
+}
+
+/* ============ 步骤流水线 ============ */
+.pipeline{display:flex;gap:0.8vw;margin:0.6vh 0}
+.pipeline .step{
+  flex:1;padding:1vh 0.6vw;
+  border-top:2px solid var(--accent);
+  position:relative;
+}
+.slide.dark .pipeline .step{border-top-color:rgba(255,255,255,0.2)}
+.pipeline .step .sn{
+  font-family:var(--mono);font-size:max(10px,0.65vw);
+  opacity:0.4;margin-bottom:0.3vh;
+}
+.pipeline .step .st{
+  font-family:var(--serif-zh);font-weight:600;
+  font-size:max(13px,0.9vw);line-height:1.2;
+}
+.pipeline .step .sd{
+  font-family:var(--sans-zh);font-weight:400;
+  font-size:max(11px,0.75vw);line-height:1.35;
+  opacity:0.7;margin-top:0.2vh;
+}
+
+/* ============ 导航 ============ */
+#nav{position:fixed;left:50%;bottom:1.8vh;transform:translateX(-50%);z-index:30;display:flex;gap:8px;padding:6px 12px;border-radius:999px;background:rgba(0,0,0,0.12);backdrop-filter:blur(8px)}
+#nav .dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.3);cursor:pointer;transition:all .3s ease;border:0;padding:0}
+#nav .dot:hover{background:rgba(255,255,255,0.5);transform:scale(1.15)}
+#nav .dot.active{background:rgba(255,255,255,0.9);width:18px;border-radius:999px}
+body.light-bg #nav{background:rgba(0,0,0,0.08)}
+body.light-bg #nav .dot{background:rgba(var(--ink-rgb),0.2)}
+body.light-bg #nav .dot.active{background:rgba(var(--ink-rgb),0.8)}
+#hint{position:fixed;bottom:1.2vh;right:2vw;z-index:30;font-family:var(--mono);font-size:9px;letter-spacing:0.15em;text-transform:uppercase;opacity:0.3;mix-blend-mode:difference;color:#aaa}
+
+/* ============ 响应式 ============ */
+@media (max-width:1200px){
+  .sidebar{width:22vw;min-width:160px}
+  .sidebar-title{font-size:1.3vw}
+  .objectives li{font-size:1vw}
+  .slide-title{font-size:2.6vw}
+  .body-text{font-size:1.4vw}
+}
+@media (max-width:900px){
+  .sidebar{display:none}
+  .main-content{padding:2vh 4vw 6vh 4vw}
+  .slide-title{font-size:3.2vw}
+  .body-text{font-size:1.8vw}
+  .code-block,.cmd-block{font-size:1.2vw}
+}
+</style>
+<style>
+/* ===== inlined unified course styles for standalone distribution ===== */
+/* Course-wide visual normalization.
+   This file intentionally mirrors the warm academic style of 1.html while
+   preserving each deck's existing navigation/runtime structure. */
+:root{
+  --bg:#faf7f0!important;
+  --bg-soft:#f0ece0!important;
+  --surface:#ffffff!important;
+  --surface-2:#f7f1e3!important;
+  --border:rgba(90,60,30,.13)!important;
+  --border-strong:rgba(90,60,30,.28)!important;
+  --text-1:#2a1f12!important;
+  --text-2:#5a4a33!important;
+  --text-3:#8a7859!important;
+  --accent:#3b7a5a!important;
+  --accent-2:#c4812a!important;
+  --accent-3:#b8452e!important;
+  --paper:#faf7f0!important;
+  --paper-tint:#f0ece0!important;
+  --paper-rgb:250,247,240!important;
+  --ink:#2a1f12!important;
+  --ink-rgb:42,31,18!important;
+  --ink-tint:#5a4a33!important;
+  --code-bg:#2a1f12!important;
+  --radius:14px!important;
+  --radius-sm:12px!important;
+  --shadow:0 8px 24px rgba(90,60,30,.07)!important;
+  --font-sans:'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif!important;
+  --font-serif:'Playfair Display','Noto Serif SC',Georgia,serif!important;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace!important;
+}
+html,body,#deck,.deck{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+  font-family:var(--font-sans)!important;
+  letter-spacing:-.01em;
+}
+.slide,
+section[class*="slide"],
+.slide.light,
+.slide.dark,
+.slide-cover,
+.slide-divider{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+}
+.slide.full,
+.cover,
+.slide-cover{
+  background:var(--bg)!important;
+}
+.main,
+.content,
+.slide-content,
+.main-content,
+.right,
+.body,
+.stage{
+  color:var(--text-1)!important;
+  min-height:0!important;
+}
+h1,h2,h3,
+.h1,.h2,.h3,
+.slide-title,
+.cover-title,
+.end-title,
+.h-hero,
+.h-xl,
+.main h1,
+.main h2,
+.main h3{
+  font-family:var(--font-serif)!important;
+  color:var(--text-1)!important;
+  letter-spacing:-.02em!important;
+}
+h1,.h1,.cover-title,.slide-title,.h-hero{
+  font-weight:800!important;
+}
+h2,.h2,.h-xl{
+  font-weight:700!important;
+}
+p,li,td,th,.lede,.dim,.dim2,.fn-desc,.body-text,.txt,.label{
+  color:var(--text-2);
+}
+strong,b{color:var(--text-1)}
+.kicker,
+.eyebrow,
+.module-label,
+.sidebar-module-label,
+.module-code,
+.obj-label,
+.obj-title,
+.obj-header,
+.objectives-title,
+.lb-title,
+.sidebar-label{
+  color:var(--accent-2)!important;
+  font-family:var(--font-sans)!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  letter-spacing:.14em!important;
+  text-transform:uppercase!important;
+}
+.sidebar,
+aside.sidebar,
+.learning-sidebar,
+.slide-sidebar,
+.left-col{
+  background:transparent!important;
+  border-right:1px solid var(--border)!important;
+  border-left:0!important;
+  padding-right:24px!important;
+  color:var(--text-2)!important;
+  box-shadow:none!important;
+}
+.sidebar-title,
+.module-title,
+.sidebar-module,
+.lb-module,
+.brand,
+.sidebar .brand{
+  font-family:var(--font-serif)!important;
+  color:var(--accent)!important;
+  font-size:20px!important;
+  line-height:1.25!important;
+  font-weight:700!important;
+}
+.obj-list,
+.objectives,
+.objective-list,
+.learning-sidebar ul,
+.slide-sidebar ul{
+  list-style:none!important;
+  padding:0!important;
+  margin:0!important;
+  font-family:var(--font-sans)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+  color:var(--text-2)!important;
+}
+.obj-list li,
+.objectives li,
+.objective-list li,
+.learning-sidebar li,
+.slide-sidebar li{
+  position:relative!important;
+  padding:7px 0 7px 22px!important;
+  border-bottom:1px dashed var(--border)!important;
+  color:var(--text-2)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+}
+.obj-list li::before,
+.objectives li::before,
+.objective-list li::before,
+.learning-sidebar li::before,
+.slide-sidebar li::before{
+  content:"○"!important;
+  position:absolute!important;
+  left:0!important;
+  top:7px!important;
+  color:var(--accent)!important;
+  width:auto!important;
+  height:auto!important;
+  background:transparent!important;
+  border-radius:0!important;
+  opacity:1!important;
+}
+.obj-list li.current::before,
+.objectives li.current::before,
+.objective-list li.current::before,
+.obj-list li.highlight::before,
+.objectives li.highlight::before,
+.objective-list li.highlight::before{
+  content:"▸"!important;
+  color:var(--accent-2)!important;
+}
+.obj-list li.current,
+.objectives li.current,
+.objective-list li.current,
+.obj-list li.highlight,
+.objectives li.highlight,
+.objective-list li.highlight{
+  color:var(--text-1)!important;
+  font-weight:700!important;
+}
+.card,
+.concept-box,
+.col-item,
+.metric-card,
+.panel,
+.info-card,
+.tip-box,
+.callout-box,
+.comp-item,
+.diagram-box,
+.data-card,
+.feature-card,
+.task-card,
+.warning-card,
+.workflow-card{
+  background:var(--surface)!important;
+  border:1px solid var(--border)!important;
+  border-radius:var(--radius)!important;
+  box-shadow:var(--shadow)!important;
+  color:var(--text-1)!important;
+}
+.card-accent,
+.accent-card,
+.concept-box h4{
+  border-color:var(--border)!important;
+}
+.callout,
+.tip,
+.note-box{
+  background:var(--surface-2)!important;
+  border-left:4px solid var(--accent-2)!important;
+  border-radius:0 var(--radius) var(--radius) 0!important;
+  color:var(--text-2)!important;
+}
+.warn-box,
+.warning,
+.alert{
+  background:rgba(196,129,42,.08)!important;
+  border:1px solid rgba(196,129,42,.3)!important;
+  border-radius:var(--radius)!important;
+  color:var(--text-2)!important;
+}
+.course-bridge{
+  max-width:72ch;
+  margin-top:16px!important;
+  padding:10px 16px!important;
+  font-size:13px!important;
+  line-height:1.45!important;
+}
+.course-bridge b{
+  color:var(--accent-2)!important;
+}
+
+
+.slide > .sidebar + .main-content + .course-bridge{
+  left:calc(18vw + 3vw)!important;
+  max-width:min(760px,70vw)!important;
+}
+
+.slide > .course-bridge,
+.hero .course-bridge,
+.slide.full .course-bridge,
+section.full .course-bridge{
+  position:absolute!important;
+  left:6vw!important;
+  right:auto!important;
+  bottom:9vh!important;
+  max-width:min(760px,64vw)!important;
+  margin:0!important;
+  z-index:3!important;
+}
+.slide[data-screen-label="01 封面"] .sidebar,
+.slide[data-screen-label="01 封面"] .main-content{
+  background:var(--bg)!important;
+}
+.slide[data-screen-label="01 封面"] .sidebar{
+  border-right:1px solid var(--border)!important;
+}
+.slide.compact .h2,
+section.compact .h2,
+.slide.compact h2,
+section.compact h2{
+  font-size:clamp(25px,2.15vw,34px)!important;
+  line-height:1.12!important;
+  margin-bottom:6px!important;
+}
+.slide.compact .lede,
+section.compact .lede,
+.slide.compact .fn-desc,
+section.compact .fn-desc,
+.slide.compact p,
+section.compact p{
+  font-size:clamp(13px,1.05vw,16px)!important;
+  line-height:1.45!important;
+}
+.slide.compact .card,
+section.compact .card,
+.slide.compact .concept-box,
+section.compact .concept-box,
+.slide.compact .col-item,
+section.compact .col-item{
+  padding:12px 15px!important;
+}
+.slide.compact .concept-box h4,
+section.compact .concept-box h4,
+.slide.compact .card h4,
+section.compact .card h4{
+  font-size:clamp(14px,1.1vw,17px)!important;
+  line-height:1.25!important;
+  margin-bottom:4px!important;
+}
+.slide.compact .grid,
+section.compact .grid{
+  gap:12px!important;
+}
+.slide.compact .mt-l,
+section.compact .mt-l{
+  margin-top:14px!important;
+}
+.slide.compact .mt-m,
+section.compact .mt-m{
+  margin-top:8px!important;
+}
+.problem-grid .concept-box{
+  min-height:118px;
+}
+.problem-grid .concept-box:last-child{
+  grid-column:1/-1;
+  min-height:96px;
+}
+.slide.code-heavy .code-block,
+section.code-heavy .code-block{
+  font-size:clamp(10px,.82vw,12px)!important;
+  line-height:1.28!important;
+  padding:10px 12px!important;
+}
+.slide.compact .data-table th,
+.slide.compact .data-table td,
+section.compact .data-table th,
+section.compact .data-table td{
+  padding:4px 7px!important;
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.3!important;
+}
+.slide.compact .code-block,
+section.compact .code-block{
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.35!important;
+  padding:10px 12px!important;
+}
+pre,
+code,
+.code,
+.code-block,
+.code-panel{
+  font-family:var(--font-mono)!important;
+}
+pre,
+.code,
+.code-block,
+.code-panel{
+  background:#2a1f12!important;
+  color:#f0ece0!important;
+  border:0!important;
+  border-radius:var(--radius)!important;
+  box-shadow:none!important;
+}
+code:not(pre code){
+  background:rgba(90,60,30,.08)!important;
+  color:var(--text-1)!important;
+}
+table,
+.data-table{
+  border-color:var(--border)!important;
+}
+th,
+.data-table th{
+  background:var(--surface-2)!important;
+  color:var(--text-1)!important;
+}
+td,
+.data-table td{
+  background:var(--surface)!important;
+  color:var(--text-2)!important;
+}
+.pill,
+.pill-academic,
+.tag,
+.badge{
+  background:var(--surface-2)!important;
+  color:var(--text-2)!important;
+  border:1px solid var(--border)!important;
+  border-radius:4px!important;
+  font-family:var(--font-mono)!important;
+}
+.pill-accent,
+.tag.accent,
+.badge.accent{
+  color:var(--accent)!important;
+  border-color:color-mix(in srgb,var(--accent) 28%,transparent)!important;
+}
+.deck-footer,
+.page-meta,
+.footer,
+.slide-meta{
+  color:var(--text-3)!important;
+}
+.progress-bar>span,
+.progress,
+.progress-dot.active,
+.dot.active{
+  background:var(--accent)!important;
+}
+svg text{font-family:var(--font-sans)!important}
+/* ===== end inlined unified course styles ===== */
+</style>
+</head>
+<body>
+
+<div id="hint">← → 翻页 · ESC 索引</div>
+
+<div id="deck">
+
+<!-- ================================================================ -->
+<!-- SLIDE 1 · 封面 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="01 封面">
+  <div class="sidebar">
+    <div class="sidebar-title">课程概览</div>
+    <ul class="objectives">
+      <li class="highlight">理解少样本目标检测的现实需求</li>
+      <li>掌握 FsDet 的核心原理与训练流程</li>
+      <li>熟悉环境搭建与代码实践</li>
+      <li>辨析少样本检测的适用边界</li>
+    </ul>
+  </div>
+  <div class="main-content" style="justify-content:center;align-items:center;text-align:center">
+    <div class="module-label" style="margin-bottom:2vh">计算机视觉 · 高级专题</div>
+    <h1 class="slide-title" style="font-size:max(32px,3.8vw);margin-bottom:1.2vh">FsDet 少样本目标检测</h1>
+    <h2 class="slide-subtitle" style="font-size:max(20px,1.8vw);opacity:0.6">原理、训练与适用边界</h2>
+    <div style="width:60px;height:2px;background:var(--accent);margin:2.4vh auto;opacity:0.5"></div>
+    <div class="body-text-sm" style="opacity:0.5">课时：90 分钟（两节连堂）</div>
+    <div class="body-text-sm" style="opacity:0.4;margin-top:0.4vh">课程专题 · 计算机视觉专题</div>
+  </div>
+
+  <div class="callout course-bridge"><b>课程衔接。</b>承接固定类别检测与 YOLO 实践，本讲讨论样本不足时的少样本目标检测，重点辨析 FsDet 的训练流程、适用边界和工程风险。</div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 2 · 模块一：为什么需要少样本目标检测 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="02 现实背景与需求">
+  <div class="sidebar">
+    <div class="sidebar-title">模块一 · 引言与背景</div>
+    <ul class="objectives">
+      <li class="highlight">理解少样本目标检测的现实需求</li>
+      <li class="highlight">识别样本稀缺的典型行业场景</li>
+      <li>区分少样本检测与常规检测的差异</li>
+      <li>建立问题认知框架</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块一 · 引言与背景</span><span class="sep"></span><span>现实需求</span></div>
+      <div>02 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 1.1 · 现实背景</div>
+      <h2 class="slide-title">为什么需要少样本目标检测</h2>
+      <p class="body-text">常规目标检测方法（如 Faster R-CNN、YOLO、SSD）依赖大量标注样本。每个新类别通常需要数千张标注图像才能达到可用精度。然而在真实工业场景中，这一假设经常无法满足。</p>
+      <div class="stat-row" style="margin-top:0.8vh">
+        <div class="stat-item">
+          <div class="num">5%</div>
+          <div class="desc">工业缺陷检测中，缺陷样本占总产量的比例通常低于 5%</div>
+        </div>
+        <div class="stat-item">
+          <div class="num">1-10</div>
+          <div class="desc">新品类上线初期，可用标注样本往往仅有 1-10 张</div>
+        </div>
+        <div class="stat-item">
+          <div class="num">80%</div>
+          <div class="desc">长尾分布中，80% 的类别属于样本极少的尾部类别</div>
+        </div>
+      </div>
+      <p class="body-text-sm" style="margin-top:0.6vh">少样本目标检测（Few-shot Object Detection, FSOD）正是在此背景下提出：给定极少量新类别标注样本，使模型具备检测这些新类别目标的能力。</p>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块一</div>
+      <div>§ 1.1 · 现实背景</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 3 · 样本稀缺的行业场景 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="03 行业场景分析">
+  <div class="sidebar">
+    <div class="sidebar-title">模块一 · 引言与背景</div>
+    <ul class="objectives">
+      <li class="highlight">理解少样本目标检测的现实需求</li>
+      <li class="highlight">识别样本稀缺的典型行业场景</li>
+      <li>区分少样本检测与常规检测的差异</li>
+      <li>建立问题认知框架</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块一 · 引言与背景</span><span class="sep"></span><span>行业场景</span></div>
+      <div>03 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 1.2 · 典型场景分析</div>
+      <h2 class="slide-title">样本稀缺的行业场景</h2>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">工业质检</div>
+          <ul class="ulist">
+            <li>新产品产线刚投产，缺陷样本极少</li>
+            <li>缺陷类型随工艺调整不断变化</li>
+            <li>标注需要领域专家，成本高昂</li>
+          </ul>
+          <div class="body-text" style="font-weight:600;margin-top:1.2vh;margin-bottom:0.4vh">医疗影像</div>
+          <ul class="ulist">
+            <li>罕见病例的影像数据极其有限</li>
+            <li>隐私法规限制数据共享与标注</li>
+            <li>病灶形态多样，标注一致性难保证</li>
+          </ul>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">安全监控</div>
+          <ul class="ulist">
+            <li>安全事故场景（火灾、交通事故）难以采集</li>
+            <li>异常事件发生频率极低</li>
+            <li>场景变化快，固定模型迅速过时</li>
+          </ul>
+          <div class="body-text" style="font-weight:600;margin-top:1.2vh;margin-bottom:0.4vh">卫星遥感</div>
+          <ul class="ulist">
+            <li>特定目标（稀有船只、临时建筑）样本少</li>
+            <li>标注需要专业判读员</li>
+            <li>类别变化快，来不及大规模标注</li>
+          </ul>
+        </div>
+      </div>
+      <div class="note-box" style="margin-top:0.4vh">
+        <span class="note-icon">[共性]</span>
+        <span class="note-text">上述场景的共同特征：类别变化快、标注成本高、长尾分布显著。少样本检测并非替代常规检测，而是填补"样本不足"这一空白区域。</span>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块一</div>
+      <div>§ 1.2 · 行业场景</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 4 · 常规检测 vs 少样本检测 -->
+<!-- ================================================================ -->
+<section class="slide dark" data-screen-label="04 问题定位与差异">
+  <div class="sidebar">
+    <div class="sidebar-title">模块一 · 引言与背景</div>
+    <ul class="objectives">
+      <li>理解少样本目标检测的现实需求</li>
+      <li>识别样本稀缺的典型行业场景</li>
+      <li class="highlight">区分少样本检测与常规检测的差异</li>
+      <li>建立问题认知框架</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块一 · 引言与背景</span><span class="sep"></span><span>问题定位</span></div>
+      <div>04 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 1.3 · 问题定位</div>
+      <h2 class="slide-title">常规检测与少样本检测的差异</h2>
+      <table class="data-table" style="margin-top:0.6vh">
+        <tr><th style="width:22%">维度</th><th style="width:39%">常规目标检测</th><th style="width:39%">少样本目标检测</th></tr>
+        <tr><td style="font-weight:600">数据假设</td><td>每类数百至数千标注样本</td><td>新类每类仅 1/5/10 个样本</td></tr>
+        <tr><td style="font-weight:600">训练方式</td><td>端到端训练或标准迁移学习</td><td>基类预训练 + 少样本微调</td></tr>
+        <tr><td style="font-weight:600">核心挑战</td><td>数据质量、调参、部署效率</td><td>过拟合、类别混淆、泛化能力</td></tr>
+        <tr><td style="font-weight:600">评估重点</td><td>mAP@0.5:0.95、推理速度</td><td>新类 mAP、基类知识保留度</td></tr>
+        <tr><td style="font-weight:600">典型方法</td><td>YOLO、Faster R-CNN、DETR</td><td>FsDet、TFA、FSCE、DeFRCN</td></tr>
+      </table>
+      <p class="body-text-sm" style="margin-top:0.6vh">少样本检测的核心矛盾：模型需要从极少量样本中学习新类别的视觉概念，同时不能遗忘已学会的基类知识。这要求训练策略在设计上做出针对性调整。</p>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块一</div>
+      <div>§ 1.3 · 问题定位</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 5 · 少样本检测的发展脉络 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="05 方法发展脉络">
+  <div class="sidebar">
+    <div class="sidebar-title">模块一 · 引言与背景</div>
+    <ul class="objectives">
+      <li>理解少样本目标检测的现实需求</li>
+      <li>识别样本稀缺的典型行业场景</li>
+      <li>区分少样本检测与常规检测的差异</li>
+      <li class="highlight">建立问题认知框架</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块一 · 引言与背景</span><span class="sep"></span><span>发展脉络</span></div>
+      <div>05 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 1.4 · 发展脉络</div>
+      <h2 class="slide-title">少样本检测方法演进</h2>
+      <div class="pipeline" style="margin-top:0.6vh">
+        <div class="step"><div class="sn">2018</div><div class="st">LSTD</div><div class="sd">最早将少样本学习引入检测任务，使用迁移学习 + 注意力机制</div></div>
+        <div class="step"><div class="sn">2020</div><div class="st">FsDet</div><div class="sd">提出"简单基线"范式：基类预训练 + 少样本微调，无需复杂结构</div></div>
+        <div class="step"><div class="sn">2020</div><div class="st">TFA</div><div class="sd">两阶段微调：先训练全部参数，再冻结 backbone 仅微调分类头</div></div>
+        <div class="step"><div class="sn">2021</div><div class="st">FSCE</div><div class="sd">引入对比学习约束，增强新类特征的判别性</div></div>
+        <div class="step"><div class="sn">2021+</div><div class="st">DeFRCN</div><div class="sd">解耦 RPN 与 ROI Head 的梯度传播，缓解类别不平衡</div></div>
+      </div>
+      <p class="body-text-sm" style="margin-top:0.6vh">FsDet 在 2020 年由 UC Berkeley / 加州大学伯克利分校提出，其核心贡献在于证明：<strong>强基线 + 合理训练策略即可取得有效结果</strong>，无需设计复杂的网络结构。这一思想使其成为教学和入门的最佳选择。</p>
+      <div class="note-box">
+        <span class="note-icon">[参考]</span>
+        <span class="note-text">FsDet 论文："Frustratingly Simple Few-Shot Object Detection" (ICML 2020)，代码开源在 github.com/ucbdrive/few-shot-object-detection</span>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块一</div>
+      <div>§ 1.4 · 发展脉络</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 6 · 模块二：基本概念（幕封） -->
+<!-- ================================================================ -->
+<section class="slide dark" data-screen-label="06 基本概念">
+  <div class="sidebar">
+    <div class="sidebar-title">模块二 · 基本概念</div>
+    <ul class="objectives">
+      <li class="highlight">掌握 base class / novel class 的定义</li>
+      <li class="highlight">理解 K-shot 的含义与设定</li>
+      <li>区分 support set 与 query set</li>
+      <li>对比少样本分类与检测的难度差异</li>
+    </ul>
+  </div>
+  <div class="main-content" style="justify-content:center;align-items:center;text-align:center;background:var(--ink-tint)">
+    <div class="module-label" style="margin-bottom:1.6vh">模块二</div>
+    <h1 class="slide-title" style="font-size:max(28px,3.2vw)">基本概念与术语体系</h1>
+    <div style="width:50px;height:2px;background:var(--accent);margin:2vh auto;opacity:0.4"></div>
+    <p class="body-text-sm" style="opacity:0.6;max-width:50vw">建立统一的术语框架，为后续原理讲解奠定基础</p>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 7 · Base / Novel / K-shot -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="07 核心术语定义">
+  <div class="sidebar">
+    <div class="sidebar-title">模块二 · 基本概念</div>
+    <ul class="objectives">
+      <li class="highlight">掌握 base class / novel class 的定义</li>
+      <li class="highlight">理解 K-shot 的含义与设定</li>
+      <li>区分 support set 与 query set</li>
+      <li>对比少样本分类与检测的难度差异</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块二 · 基本概念</span><span class="sep"></span><span>术语定义</span></div>
+      <div>07 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 2.1 · 核心术语</div>
+      <h2 class="slide-title">Base Class · Novel Class · K-shot</h2>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">Base Classes（基类）</div>
+          <ul class="ulist">
+            <li>训练集中拥有大量标注样本的类别</li>
+            <li>模型在基类上充分训练，获得通用检测能力</li>
+            <li>典型数量：每类数百至数千张图像</li>
+            <li>例如 COCO 数据集中的 60 个基类</li>
+          </ul>
+          <div class="body-text" style="font-weight:600;margin-top:1.2vh;margin-bottom:0.4vh">Novel Classes（新类）</div>
+          <ul class="ulist">
+            <li>只有少量标注样本的全新类别</li>
+            <li>模型需要从极少量样本中学会检测</li>
+            <li>与基类不重叠，构成"新"的检测目标</li>
+            <li>例如 COCO 中预留的 20 个新类</li>
+          </ul>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">K-shot 设定</div>
+          <ul class="ulist">
+            <li><strong>K</strong> 表示每个新类可用的标注实例数量</li>
+            <li>常见设定：1-shot、3-shot、5-shot、10-shot</li>
+            <li>K 值越小，任务难度越大，过拟合风险越高</li>
+            <li>K-shot 中的"shot"指标注的边界框实例，而非图像张数</li>
+          </ul>
+          <div class="note-box" style="margin-top:1.2vh">
+            <span class="note-icon">[示例]</span>
+            <span class="note-text">5-shot 设定：新类"猫"有 5 张标注图像，每张图像中可能包含多个猫实例，但"shot"计数以实例（边界框）为单位。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块二</div>
+      <div>§ 2.1 · 核心术语</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 8 · Support Set / Query Set -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="08 数据划分体系">
+  <div class="sidebar">
+    <div class="sidebar-title">模块二 · 基本概念</div>
+    <ul class="objectives">
+      <li>掌握 base class / novel class 的定义</li>
+      <li>理解 K-shot 的含义与设定</li>
+      <li class="highlight">区分 support set 与 query set</li>
+      <li>对比少样本分类与检测的难度差异</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块二 · 基本概念</span><span class="sep"></span><span>数据划分</span></div>
+      <div>08 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 2.2 · 数据划分</div>
+      <h2 class="slide-title">Support Set 与 Query Set</h2>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">Support Set（支持集）</div>
+          <ul class="ulist">
+            <li>少量带标注的样本，用于"告诉"模型新类长什么样</li>
+            <li>每个新类包含 K 个标注实例（边界框 + 类别标签）</li>
+            <li>在微调阶段作为训练数据使用</li>
+            <li>支持集的质量直接影响微调效果</li>
+          </ul>
+          <div class="body-text" style="font-weight:600;margin-top:1.2vh;margin-bottom:0.4vh">Query Set（查询集）</div>
+          <ul class="ulist">
+            <li>待检测的图像集合，用于评估模型性能</li>
+            <li>包含新类和基类的目标实例</li>
+            <li>模型需要在查询集上检测出所有已知类别</li>
+            <li>评估指标：新类 mAP、基类 mAP、总体 mAP</li>
+          </ul>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">数据划分示意图</div>
+          <div class="diagram-box" style="flex-direction:column;align-items:stretch;margin-top:0.4vh">
+            <div style="display:flex;gap:0.4vw;align-items:center">
+              <div class="box" style="flex:1">全部数据集</div>
+            </div>
+            <div style="display:flex;gap:0.4vw;align-items:center;margin-top:0.3vh">
+              <div class="box" style="flex:1">基类（Base）<br><span class="label">大量标注</span></div>
+              <div class="arrow">→</div>
+              <div class="box" style="flex:1">新类（Novel）<br><span class="label">少量标注</span></div>
+            </div>
+            <div style="display:flex;gap:0.4vw;align-items:center;margin-top:0.3vh">
+              <div class="box" style="flex:1">Support Set<br><span class="label">K-shot 训练</span></div>
+              <div class="arrow">→</div>
+              <div class="box" style="flex:1">Query Set<br><span class="label">评估测试</span></div>
+            </div>
+          </div>
+          <div class="note-box" style="margin-top:0.8vh">
+            <span class="note-icon">[关键]</span>
+            <span class="note-text">Support set 和 query set 的类别不重叠：support set 只包含新类样本，query set 同时包含基类和新类。这模拟了真实场景——已知类别有充足数据，新类别只有少量样本。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块二</div>
+      <div>§ 2.2 · 数据划分</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 9 · 少样本分类 vs 检测 -->
+<!-- ================================================================ -->
+<section class="slide dark" data-screen-label="09 分类与检测对比">
+  <div class="sidebar">
+    <div class="sidebar-title">模块二 · 基本概念</div>
+    <ul class="objectives">
+      <li>掌握 base class / novel class 的定义</li>
+      <li>理解 K-shot 的含义与设定</li>
+      <li>区分 support set 与 query set</li>
+      <li class="highlight">对比少样本分类与检测的难度差异</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块二 · 基本概念</span><span class="sep"></span><span>任务对比</span></div>
+      <div>09 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 2.3 · 任务对比</div>
+      <h2 class="slide-title">少样本分类 vs 少样本检测</h2>
+      <table class="data-table" style="margin-top:0.4vh">
+        <tr><th style="width:20%">维度</th><th style="width:40%">少样本分类</th><th style="width:40%">少样本目标检测</th></tr>
+        <tr><td style="font-weight:600">任务定义</td><td>判断图像属于哪个类别</td><td>定位目标位置 + 判断类别</td></tr>
+        <tr><td style="font-weight:600">输出</td><td>类别标签（单标签或多标签）</td><td>边界框集合 + 类别标签 + 置信度</td></tr>
+        <tr><td style="font-weight:600">额外挑战</td><td>类别判别</td><td>定位精度、背景抑制、多目标</td></tr>
+        <tr><td style="font-weight:600">典型方法</td><td>MAML、ProtoNet、RelationNet</td><td>FsDet、TFA、FSCE、DeFRCN</td></tr>
+        <tr><td style="font-weight:600">难度评估</td><td>中等</td><td>显著更高（定位 + 分类联合学习）</td></tr>
+      </table>
+      <p class="body-text-sm" style="margin-top:0.6vh">少样本检测的额外难度来源于：模型不仅要判断"这是什么"，还要回答"其空间位置"。在样本极少的情况下，定位分支比分类分支更容易过拟合，因为边界框回归对数据量更敏感。</p>
+      <div class="note-box">
+        <span class="note-icon">[延伸]</span>
+        <span class="note-text">少样本检测可视为"少样本分类 + 目标定位"的组合问题。FsDet 的核心思路是：利用基类训练让定位能力充分学习，新类只需微调分类能力。</span>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块二</div>
+      <div>§ 2.3 · 任务对比</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 10 · 概念总结 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="10 概念体系总结">
+  <div class="sidebar">
+    <div class="sidebar-title">模块二 · 基本概念</div>
+    <ul class="objectives">
+      <li>掌握 base class / novel class 的定义</li>
+      <li>理解 K-shot 的含义与设定</li>
+      <li>区分 support set 与 query set</li>
+      <li class="highlight">对比少样本分类与检测的难度差异</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块二 · 基本概念</span><span class="sep"></span><span>概念总结</span></div>
+      <div>10 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 2.4 · 概念体系总结</div>
+      <h2 class="slide-title">术语体系一览</h2>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">数据维度</div>
+          <ul class="ulist">
+            <li><strong>Base classes</strong>：基类，大量标注样本可用</li>
+            <li><strong>Novel classes</strong>：新类，仅 K 个标注实例</li>
+            <li><strong>K-shot</strong>：每个新类的标注实例数量</li>
+            <li><strong>Support set</strong>：K-shot 新类样本集合</li>
+            <li><strong>Query set</strong>：待检测的测试图像集合</li>
+          </ul>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">训练维度</div>
+          <ul class="ulist">
+            <li><strong>Base training</strong>：在基类上训练通用检测器</li>
+            <li><strong>Few-shot fine-tuning</strong>：用新类样本微调</li>
+            <li><strong>Novel set evaluation</strong>：评估新类检测精度</li>
+            <li><strong>Base+Novel evaluation</strong>：评估全部类别精度</li>
+          </ul>
+          <div class="note-box" style="margin-top:1.2vh">
+            <span class="note-icon">[记忆]</span>
+            <span class="note-text">Base = 已知大量；Novel = 未知少量；Shot = 样本计数单位；Support = 训练用；Query = 测试用。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块二</div>
+      <div>§ 2.4 · 概念总结</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 11 · 模块三：FsDet 核心思想（幕封） -->
+<!-- ================================================================ -->
+<section class="slide dark" data-screen-label="11 FsDet核心思想">
+  <div class="sidebar">
+    <div class="sidebar-title">模块三 · FsDet 核心思想</div>
+    <ul class="objectives">
+      <li class="highlight">理解 FsDet 的两阶段训练范式</li>
+      <li class="highlight">掌握 base training 的学习目标</li>
+      <li>理解 few-shot fine-tuning 的关键难点</li>
+      <li>熟悉微调阶段的常见策略</li>
+    </ul>
+  </div>
+  <div class="main-content" style="justify-content:center;align-items:center;text-align:center;background:var(--ink-tint)">
+    <div class="module-label" style="margin-bottom:1.6vh">模块三</div>
+    <h1 class="slide-title" style="font-size:max(28px,3.2vw)">FsDet 核心思想</h1>
+    <div style="width:50px;height:2px;background:var(--accent);margin:2vh auto;opacity:0.4"></div>
+    <p class="body-text-sm" style="opacity:0.6;max-width:50vw">"Frustratingly Simple"——强基线与合理策略即可取得有效结果</p>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 12 · FsDet 概述 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="12 方法概述">
+  <div class="sidebar">
+    <div class="sidebar-title">模块三 · FsDet 核心思想</div>
+    <ul class="objectives">
+      <li class="highlight">理解 FsDet 的两阶段训练范式</li>
+      <li>掌握 base training 的学习目标</li>
+      <li>理解 few-shot fine-tuning 的关键难点</li>
+      <li>熟悉微调阶段的常见策略</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块三 · FsDet</span><span class="sep"></span><span>方法概述</span></div>
+      <div>12 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 3.1 · 方法概述</div>
+      <h2 class="slide-title">FsDet 的基本思想</h2>
+      <p class="body-text">FsDet 对应论文 "Frustratingly Simple Few-Shot Object Detection"（ICML 2020），由 UC Berkeley 团队提出。核心思想可概括为一句话：<strong>不设计复杂的新结构，而是通过合理的训练策略让标准检测器适应少样本场景</strong>。</p>
+      <div class="diagram-box" style="margin-top:0.6vh;flex-direction:column;align-items:stretch">
+        <div style="display:flex;gap:0.6vw;align-items:center;justify-content:center">
+          <div class="box" style="flex:1">Base Training<br><span class="label">基类大量数据</span></div>
+          <div class="arrow">→</div>
+          <div class="box" style="flex:1">模型初始化<br><span class="label">通用检测能力</span></div>
+          <div class="arrow">→</div>
+          <div class="box" style="flex:1">Few-shot FT<br><span class="label">新类少量样本</span></div>
+          <div class="arrow">→</div>
+          <div class="box" style="flex:1">最终模型<br><span class="label">基类+新类检测</span></div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-top:0.6vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">论文关键信息</div>
+          <ul class="ulist">
+            <li>发表：ICML 2020（International Conference on Machine Learning）</li>
+            <li>代码：<span style="font-family:var(--mono);font-size:max(12px,0.85vw)">github.com/ucbdrive/few-shot-object-detection</span></li>
+            <li>论文：<span style="font-family:var(--mono);font-size:max(12px,0.85vw)">arxiv.org/abs/2003.06957</span></li>
+            <li>框架：基于 Detectron2（Facebook AI Research）</li>
+          </ul>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">核心贡献</div>
+          <ul class="ulist">
+            <li>证明强基线 + 合理策略即可超越复杂方法</li>
+            <li>系统分析微调策略的影响（学习率、冻结层、迭代数）</li>
+            <li>提供标准化的少样本检测评估协议</li>
+            <li>开源实现，便于复现和扩展</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块三</div>
+      <div>§ 3.1 · 方法概述</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 13 · 两阶段训练逻辑 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="13 基类阶段训练">
+  <div class="sidebar">
+    <div class="sidebar-title">模块三 · FsDet 核心思想</div>
+    <ul class="objectives">
+      <li class="highlight">理解 FsDet 的两阶段训练范式</li>
+      <li>掌握 base training 的学习目标</li>
+      <li>理解 few-shot fine-tuning 的关键难点</li>
+      <li>熟悉微调阶段的常见策略</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块三 · FsDet</span><span class="sep"></span><span>两阶段训练</span></div>
+      <div>13 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 3.2 · 两阶段训练逻辑</div>
+      <h2 class="slide-title">Stage 1: Base Training</h2>
+      <p class="body-text">第一阶段使用大量基类数据训练检测器，使其掌握通用视觉检测能力。此阶段与常规目标检测训练完全相同。</p>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">模型在此阶段学习：</div>
+          <ul class="ulist">
+            <li>如何从图像中提取通用视觉特征（backbone）</li>
+            <li>什么区域可能是物体（RPN 候选区域生成）</li>
+            <li>如何回归精确的边界框（bbox regression）</li>
+            <li>如何区分类别（classification head）</li>
+          </ul>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">训练配置示例：</div>
+          <div class="code-block" style="font-size:max(11px,0.8vw)"># Base training 关键参数
+SOLVER.IMS_PER_BATCH  16
+SOLVER.BASE_LR        0.02
+SOLVER.MAX_ITER       90000
+SOLVER.STEPS          (60000, 80000)
+MODEL.ROI_HEADS.NUM_CLASSES 60  # 基类数</div>
+        </div>
+      </div>
+      <div class="note-box">
+        <span class="note-icon">[关键]</span>
+        <span class="note-text">Base training 的输出是一个在基类上表现良好的检测器。其 backbone 和 RPN 学到的通用视觉能力（边缘检测、纹理识别、物体性判断）对后续新类学习至关重要。</span>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块三</div>
+      <div>§ 3.2 · Base Training</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 14 · Few-shot Fine-tuning -->
+<!-- ================================================================ -->
+<section class="slide dark" data-screen-label="14 少样本微调">
+  <div class="sidebar">
+    <div class="sidebar-title">模块三 · FsDet 核心思想</div>
+    <ul class="objectives">
+      <li>理解 FsDet 的两阶段训练范式</li>
+      <li>掌握 base training 的学习目标</li>
+      <li class="highlight">理解 few-shot fine-tuning 的关键难点</li>
+      <li>熟悉微调阶段的常见策略</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块三 · FsDet</span><span class="sep"></span><span>两阶段训练</span></div>
+      <div>14 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 3.3 · 两阶段训练逻辑</div>
+      <h2 class="slide-title">Stage 2: Few-shot Fine-tuning</h2>
+      <p class="body-text">第二阶段使用少量新类样本对基类检测器进行微调。这是 FsDet 的核心环节，也是最容易出现问题的环节。</p>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">关键难点：</div>
+          <ul class="ulist">
+            <li><strong>过拟合</strong>：样本极少（5-10 张），模型容易记住而非泛化</li>
+            <li><strong>类别混淆</strong>：新类与基类在特征空间可能重叠</li>
+            <li><strong>灾难性遗忘</strong>：过度微调会破坏基类学到的能力</li>
+            <li><strong>样本偏差</strong>：少量样本可能不代表真实分布</li>
+          </ul>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">微调配置示例：</div>
+          <div class="code-block" style="font-size:max(11px,0.8vw)"># Few-shot fine-tuning 关键参数
+SOLVER.IMS_PER_BATCH  4
+SOLVER.BASE_LR        0.001     # 降低学习率
+SOLVER.MAX_ITER       1000      # 少量迭代
+SOLVER.STEPS          (600, 800)
+MODEL.ROI_HEADS.NUM_CLASSES 80  # 基类+新类
+# 冻结 backbone 前两层
+MODEL.BACKBONE.FREEZE_AT 2</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块三</div>
+      <div>§ 3.3 · Few-shot FT</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 15 · 微调策略详解 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="15 微调策略详解">
+  <div class="sidebar">
+    <div class="sidebar-title">模块三 · FsDet 核心思想</div>
+    <ul class="objectives">
+      <li>理解 FsDet 的两阶段训练范式</li>
+      <li>掌握 base training 的学习目标</li>
+      <li>理解 few-shot fine-tuning 的关键难点</li>
+      <li class="highlight">熟悉微调阶段的常见策略</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块三 · FsDet</span><span class="sep"></span><span>微调策略</span></div>
+      <div>15 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 3.4 · 微调策略详解</div>
+      <h2 class="slide-title">应对少样本微调的关键策略</h2>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">策略一：降低学习率</div>
+          <ul class="ulist">
+            <li>基类训练学习率：0.02</li>
+            <li>微调学习率：0.001（降低 20 倍）</li>
+            <li>目的：防止大步长更新破坏已学特征</li>
+          </ul>
+          <div class="body-text" style="font-weight:600;margin-top:1.2vh;margin-bottom:0.4vh">策略二：冻结部分 Backbone</div>
+          <ul class="ulist">
+            <li>冻结 backbone 底层（如 ResNet 前两个 stage）</li>
+            <li>底层学习的是通用特征（边缘、纹理），无需调整</li>
+            <li>高层特征和检测头需要适应新类</li>
+          </ul>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">策略三：限制迭代次数</div>
+          <ul class="ulist">
+            <li>基类训练：90,000 次迭代</li>
+            <li>微调：1,000-2,000 次迭代</li>
+            <li>目的：防止过拟合和灾难性遗忘</li>
+          </ul>
+          <div class="body-text" style="font-weight:600;margin-top:1.2vh;margin-bottom:0.4vh">策略四：多次随机采样</div>
+          <ul class="ulist">
+            <li>从 support set 中多次随机采样不同组合</li>
+            <li>分别微调后取平均结果</li>
+            <li>缓解样本偏差带来的结果波动</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块三</div>
+      <div>§ 3.4 · 微调策略</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 16 · 微调策略对比 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="16 策略效果对比">
+  <div class="sidebar">
+    <div class="sidebar-title">模块三 · FsDet 核心思想</div>
+    <ul class="objectives">
+      <li>理解 FsDet 的两阶段训练范式</li>
+      <li>掌握 base training 的学习目标</li>
+      <li>理解 few-shot fine-tuning 的关键难点</li>
+      <li class="highlight">熟悉微调阶段的常见策略</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块三 · FsDet</span><span class="sep"></span><span>策略对比</span></div>
+      <div>16 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 3.5 · 微调策略效果对比</div>
+      <h2 class="slide-title">不同微调策略的效果分析</h2>
+      <table class="data-table" style="margin-top:0.4vh">
+        <tr><th>策略</th><th>新类 mAP</th><th>基类 mAP</th><th>说明</th></tr>
+        <tr><td>全参数微调（高学习率）</td><td>低</td><td>显著下降</td><td>灾难性遗忘严重，基类能力被破坏</td></tr>
+        <tr><td>全参数微调（低学习率）</td><td>中</td><td>轻微下降</td><td>基类保留较好，但新类学习不充分</td></tr>
+        <tr><td>冻结 backbone + 微调 head</td><td style="font-weight:600">高</td><td style="font-weight:600">保持</td><td>最佳平衡：保留通用特征，调整分类能力</td></tr>
+        <tr><td>仅微调分类头</td><td>中高</td><td>保持</td><td>最保守策略，适合 1-shot 极端场景</td></tr>
+        <tr><td>多次采样平均</td><td>高（稳定）</td><td>保持</td><td>增加计算开销但结果更可靠</td></tr>
+      </table>
+      <p class="body-text-sm" style="margin-top:0.6vh">FsDet 论文的实验表明：<strong>冻结 backbone 前两层 + 低学习率微调 ROI head</strong> 是最优组合。这一配置在保留基类能力的同时，使新类 mAP 达到最高。</p>
+      <div class="note-box">
+        <span class="note-icon">[结论]</span>
+        <span class="note-text">少样本微调的本质是在"学习新类"和"不忘旧类"之间寻找平衡。FsDet 的贡献在于系统性地找到了这个平衡点，而非发明新的网络结构。</span>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块三</div>
+      <div>§ 3.5 · 策略对比</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 17 · 模块四：Faster R-CNN 框架（幕封） -->
+<!-- ================================================================ -->
+<section class="slide dark" data-screen-label="17 FasterRCNN框架">
+  <div class="sidebar">
+    <div class="sidebar-title">模块四 · Faster R-CNN 框架</div>
+    <ul class="objectives">
+      <li class="highlight">理解 Faster R-CNN 的四组件结构</li>
+      <li class="highlight">掌握 backbone 的特征提取作用</li>
+      <li>理解 RPN 的候选区域生成机制</li>
+      <li>掌握 ROI Align 与 ROI Head 的功能</li>
+    </ul>
+  </div>
+  <div class="main-content" style="justify-content:center;align-items:center;text-align:center;background:var(--ink-tint)">
+    <div class="module-label" style="margin-bottom:1.6vh">模块四</div>
+    <h1 class="slide-title" style="font-size:max(28px,3.2vw)">Faster R-CNN 框架下的少样本检测</h1>
+    <div style="width:50px;height:2px;background:var(--accent);margin:2vh auto;opacity:0.4"></div>
+    <p class="body-text-sm" style="opacity:0.6;max-width:50vw">FsDet 基于 Detectron2 / Faster R-CNN 架构，理解其组件是掌握 FsDet 的前提</p>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 18 · Faster R-CNN 整体架构 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="18 四组件结构">
+  <div class="sidebar">
+    <div class="sidebar-title">模块四 · Faster R-CNN 框架</div>
+    <ul class="objectives">
+      <li class="highlight">理解 Faster R-CNN 的四组件结构</li>
+      <li>掌握 backbone 的特征提取作用</li>
+      <li>理解 RPN 的候选区域生成机制</li>
+      <li>掌握 ROI Align 与 ROI Head 的功能</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块四 · Faster R-CNN</span><span class="sep"></span><span>整体架构</span></div>
+      <div>18 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 4.1 · 整体架构</div>
+      <h2 class="slide-title">Faster R-CNN 四组件结构</h2>
+      <div class="diagram-box" style="flex-direction:column;align-items:stretch;margin-top:0.4vh">
+        <div style="display:flex;gap:0.6vw;align-items:center;justify-content:center">
+          <div class="box" style="flex:1">输入图像</div>
+          <div class="arrow">→</div>
+          <div class="box" style="flex:1.5">Backbone<br><span class="label">ResNet-50/101 + FPN</span></div>
+          <div class="arrow">→</div>
+          <div class="box" style="flex:1.5">RPN<br><span class="label">候选区域生成</span></div>
+          <div class="arrow">→</div>
+          <div class="box" style="flex:1.5">ROI Align<br><span class="label">特征图裁剪+缩放</span></div>
+          <div class="arrow">→</div>
+          <div class="box" style="flex:1.5">ROI Head<br><span class="label">分类+回归</span></div>
+        </div>
+      </div>
+      <div class="grid-2" style="margin-top:0.6vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">组件功能</div>
+          <ul class="ulist">
+            <li><strong>Backbone</strong>：提取多尺度图像特征图</li>
+            <li><strong>RPN</strong>：生成候选目标区域（Region Proposals）</li>
+            <li><strong>ROI Align</strong>：将候选区域映射为固定尺寸特征</li>
+            <li><strong>ROI Head</strong>：对每个候选区域分类 + 边界框回归</li>
+          </ul>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">少样本场景下的角色</div>
+          <ul class="ulist">
+            <li>Backbone + RPN：从基类学到通用能力，微调时通常冻结</li>
+            <li>ROI Head：分类头需要适应新类，是微调的主要对象</li>
+            <li>这种分工使少样本微调成为可能</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块四</div>
+      <div>§ 4.1 · 整体架构</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 19 · Backbone + RPN -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="19 Backbone与RPN">
+  <div class="sidebar">
+    <div class="sidebar-title">模块四 · Faster R-CNN 框架</div>
+    <ul class="objectives">
+      <li>理解 Faster R-CNN 的四组件结构</li>
+      <li class="highlight">掌握 backbone 的特征提取作用</li>
+      <li class="highlight">理解 RPN 的候选区域生成机制</li>
+      <li>掌握 ROI Align 与 ROI Head 的功能</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块四 · Faster R-CNN</span><span class="sep"></span><span>Backbone + RPN</span></div>
+      <div>19 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 4.2 · Backbone 与 RPN</div>
+      <h2 class="slide-title">特征提取与候选区域生成</h2>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">Backbone（特征提取网络）</div>
+          <ul class="ulist">
+            <li>常用结构：ResNet-50、ResNet-101</li>
+            <li>配合 FPN（特征金字塔网络）实现多尺度检测</li>
+            <li>输入：3×H×W 图像 → 输出：多尺度特征图</li>
+            <li>在少样本场景中，backbone 从基类充分训练</li>
+            <li>微调时冻结底层（保留通用特征），可选微调高层</li>
+          </ul>
+          <div class="code-block" style="font-size:max(11px,0.8vw);margin-top:0.6vh"># 冻结 backbone 前 2 个 stage
+MODEL.BACKBONE.FREEZE_AT 2</div>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">RPN（区域建议网络）</div>
+          <ul class="ulist">
+            <li>在特征图上滑动窗口，生成候选区域</li>
+            <li>每个位置预设 K 个 anchor box（不同尺寸和比例）</li>
+            <li>输出：objectness score + 边界框修正</li>
+            <li>NMS 后保留 Top-N 候选区域</li>
+            <li>少样本场景中 RPN 通常不微调——"找物体"的能力是通用的</li>
+          </ul>
+          <div class="code-block" style="font-size:max(11px,0.8vw);margin-top:0.6vh"># RPN anchor 配置
+MODEL.RPN.ANCHOR_SIZES (32,64,128,256,512)
+MODEL.RPN.ASPECT_RATIOS (0.5,1.0,2.0)
+MODEL.RPN.PRE_NMS_TOPK_TEST 6000
+MODEL.RPN.POST_NMS_TOPK_TEST 1000</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块四</div>
+      <div>§ 4.2 · Backbone + RPN</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 20 · ROI Align + ROI Head -->
+<!-- ================================================================ -->
+<section class="slide dark" data-screen-label="20 ROI处理流程">
+  <div class="sidebar">
+    <div class="sidebar-title">模块四 · Faster R-CNN 框架</div>
+    <ul class="objectives">
+      <li>理解 Faster R-CNN 的四组件结构</li>
+      <li>掌握 backbone 的特征提取作用</li>
+      <li>理解 RPN 的候选区域生成机制</li>
+      <li class="highlight">掌握 ROI Align 与 ROI Head 的功能</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块四 · Faster R-CNN</span><span class="sep"></span><span>ROI 处理</span></div>
+      <div>20 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 4.3 · ROI Align 与 ROI Head</div>
+      <h2 class="slide-title">候选区域处理与预测</h2>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">ROI Align</div>
+          <ul class="ulist">
+            <li>将 RPN 输出的候选区域（不同尺寸）映射为固定尺寸特征图</li>
+            <li>使用双线性插值，避免 ROI Pooling 的量化误差</li>
+            <li>输出尺寸固定（如 7×7 或 14×14）</li>
+            <li>对检测小目标至关重要（保留空间精度）</li>
+          </ul>
+          <div class="code-block" style="font-size:max(11px,0.8vw);margin-top:0.6vh"># ROI Align 配置
+MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE 512
+MODEL.ROI_BOX_HEAD.POOLER_RESOLUTION 7
+MODEL.ROI_BOX_HEAD.POOLER_SAMPLING_RATIO 2</div>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">ROI Head（检测头）</div>
+          <ul class="ulist">
+            <li>对每个候选区域执行：</li>
+            <li><strong>分类分支</strong>：预测类别（C+1 类，含背景）</li>
+            <li><strong>回归分支</strong>：预测边界框偏移量（4×C 个值）</li>
+            <li>少样本微调的主要对象</li>
+            <li>分类头需要扩展维度以包含新类</li>
+          </ul>
+          <div class="code-block" style="font-size:max(11px,0.8vw);margin-top:0.6vh"># ROI Head 配置
+MODEL.ROI_HEADS.NUM_CLASSES 80  # 基类+新类
+MODEL.ROI_BOX_HEAD.FC_DIM 1024
+MODEL.ROI_BOX_HEAD.NUM_FC 2</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块四</div>
+      <div>§ 4.3 · ROI Align + Head</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 21 · 少样本适配 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="21 少样本场景适配">
+  <div class="sidebar">
+    <div class="sidebar-title">模块四 · Faster R-CNN 框架</div>
+    <ul class="objectives">
+      <li>理解 Faster R-CNN 的四组件结构</li>
+      <li>掌握 backbone 的特征提取作用</li>
+      <li>理解 RPN 的候选区域生成机制</li>
+      <li class="highlight">掌握 ROI Align 与 ROI Head 的功能</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块四 · Faster R-CNN</span><span class="sep"></span><span>少样本适配</span></div>
+      <div>21 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 4.4 · 少样本场景的适配策略</div>
+      <h2 class="slide-title">Faster R-CNN 在少样本场景中的适配</h2>
+      <p class="body-text">FsDet 对标准 Faster R-CNN 的修改非常有限，这也是其"Frustratingly Simple"名称的由来。主要修改集中在训练策略而非网络结构。</p>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">结构层面的修改</div>
+          <ul class="ulist">
+            <li>分类头维度扩展：从 C_base 扩展到 C_base + C_novel</li>
+            <li>新增类别的分类权重随机初始化（或基类权重复制）</li>
+            <li>其余网络结构完全不变</li>
+          </ul>
+          <div class="code-block" style="font-size:max(11px,0.8vw);margin-top:0.6vh"># 分类头维度变化
+# Base training: 60 类
+MODEL.ROI_HEADS.NUM_CLASSES 60
+# Fine-tuning: 60 + 20 = 80 类
+MODEL.ROI_HEADS.NUM_CLASSES 80</div>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">训练策略的修改</div>
+          <ul class="ulist">
+            <li>学习率降低 20 倍（0.02 → 0.001）</li>
+            <li>迭代次数减少 90 倍（90000 → 1000）</li>
+            <li>冻结 backbone 底层（FREEZE_AT=2）</li>
+            <li>使用加权采样平衡基类和新类</li>
+          </ul>
+          <div class="note-box" style="margin-top:0.6vh">
+            <span class="note-icon">[启示]</span>
+            <span class="note-text">FsDet 的设计哲学：在数据极度稀缺时，复杂的网络结构设计不如合理的训练策略有效。这一思想对少样本学习的各个领域都有借鉴意义。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块四</div>
+      <div>§ 4.4 · 少样本适配</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 22 · 模块五：环境搭建与训练（幕封） -->
+<!-- ================================================================ -->
+<section class="slide dark" data-screen-label="22 环境搭建实践">
+  <div class="sidebar">
+    <div class="sidebar-title">模块五 · 环境搭建与训练</div>
+    <ul class="objectives">
+      <li class="highlight">掌握 FsDet 环境配置步骤</li>
+      <li class="highlight">理解数据组织格式</li>
+      <li>掌握训练命令与参数配置</li>
+      <li>学会结果评估方法</li>
+    </ul>
+  </div>
+  <div class="main-content" style="justify-content:center;align-items:center;text-align:center;background:var(--ink-tint)">
+    <div class="module-label" style="margin-bottom:1.6vh">模块五</div>
+    <h1 class="slide-title" style="font-size:max(28px,3.2vw)">环境搭建与训练实践</h1>
+    <div style="width:50px;height:2px;background:var(--accent);margin:2vh auto;opacity:0.4"></div>
+    <p class="body-text-sm" style="opacity:0.6;max-width:50vw">从零搭建 FsDet 环境，完成数据准备、训练与评估全流程</p>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 23 · 环境要求与安装 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="23 环境要求与安装">
+  <div class="sidebar">
+    <div class="sidebar-title">模块五 · 环境搭建与训练</div>
+    <ul class="objectives">
+      <li class="highlight">掌握 FsDet 环境配置步骤</li>
+      <li>理解数据组织格式</li>
+      <li>掌握训练命令与参数配置</li>
+      <li>学会结果评估方法</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块五 · 环境搭建</span><span class="sep"></span><span>安装配置</span></div>
+      <div>23 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 5.1 · 环境要求与安装</div>
+      <h2 class="slide-title">环境配置步骤</h2>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">硬件与软件要求</div>
+          <ul class="ulist">
+            <li>GPU：NVIDIA GPU with ≥ 8GB VRAM（推荐 11GB+）</li>
+            <li>CUDA：11.1 或更高版本</li>
+            <li>Python：3.8 - 3.10</li>
+            <li>PyTorch：1.9 - 1.12</li>
+            <li>磁盘：至少 50GB 可用空间（含 COCO 数据集）</li>
+          </ul>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">安装命令</div>
+          <div class="cmd-block" style="font-size:max(11px,0.8vw)"><span class="comment"># 1. 创建 conda 环境</span>
+<span class="prompt">$</span> conda create -n fsdet python=3.9
+<span class="prompt">$</span> conda activate fsdet
+
+<span class="comment"># 2. 安装 PyTorch（以 CUDA 11.3 为例）</span>
+<span class="prompt">$</span> pip install torch==1.10.0+cu113 \
+  torchvision==0.11.0+cu113 \
+  -f https://download.pytorch.org/whl/cu113/torch_stable.html
+
+<span class="comment"># 3. 克隆 FsDet 仓库</span>
+<span class="prompt">$</span> git clone https://github.com/ucbdrive/few-shot-object-detection.git
+<span class="prompt">$</span> cd few-shot-object-detection
+
+<span class="comment"># 4. 安装依赖</span>
+<span class="prompt">$</span> pip install -r requirements.txt
+<span class="prompt">$</span> python setup.py build develop</div>
+        </div>
+      </div>
+      <div class="note-box">
+        <span class="note-icon">[注意]</span>
+        <span class="note-text">Detectron2 对 CUDA 和 PyTorch 版本有严格对应关系。安装前请查阅 detectron2.readthedocs.io 确认版本兼容性。推荐使用官方预编译 wheel 安装 Detectron2。</span>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块五</div>
+      <div>§ 5.1 · 环境安装</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 24 · Detectron2 安装 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="24 Detectron2安装">
+  <div class="sidebar">
+    <div class="sidebar-title">模块五 · 环境搭建与训练</div>
+    <ul class="objectives">
+      <li class="highlight">掌握 FsDet 环境配置步骤</li>
+      <li>理解数据组织格式</li>
+      <li>掌握训练命令与参数配置</li>
+      <li>学会结果评估方法</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块五 · 环境搭建</span><span class="sep"></span><span>Detectron2</span></div>
+      <div>24 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 5.2 · Detectron2 安装</div>
+      <h2 class="slide-title">Detectron2 安装方式</h2>
+      <p class="body-text">FsDet 基于 Detectron2 构建。Detectron2 是 Facebook AI Research 开源的检测框架，提供标准化的模型实现和训练流程。</p>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">方式一：预编译 Wheel（推荐）</div>
+          <div class="cmd-block" style="font-size:max(11px,0.8vw)"><span class="comment"># CUDA 11.3 + PyTorch 1.10</span>
+<span class="prompt">$</span> pip install detectron2 \
+  -f https://dl.fbaipublicfiles.com/detectron2/\
+wheels/cu113/torch1.10/index.html
+
+<span class="comment"># 其他版本组合见官方文档</span>
+<span class="prompt">$</span> # https://detectron2.readthedocs.io/</div>
+          <div class="body-text" style="font-weight:600;margin-top:1.2vh;margin-bottom:0.4vh">方式二：从源码编译</div>
+          <div class="cmd-block" style="font-size:max(11px,0.8vw)"><span class="prompt">$</span> git clone https://github.com/facebookresearch/detectron2.git
+<span class="prompt">$</span> pip install -e detectron2/
+<span class="comment"># 编译需要 GCC ≥ 5.4</span></div>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">验证安装</div>
+          <div class="cmd-block" style="font-size:max(11px,0.8vw)"><span class="prompt">$</span> python -c "import detectron2; print(detectron2.__version__)"
+<span class="output">0.6</span>
+
+<span class="comment"># 测试 GPU 可用性</span>
+<span class="prompt">$</span> python -c "import torch; print(torch.cuda.is_available())"
+<span class="output">True</span>
+<span class="prompt">$</span> python -c "import torch; print(torch.cuda.device_count())"
+<span class="output">1</span></div>
+          <div class="note-box" style="margin-top:0.6vh">
+            <span class="note-icon">[排错]</span>
+            <span class="note-text">如果 detectron2 编译失败，常见原因：CUDA 路径未设置、GCC 版本过低、PyTorch 与 CUDA 版本不匹配。设置 <span style="font-family:var(--mono)">export CUDA_HOME=/usr/local/cuda-11.3</span> 可解决路径问题。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块五</div>
+      <div>§ 5.2 · Detectron2</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 25 · 数据组织 -->
+<!-- ================================================================ -->
+<section class="slide dark" data-screen-label="25 数据组织格式">
+  <div class="sidebar">
+    <div class="sidebar-title">模块五 · 环境搭建与训练</div>
+    <ul class="objectives">
+      <li>掌握 FsDet 环境配置步骤</li>
+      <li class="highlight">理解数据组织格式</li>
+      <li>掌握训练命令与参数配置</li>
+      <li>学会结果评估方法</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块五 · 环境搭建</span><span class="sep"></span><span>数据组织</span></div>
+      <div>25 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 5.3 · 数据组织与准备</div>
+      <h2 class="slide-title">COCO 数据集与少样本划分</h2>
+      <p class="body-text">FsDet 使用 COCO 2014/2017 数据集的标准少样本划分。基类和新类的划分方式直接影响实验的可比性。</p>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">数据集下载</div>
+          <div class="cmd-block" style="font-size:max(11px,0.8vw)"><span class="comment"># 创建数据目录</span>
+<span class="prompt">$</span> mkdir -p datasets/coco
+<span class="prompt">$</span> cd datasets/coco
+
+<span class="comment"># 下载 COCO 2017</span>
+<span class="prompt">$</span> wget http://images.cocodataset.org/\
+zips/train2017.zip
+<span class="prompt">$</span> wget http://images.cocodataset.org/\
+zips/val2017.zip
+<span class="prompt">$</span> wget http://images.cocodataset.org/\
+annotations/annotations_trainval2017.zip
+
+<span class="comment"># 解压</span>
+<span class="prompt">$</span> unzip train2017.zip
+<span class="prompt">$</span> unzip val2017.zip
+<span class="prompt">$</span> unzip annotations_trainval2017.zip</div>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">少样本数据划分</div>
+          <ul class="ulist">
+            <li>COCO 80 类 → 60 基类 + 20 新类</li>
+            <li>基类：person, car, dog, cat 等常见类别</li>
+            <li>新类：toaster, microwave, snowboard 等</li>
+            <li>FsDet 仓库提供预定义的 JSON 划分文件</li>
+          </ul>
+          <div class="code-block" style="font-size:max(11px,0.8vw);margin-top:0.6vh"><span class="comment"># 划分文件位置</span>
+fsdet/data/
+├── base_classes.json    # 60 个基类 ID
+├── novel_classes.json   # 20 个新类 ID
+└── few_shot_split/      # K-shot 划分
+    ├── 1shot/
+    ├── 5shot/
+    └── 10shot/</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块五</div>
+      <div>§ 5.3 · 数据组织</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 26 · 训练命令与参数 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="26 训练命令与参数">
+  <div class="sidebar">
+    <div class="sidebar-title">模块五 · 环境搭建与训练</div>
+    <ul class="objectives">
+      <li>掌握 FsDet 环境配置步骤</li>
+      <li>理解数据组织格式</li>
+      <li class="highlight">掌握训练命令与参数配置</li>
+      <li>学会结果评估方法</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块五 · 环境搭建</span><span class="sep"></span><span>训练命令</span></div>
+      <div>26 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 5.4 · 训练命令与参数配置</div>
+      <h2 class="slide-title">执行训练</h2>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">Stage 1: Base Training</div>
+          <div class="cmd-block" style="font-size:max(11px,0.8vw)"><span class="comment"># 基类训练（约 8-12 小时，单卡 V100）</span>
+<span class="prompt">$</span> python tools/train_net.py \
+  --num-gpus 1 \
+  --config-file configs/PASCAL_VOC/\
+base-training/faster_rcnn_R_101_FPN_base.yaml \
+  OUTPUT_DIR ./output/base_model</div>
+          <div class="body-text" style="font-weight:600;margin-top:1.2vh;margin-bottom:0.4vh">Stage 2: Few-shot Fine-tuning</div>
+          <div class="cmd-block" style="font-size:max(11px,0.8vw)"><span class="comment"># 5-shot 微调（约 10-20 分钟）</span>
+<span class="prompt">$</span> python tools/train_net.py \
+  --num-gpus 1 \
+  --config-file configs/PASCAL_VOC/\
+few-shot/faster_rcnn_R_101_FPN_5shot.yaml \
+  --opts MODEL.WEIGHTS ./output/base_model/\
+model_final.pth \
+  OUTPUT_DIR ./output/5shot_model</div>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">关键参数说明</div>
+          <table class="data-table" style="font-size:max(11px,0.8vw)">
+            <tr><th>参数</th><th>Base</th><th>Fine-tune</th></tr>
+            <tr><td>IMS_PER_BATCH</td><td>16</td><td>4</td></tr>
+            <tr><td>BASE_LR</td><td>0.02</td><td>0.001</td></tr>
+            <tr><td>MAX_ITER</td><td>90000</td><td>1000</td></tr>
+            <tr><td>STEPS</td><td>(60000,80000)</td><td>(600,800)</td></tr>
+            <tr><td>NUM_CLASSES</td><td>60</td><td>80</td></tr>
+            <tr><td>FREEZE_AT</td><td>0</td><td>2</td></tr>
+          </table>
+          <div class="note-box" style="margin-top:0.6vh">
+            <span class="note-icon">[提示]</span>
+            <span class="note-text">PASCAL VOC 数据集规模较小，训练更快，适合课堂演示。COCO 数据集需要更长的训练时间。</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块五</div>
+      <div>§ 5.4 · 训练命令</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 27 · 评估与结果 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="27 评估与结果分析">
+  <div class="sidebar">
+    <div class="sidebar-title">模块五 · 环境搭建与训练</div>
+    <ul class="objectives">
+      <li>掌握 FsDet 环境配置步骤</li>
+      <li>理解数据组织格式</li>
+      <li>掌握训练命令与参数配置</li>
+      <li class="highlight">学会结果评估方法</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块五 · 环境搭建</span><span class="sep"></span><span>评估</span></div>
+      <div>27 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 5.5 · 评估与结果分析</div>
+      <h2 class="slide-title">模型评估与结果解读</h2>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">评估命令</div>
+          <div class="cmd-block" style="font-size:max(11px,0.8vw)"><span class="comment"># 评估新类检测性能</span>
+<span class="prompt">$</span> python tools/test_net.py \
+  --num-gpus 1 \
+  --config-file configs/PASCAL_VOC/\
+few-shot/faster_rcnn_R_101_FPN_5shot.yaml \
+  --opts MODEL.WEIGHTS ./output/5shot_model/\
+model_final.pth \
+  TEST.DATASETS '("voc_2007_test_novel",)'
+
+<span class="comment"># 评估基类+新类</span>
+<span class="prompt">$</span> python tools/test_net.py \
+  --config-file ... \
+  TEST.DATASETS '("voc_2007_test_all",)'</div>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">评估指标解读</div>
+          <ul class="ulist">
+            <li><strong>Novel AP</strong>：新类平均精度（核心指标）</li>
+            <li><strong>Base AP</strong>：基类平均精度（衡量知识保留度）</li>
+            <li><strong>Overall AP</strong>：全部类别平均精度</li>
+            <li><strong>AP50 / AP75</strong>：不同 IoU 阈值下的精度</li>
+          </ul>
+          <div class="body-text" style="font-weight:600;margin-top:1.2vh;margin-bottom:0.4vh">典型结果（PASCAL VOC, 5-shot）</div>
+          <table class="data-table" style="font-size:max(11px,0.8vw)">
+            <tr><th>指标</th><th>Novel AP</th><th>Base AP</th><th>Overall</th></tr>
+            <tr><td>FsDet</td><td>44.3</td><td>79.8</td><td>70.9</td></tr>
+            <tr><td>FT-full</td><td>38.7</td><td>72.1</td><td>63.8</td></tr>
+            <tr><td>FT-base-only</td><td>0.0</td><td>80.2</td><td>60.2</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块五</div>
+      <div>§ 5.5 · 评估</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 28 · 模块六：适用边界（幕封） -->
+<!-- ================================================================ -->
+<section class="slide dark" data-screen-label="28 适用边界分析">
+  <div class="sidebar">
+    <div class="sidebar-title">模块六 · 适用边界与任务</div>
+    <ul class="objectives">
+      <li class="highlight">理解少样本检测的局限性</li>
+      <li class="highlight">对比 FsDet 与 YOLO 的适用场景</li>
+      <li>掌握课堂实践任务要求</li>
+      <li>思考少样本检测的未来方向</li>
+    </ul>
+  </div>
+  <div class="main-content" style="justify-content:center;align-items:center;text-align:center;background:var(--ink-tint)">
+    <div class="module-label" style="margin-bottom:1.6vh">模块六</div>
+    <h1 class="slide-title" style="font-size:max(28px,3.2vw)">适用边界与课堂任务</h1>
+    <div style="width:50px;height:2px;background:var(--accent);margin:2vh auto;opacity:0.4"></div>
+    <p class="body-text-sm" style="opacity:0.6;max-width:50vw">少样本检测不是魔法——理解其边界比理解其原理同样重要</p>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 29 · 局限分析 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="29 核心局限探讨">
+  <div class="sidebar">
+    <div class="sidebar-title">模块六 · 适用边界与任务</div>
+    <ul class="objectives">
+      <li class="highlight">理解少样本检测的局限性</li>
+      <li>对比 FsDet 与 YOLO 的适用场景</li>
+      <li>掌握课堂实践任务要求</li>
+      <li>思考少样本检测的未来方向</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块六 · 适用边界</span><span class="sep"></span><span>局限分析</span></div>
+      <div>29 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 6.1 · 少样本检测的局限</div>
+      <h2 class="slide-title">少样本检测不是魔法</h2>
+      <p class="body-text">必须明确：少样本检测并不能在所有场景中替代常规检测。理解其局限性，才能做出正确的技术选型。</p>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">核心局限</div>
+          <ul class="ulist">
+            <li><strong>新类与基类差异过大时效果差</strong>：如果新类的视觉特征与基类完全不同，backbone 提取的特征无法有效表达新类</li>
+            <li><strong>样本偏差问题</strong>：K-shot 样本如果不代表真实分布，模型会产生严重偏置</li>
+            <li><strong>小目标检测困难</strong>：小目标在特征图中占据像素少，少量样本不足以学习有效特征</li>
+            <li><strong>遮挡与复杂背景</strong>：样本量少导致模型对遮挡和背景干扰的鲁棒性不足</li>
+          </ul>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">工程实践中的挑战</div>
+          <ul class="ulist">
+            <li><strong>结果波动大</strong>：不同随机种子、不同 support set 采样导致结果差异显著</li>
+            <li><strong>需要多次实验</strong>：单次微调结果不可靠，需要多次采样取平均</li>
+            <li><strong>部署复杂度高</strong>：两阶段训练流程比端到端检测复杂，工程维护成本高</li>
+            <li><strong>基类性能可能下降</strong>：即使精心调参，微调后基类 mAP 通常会有 1-3% 的下降</li>
+          </ul>
+        </div>
+      </div>
+      <div class="note-box">
+        <span class="note-icon">[建议]</span>
+        <span class="note-text">在项目中，FsDet 适合作为扩展模块或研究体验。如果新类样本可以积累到每类 50+ 张，常规检测或标准迁移学习通常是更稳定、更简单的选择。</span>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块六</div>
+      <div>§ 6.1 · 局限分析</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 30 · 与 YOLO 对比 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="30 FsDet与YOLO对比">
+  <div class="sidebar">
+    <div class="sidebar-title">模块六 · 适用边界与任务</div>
+    <ul class="objectives">
+      <li>理解少样本检测的局限性</li>
+      <li class="highlight">对比 FsDet 与 YOLO 的适用场景</li>
+      <li>掌握课堂实践任务要求</li>
+      <li>思考少样本检测的未来方向</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块六 · 适用边界</span><span class="sep"></span><span>方法对比</span></div>
+      <div>30 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 6.2 · FsDet 与 YOLO 对比</div>
+      <h2 class="slide-title">FsDet vs YOLO：适用场景分析</h2>
+      <table class="data-table" style="margin-top:0.4vh">
+        <tr><th style="width:18%">维度</th><th style="width:41%">YOLO 常规训练</th><th style="width:41%">FsDet 少样本检测</th></tr>
+        <tr><td style="font-weight:600">数据假设</td><td>每类有较多样本（≥ 100 张）</td><td>Novel 类每类 1/5/10 个样本</td></tr>
+        <tr><td style="font-weight:600">训练方式</td><td>直接训练或标准迁移学习</td><td>Base training + few-shot fine-tuning</td></tr>
+        <tr><td style="font-weight:600">重点</td><td>实时推理与部署效率</td><td>样本效率与泛化能力</td></tr>
+        <tr><td style="font-weight:600">风险</td><td>数据质量、调参难度</td><td>过拟合、类别混淆、结果波动</td></tr>
+        <tr><td style="font-weight:600">适用场景</td><td>数据充足、类别稳定、需要实时</td><td>样本稀缺、类别变化快、研究探索</td></tr>
+        <tr><td style="font-weight:600">部署难度</td><td>低（单阶段端到端）</td><td>中高（两阶段流程）</td></tr>
+      </table>
+      <p class="body-text-sm" style="margin-top:0.6vh">两种方法并非对立关系，而是覆盖不同的数据条件。在实际项目中，可以根据各类别的样本量混合使用：基类用 YOLO 训练，新类用 FsDet 微调。</p>
+      <div class="note-box">
+        <span class="note-icon">[决策]</span>
+        <span class="note-text">当新类样本可积累到每类 50+ 张时，标准迁移学习（如 YOLO 微调）通常更稳定。FsDet 的最佳适用区间是每类 1-10 张的极端少样本场景。</span>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块六</div>
+      <div>§ 6.2 · 方法对比</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 31 · 课堂任务 -->
+<!-- ================================================================ -->
+<section class="slide dark" data-screen-label="31 课堂实践任务">
+  <div class="sidebar">
+    <div class="sidebar-title">模块六 · 适用边界与任务</div>
+    <ul class="objectives">
+      <li>理解少样本检测的局限性</li>
+      <li>对比 FsDet 与 YOLO 的适用场景</li>
+      <li class="highlight">掌握课堂实践任务要求</li>
+      <li>思考少样本检测的未来方向</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块六 · 适用边界</span><span class="sep"></span><span>课堂任务</span></div>
+      <div>31 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 6.3 · 课堂实践任务</div>
+      <h2 class="slide-title">课堂任务与要求</h2>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">任务一：概念理解</div>
+          <ul class="ulist">
+            <li>用自己的语言解释 base class、novel class、K-shot 三个概念</li>
+            <li>说明 support set 和 query set 的区别与作用</li>
+            <li>对比少样本分类与少样本检测的难度差异</li>
+          </ul>
+          <div class="body-text" style="font-weight:600;margin-top:1.2vh;margin-bottom:0.4vh">任务二：代码实践</div>
+          <ul class="ulist">
+            <li>搭建 FsDet 运行环境（可基于提供的安装脚本）</li>
+            <li>下载 PASCAL VOC 数据集（较小，适合课堂）</li>
+            <li>运行 base training 和 5-shot fine-tuning</li>
+            <li>记录训练日志和评估结果</li>
+          </ul>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">任务三：结果分析</div>
+          <ul class="ulist">
+            <li>提交一组少样本检测结果（含可视化）</li>
+            <li>分析哪些目标成功检测、哪些失败</li>
+            <li>讨论失败原因（样本不足、类别相似、目标过小）</li>
+          </ul>
+          <div class="body-text" style="font-weight:600;margin-top:1.2vh;margin-bottom:0.4vh">任务四：场景分析</div>
+          <ul class="ulist">
+            <li>列举 3 个适合使用少样本检测的业务场景</li>
+            <li>列举 3 个不适合使用少样本检测的业务场景</li>
+            <li>与 YOLO 常规训练进行系统对比</li>
+          </ul>
+        </div>
+      </div>
+      <div class="note-box" style="margin-top:0.4vh">
+        <span class="note-icon">[提交]</span>
+        <span class="note-text">提交物：实验报告（含环境配置说明、训练日志、评估结果、可视化检测结果、场景分析）。如果 GPU 资源有限，可基于提供的预训练模型权重进行分析。</span>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 模块六</div>
+      <div>§ 6.3 · 课堂任务</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 32 · 课外拓展与总结 -->
+<!-- ================================================================ -->
+<section class="slide light" data-screen-label="32 拓展与总结">
+  <div class="sidebar">
+    <div class="sidebar-title">模块六 · 适用边界与任务</div>
+    <ul class="objectives">
+      <li>理解少样本检测的局限性</li>
+      <li>对比 FsDet 与 YOLO 的适用场景</li>
+      <li>掌握课堂实践任务要求</li>
+      <li class="highlight">思考少样本检测的未来方向</li>
+    </ul>
+  </div>
+  <div class="main-content">
+    <div class="chrome">
+      <div class="left"><span>模块六 · 适用边界</span><span class="sep"></span><span>拓展与总结</span></div>
+      <div>32 / 32</div>
+    </div>
+    <div class="content-area">
+      <div class="module-label">§ 6.4 · 课外拓展与总结</div>
+      <h2 class="slide-title">拓展阅读与思考方向</h2>
+      <div class="grid-2" style="margin-top:0.4vh">
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">进阶方法阅读</div>
+          <ul class="ulist">
+            <li><strong>TFA</strong>（ICLR 2020）：两阶段微调，先训练全部参数再仅微调分类头</li>
+            <li><strong>FSCE</strong>（CVPR 2021）：引入对比学习约束增强新类特征判别性</li>
+            <li><strong>DeFRCN</strong>（NeurIPS 2021）：解耦 RPN 与 ROI Head 梯度传播</li>
+            <li><strong>Meta R-CNN</strong>（ICLR 2019）：基于元学习的少样本检测方法</li>
+          </ul>
+          <div class="body-text" style="font-weight:600;margin-top:1.2vh;margin-bottom:0.4vh">思考方向</div>
+          <ul class="ulist">
+            <li>样本极少时，可比较继续标注、少样本方法与开放词表模型（如 GLIP、Grounding DINO）的适用条件。</li>
+            <li>少样本检测与零样本检测（Zero-shot Detection）的本质区别。</li>
+            <li>多模态大模型替代少样本检测的可行性边界。</li>
+          </ul>
+        </div>
+        <div>
+          <div class="body-text" style="font-weight:600;margin-bottom:0.4vh">核心要点回顾</div>
+          <ul class="ulist">
+            <li>FsDet 的核心思想：强基线 + 合理训练策略，无需复杂结构</li>
+            <li>两阶段流程：base training → few-shot fine-tuning</li>
+            <li>微调关键：低学习率、冻结 backbone、限制迭代、多次采样</li>
+            <li>适用边界：1-10 shot 极端少样本场景，非通用替代方案</li>
+          </ul>
+          <div class="body-text" style="font-weight:600;margin-top:1.2vh;margin-bottom:0.4vh">参考资源</div>
+          <ul class="ulist">
+            <li>FsDet 代码：<span style="font-family:var(--mono);font-size:max(11px,0.8vw)">github.com/ucbdrive/few-shot-object-detection</span></li>
+            <li>FsDet 论文：<span style="font-family:var(--mono);font-size:max(11px,0.8vw)">arxiv.org/abs/2003.06957</span></li>
+            <li>Detectron2：<span style="font-family:var(--mono);font-size:max(11px,0.8vw)">github.com/facebookresearch/detectron2</span></li>
+            <li>COCO 数据集：<span style="font-family:var(--mono);font-size:max(11px,0.8vw)">cocodataset.org</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div>FsDet 教学演示 · 本讲总结</div>
+      <div>§ 6.4 · 拓展与总结</div>
+    </div>
+  </div>
+</section>
+
+</div><!-- /#deck -->
+
+<div id="nav"></div>
+
+<script>
+// =============== 导航（翻页 / 圆点 / 键盘 / 滚轮 / 触屏） ===============
+const deck=document.getElementById('deck');
+const slides=deck.querySelectorAll('.slide');
+const nav=document.getElementById('nav');
+let idx=0,total=slides.length,lock=false;
+
+deck.style.width=(total*100)+'vw';
+
+slides.forEach((s,i)=>{
+  const b=document.createElement('button');
+  b.className='dot';b.dataset.i=i;b.setAttribute('aria-label','Page '+(i+1));
+  b.onclick=()=>go(i);
+  nav.appendChild(b);
+});
+
+function go(n){
+  if(lock)return;
+  idx=Math.max(0,Math.min(total-1,n));
+  deck.style.transform=`translateX(${-idx*100}vw)`;
+  slides.forEach((s,i)=>s.classList.toggle('active',i===idx));
+  nav.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===idx));
+  const el=slides[idx];
+  const th=el.classList.contains('light')?'light':'dark';
+  document.body.classList.toggle('light-bg',th==='light');
+  lock=true;setTimeout(()=>lock=false,700);
+}
+
+// =============== ESC 索引视图 ===============
+let overviewOn=false;
+const ov=document.createElement('div');
+ov.id='overview';
+ov.style.cssText='position:fixed;inset:0;z-index:100;background:rgba(42,30,19,0.92);backdrop-filter:blur(12px);display:none;overflow-y:auto;padding:4vh 4vw';
+document.body.appendChild(ov);
+
+function buildOverview(){
+  ov.innerHTML='';
+  const grid=document.createElement('div');
+  grid.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:2vh 1.6vw;max-width:90vw;margin:0 auto';
+  slides.forEach((s,i)=>{
+    const card=document.createElement('div');
+    card.style.cssText='cursor:pointer;border-radius:6px;overflow:hidden;border:2px solid '+(i===idx?'rgba(238,223,199,0.8)':'rgba(238,223,199,0.15)')+';transition:border-color .2s';
+    card.onmouseenter=()=>card.style.borderColor='rgba(238,223,199,0.6)';
+    card.onmouseleave=()=>card.style.borderColor=i===idx?'rgba(238,223,199,0.8)':'rgba(238,223,199,0.15)';
+    const wrap=document.createElement('div');
+    wrap.style.cssText='width:100%;aspect-ratio:16/9;overflow:hidden;position:relative;pointer-events:none;background:'+(s.classList.contains('light')?'var(--paper)':'var(--ink-tint)');
+    const clone=s.cloneNode(true);
+    clone.style.cssText='width:100vw;height:100vh;transform:scale('+(1/4.5)+');transform-origin:top left;position:absolute;top:0;left:0;pointer-events:none';
+    wrap.appendChild(clone);
+    const label=document.createElement('div');
+    label.style.cssText='padding:6px 10px;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--paper);opacity:.7';
+    label.textContent=(i+1)+' / '+total;
+    card.appendChild(wrap);
+    card.appendChild(label);
+    card.onclick=()=>{toggleOverview();go(i)};
+    grid.appendChild(card);
+  });
+  ov.appendChild(grid);
+}
+
+function toggleOverview(){
+  overviewOn=!overviewOn;
+  if(overviewOn){buildOverview();ov.style.display='block';}
+  else{ov.style.display='none';}
+}
+
+addEventListener('keydown',e=>{
+  if(e.key==='Escape'){e.preventDefault();toggleOverview();return;}
+  if(overviewOn)return;
+  if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '||e.key==='ArrowDown')go(idx+1);
+  if(e.key==='ArrowLeft'||e.key==='PageUp'||e.key==='ArrowUp')go(idx-1);
+  if(e.key==='Home')go(0);
+  if(e.key==='End')go(total-1);
+});
+
+let wheelTO=null,wheelAcc=0;
+addEventListener('wheel',e=>{
+  wheelAcc+=e.deltaY+e.deltaX;
+  if(Math.abs(wheelAcc)>50){go(idx+(wheelAcc>0?1:-1));wheelAcc=0;}
+  clearTimeout(wheelTO);wheelTO=setTimeout(()=>wheelAcc=0,150);
+},{passive:true});
+
+let tx=0,ty=0;
+addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY},{passive:true});
+addEventListener('touchend',e=>{
+  const dx=(e.changedTouches[0].clientX-tx);
+  const dy=(e.changedTouches[0].clientY-ty);
+  if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy))go(idx+(dx<0?1:-1));
+},{passive:true});
+
+go(0);
+</script>
+</body>
+</html>

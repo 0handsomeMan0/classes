@@ -1,0 +1,2415 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多算法集成：YOLO、FsDet、GroundingDINO 的统一展示 · 计算机视觉课程第十四讲</title>
+<style>
+  /* ============ 主题色：牛皮纸 (Kraft Paper) ============ */
+  :root{
+    --ink:#2a1e13;
+    --ink-rgb:42,30,19;
+    --paper:#eedfc7;
+    --paper-rgb:238,223,199;
+    --paper-tint:#e0d0b6;
+    --ink-tint:#3a2a1d;
+    --accent:#8b5e3c;
+    --accent-rgb:139,94,60;
+    --mono:"IBM Plex Mono",ui-monospace,monospace;
+    --serif-en:"Playfair Display","Source Serif 4",Georgia,serif;
+    --serif-body-en:"Source Serif 4",Georgia,serif;
+    --serif-zh:"Noto Serif SC",source-han-serif-sc,serif;
+    --sans-zh:"Noto Sans SC",source-han-sans-sc,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--ink);color:var(--paper);font-family:var(--sans-zh);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+
+  /* ============ 纸张纹理 ============ */
+  body::before{
+    content:'';position:fixed;inset:0;z-index:9998;pointer-events:none;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat:repeat;background-size:256px 256px;opacity:0.03;mix-blend-mode:multiply;
+  }
+
+  /* ============ Deck 容器 ============ */
+  #deck{position:fixed;inset:0;width:10000vw;height:100vh;display:flex;flex-wrap:nowrap;transition:transform .7s cubic-bezier(.77,0,.175,1);z-index:10;will-change:transform}
+  .slide{width:100vw;height:100vh;flex:0 0 100vw;position:relative;overflow:hidden;background:var(--paper);color:var(--ink)}
+  .slide.dark{background:var(--ink);color:var(--paper)}
+  .slide.hero.light{background:var(--paper-tint)}
+  .slide.hero.dark{background:var(--ink-tint)}
+
+  /* ============ 侧边栏（学习目标） ============ */
+  .slide.with-sidebar{display:grid;grid-template-columns:20vw 1fr;padding:0}
+  .sidebar{
+    padding:4.5vh 1.4vw 3vh 1.4vw;
+    background:rgba(var(--ink-rgb),0.04);
+    border-right:1px solid rgba(var(--ink-rgb),0.1);
+    display:flex;flex-direction:column;gap:1.2vh;overflow:hidden;
+  }
+  .slide.dark .sidebar{background:rgba(var(--paper-rgb),0.04);border-right-color:rgba(var(--paper-rgb),0.1)}
+  .sidebar-module{
+    font-family:var(--serif-zh);font-weight:700;
+    font-size:clamp(14px,1.4vw,24px);line-height:1.3;
+    padding-bottom:0.8vh;border-bottom:2px solid var(--accent);
+  }
+  .sidebar-label{
+    font-family:var(--mono);font-size:clamp(10px,0.75vw,14px);
+    letter-spacing:0.2em;text-transform:uppercase;opacity:0.55;margin-top:0.5vh;
+  }
+  .sidebar-list{
+    list-style:none;display:flex;flex-direction:column;gap:0.8vh;padding:0;margin:0;
+  }
+  .sidebar-list li{
+    font-family:var(--sans-zh);font-weight:400;
+    font-size:clamp(11px,1.0vw,17px);line-height:1.4;opacity:0.82;
+    padding-left:0.8em;position:relative;
+  }
+  .sidebar-list li::before{
+    content:'';position:absolute;left:0;top:0.5em;
+    width:4px;height:4px;border-radius:50%;background:var(--accent);opacity:0.6;
+  }
+  .sidebar-pagenb{
+    margin-top:auto;font-family:var(--mono);
+    font-size:clamp(10px,0.7vw,13px);letter-spacing:0.15em;opacity:0.4;
+  }
+
+  /* ============ 内容区 ============ */
+  .content-area{
+    padding:2.5vh 2.5vw 3vh 2.5vw;
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  .content-area .frame{flex:1;display:flex;flex-direction:column;min-height:0;overflow-y:auto}
+  .content-area .frame::-webkit-scrollbar{width:4px}
+  .content-area .frame::-webkit-scrollbar-thumb{background:rgba(var(--ink-rgb),0.15);border-radius:2px}
+
+  /* ============ Chrome & Foot ============ */
+  .chrome{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:clamp(10px,0.7vw,13px);letter-spacing:0.15em;text-transform:uppercase;opacity:0.55;padding-bottom:0.8vh;border-bottom:1px solid rgba(var(--ink-rgb),0.08);margin-bottom:1.2vh;flex-shrink:0}
+  .slide.dark .chrome{border-bottom-color:rgba(var(--paper-rgb),0.1)}
+  .foot{margin-top:auto;display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:clamp(10px,0.7vw,13px);letter-spacing:0.12em;text-transform:uppercase;opacity:0.45;padding-top:0.8vh;border-top:1px solid rgba(var(--ink-rgb),0.08);flex-shrink:0}
+  .slide.dark .foot{border-top-color:rgba(var(--paper-rgb),0.1)}
+  .foot .title{font-family:var(--serif-zh);font-weight:400;letter-spacing:0.03em;text-transform:none;opacity:0.7;font-size:clamp(11px,0.75vw,14px)}
+
+  /* ============ 字体系统（课堂放大版） ============ */
+  .kicker{font-family:var(--mono);font-size:clamp(11px,0.8vw,15px);letter-spacing:0.25em;text-transform:uppercase;opacity:0.55;margin-bottom:1.2vh}
+  .h-hero{
+    font-family:var(--serif-zh);font-weight:900;
+    font-size:clamp(36px,5.5vw,96px);line-height:1.0;letter-spacing:-0.015em;
+  }
+  .h-xl{
+    font-family:var(--serif-zh);font-weight:700;
+    font-size:clamp(28px,3.8vw,64px);line-height:1.1;letter-spacing:-0.01em;
+  }
+  .h-sub{
+    font-family:var(--serif-zh);font-weight:500;
+    font-size:clamp(20px,2.2vw,38px);line-height:1.25;opacity:0.75;
+  }
+  .h-md{
+    font-family:var(--serif-zh);font-weight:600;
+    font-size:clamp(18px,1.8vw,32px);line-height:1.3;
+  }
+  .lead{
+    font-family:var(--serif-zh);font-weight:400;
+    font-size:clamp(17px,1.6vw,28px);line-height:1.5;opacity:0.82;
+  }
+  .body-text{
+    font-family:var(--sans-zh);font-weight:400;
+    font-size:clamp(15px,1.3vw,24px);line-height:1.6;opacity:0.82;
+  }
+  .body-serif{
+    font-family:var(--serif-zh);font-weight:400;
+    font-size:clamp(15px,1.35vw,25px);line-height:1.55;opacity:0.85;
+  }
+  .meta{font-family:var(--mono);font-size:clamp(10px,0.75vw,14px);letter-spacing:0.14em;text-transform:uppercase;opacity:0.55}
+  .big-num{font-family:var(--serif-en);font-weight:800;font-size:clamp(40px,6vw,100px);line-height:0.88;letter-spacing:-0.03em;font-feature-settings:"tnum"}
+  .mid-num{font-family:var(--serif-en);font-weight:700;font-size:clamp(28px,3.5vw,60px);line-height:0.9;letter-spacing:-0.02em;font-feature-settings:"tnum"}
+  .en{font-family:var(--serif-en);font-style:italic;font-weight:500}
+
+  /* ============ 代码块 ============ */
+  .code-block{
+    background:rgba(var(--ink-rgb),0.06);border-left:3px solid var(--accent);
+    border-radius:0 4px 4px 0;
+    padding:1.2vh 1.2vw;margin:1vh 0;
+    font-family:var(--mono);font-size:clamp(12px,1.0vw,19px);line-height:1.5;
+    overflow-x:auto;white-space:pre-wrap;word-break:break-word;
+  }
+  .slide.dark .code-block{background:rgba(var(--paper-rgb),0.07);border-left-color:var(--accent)}
+  .code-block .cm{opacity:0.45;font-style:italic}
+  .code-block .kw{color:var(--accent);font-weight:500}
+  .code-block .str{opacity:0.8}
+  .code-block .arrow{opacity:0.6}
+
+  /* ============ 命令行块 ============ */
+  .cmd-block{
+    background:rgba(var(--ink-rgb),0.07);border:1px solid rgba(var(--ink-rgb),0.12);
+    border-radius:4px;padding:1vh 1.2vw;margin:0.8vh 0;
+    font-family:var(--mono);font-size:clamp(11px,0.9vw,17px);line-height:1.55;
+    white-space:pre-wrap;word-break:break-all;
+  }
+  .slide.dark .cmd-block{background:rgba(var(--paper-rgb),0.06);border-color:rgba(var(--paper-rgb),0.12)}
+  .cmd-block .prompt{opacity:0.5}
+  .cmd-block .output{opacity:0.6}
+
+  /* ============ 标注/提示框 ============ */
+  .note-box{
+    padding:1.2vh 1.2vw;margin:0.8vh 0;
+    border:1px solid rgba(var(--ink-rgb),0.12);border-radius:4px;
+    font-family:var(--sans-zh);font-size:clamp(12px,0.95vw,18px);line-height:1.5;opacity:0.78;
+    background:rgba(var(--ink-rgb),0.03);
+  }
+  .slide.dark .note-box{border-color:rgba(var(--paper-rgb),0.12);background:rgba(var(--paper-rgb),0.03)}
+  .note-box .label{font-family:var(--mono);font-size:clamp(10px,0.7vw,13px);letter-spacing:0.2em;text-transform:uppercase;opacity:0.5;display:block;margin-bottom:0.4vh}
+
+  /* ============ 网格布局 ============ */
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.5vw 2vw;flex:1;align-content:start}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5vw;flex:1;align-content:start}
+  .grid-4{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:1.5vh 2vw;flex:1;align-content:start}
+  .grid-6{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:1.5vh 2vw;flex:1;align-content:start}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:2vw;flex:1;align-items:start}
+  .split-64{display:grid;grid-template-columns:6fr 4fr;gap:2vw;flex:1;align-items:start}
+  .split-73{display:grid;grid-template-columns:7fr 3fr;gap:2vw;flex:1;align-items:start}
+
+  /* ============ 数据卡片 ============ */
+  .stat-card{
+    display:flex;flex-direction:column;gap:0.4vh;align-items:flex-start;
+    padding-top:1vh;border-top:1px solid rgba(var(--ink-rgb),0.15);
+  }
+  .slide.dark .stat-card{border-top-color:rgba(var(--paper-rgb),0.15)}
+  .stat-card .stat-label{font-family:var(--mono);font-size:clamp(9px,0.65vw,12px);letter-spacing:0.2em;text-transform:uppercase;opacity:0.5}
+  .stat-card .stat-nb{font-family:var(--serif-en);font-weight:800;font-size:clamp(28px,3.8vw,64px);line-height:0.9;letter-spacing:-0.03em;font-feature-settings:"tnum"}
+  .stat-card .stat-note{font-family:var(--sans-zh);font-weight:400;font-size:clamp(12px,0.9vw,17px);line-height:1.4;opacity:0.7}
+
+  /* ============ 引用框 ============ */
+  .callout{
+    padding:1.5vh 1.5vw;border-left:3px solid var(--accent);
+    font-family:var(--serif-zh);font-size:clamp(14px,1.15vw,22px);line-height:1.5;opacity:0.88;
+    background:rgba(var(--ink-rgb),0.04);margin:0.8vh 0;
+  }
+  .slide.dark .callout{background:rgba(var(--paper-rgb),0.05)}
+  .callout .cite{display:block;margin-top:0.8vh;font-family:var(--mono);font-size:clamp(10px,0.7vw,13px);letter-spacing:0.15em;text-transform:uppercase;opacity:0.55}
+
+  /* ============ 标签 ============ */
+  .tag{
+    display:inline-block;font-family:var(--mono);font-size:clamp(10px,0.7vw,13px);
+    letter-spacing:0.15em;text-transform:uppercase;
+    padding:4px 10px;border:1px solid currentColor;opacity:0.75;border-radius:2px;
+  }
+  .tag.accent{border-color:var(--accent);color:var(--accent);opacity:0.9}
+
+  /* ============ 表格 ============ */
+  .tbl{width:100%;border-collapse:collapse;margin:0.8vh 0;font-size:clamp(12px,0.95vw,18px)}
+  .tbl th{font-family:var(--serif-zh);font-weight:600;text-align:left;padding:0.6vh 0.8vw;border-bottom:2px solid rgba(var(--ink-rgb),0.2)}
+  .tbl td{font-family:var(--sans-zh);padding:0.5vh 0.8vw;border-bottom:1px solid rgba(var(--ink-rgb),0.08);line-height:1.4}
+  .slide.dark .tbl th{border-bottom-color:rgba(var(--paper-rgb),0.2)}
+  .slide.dark .tbl td{border-bottom-color:rgba(var(--paper-rgb),0.08)}
+  .tbl .mono{font-family:var(--mono);font-size:clamp(10px,0.8vw,15px)}
+
+  /* ============ 流程图/管线 ============ */
+  .pipeline{display:grid;grid-template-columns:repeat(5,1fr);gap:0.8vw;margin:1vh 0}
+  .pipeline[data-cols="3"]{grid-template-columns:repeat(3,1fr)}
+  .pipeline[data-cols="4"]{grid-template-columns:repeat(4,1fr)}
+  .pipeline[data-cols="6"]{grid-template-columns:repeat(6,1fr)}
+  .step{display:flex;flex-direction:column;gap:0.4vh;padding-top:0.8vh;border-top:1px solid rgba(var(--ink-rgb),0.2)}
+  .slide.dark .step{border-top-color:rgba(var(--paper-rgb),0.2)}
+  .step-nb{font-family:var(--serif-en);font-style:italic;font-weight:500;font-size:clamp(11px,0.85vw,16px);opacity:0.4}
+  .step-title{font-family:var(--sans-zh);font-weight:600;font-size:clamp(13px,1.05vw,20px);line-height:1.2}
+  .step-desc{font-family:var(--sans-zh);font-weight:400;font-size:clamp(11px,0.8vw,15px);line-height:1.4;opacity:0.7}
+
+  /* ============ 列表 ============ */
+  .content-list{list-style:none;padding:0;margin:0.6vh 0;display:flex;flex-direction:column;gap:0.5vh}
+  .content-list li{
+    font-family:var(--sans-zh);font-size:clamp(14px,1.15vw,22px);line-height:1.5;opacity:0.82;
+    padding-left:1.2em;position:relative;
+  }
+  .content-list li::before{
+    content:'';position:absolute;left:0;top:0.6em;
+    width:5px;height:5px;border-radius:50%;background:var(--accent);opacity:0.5;
+  }
+  .content-list.compact li{font-size:clamp(13px,1.0vw,19px);gap:0.3vh}
+  .content-list.num{list-style:none;counter-reset:item}
+  .content-list.num li{counter-increment:item}
+  .content-list.num li::before{
+    content:counter(item) '.';position:absolute;left:0;top:0;
+    font-family:var(--mono);font-size:clamp(11px,0.85vw,16px);opacity:0.5;width:1.5em;
+  }
+
+  /* ============ 图片占位 ============ */
+  .img-slot{
+    border:1.5px dashed rgba(var(--ink-rgb),0.2);border-radius:4px;
+    display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0.5vh;
+    padding:1.5vh 1.5vw;font-family:var(--mono);font-size:clamp(9px,0.65vw,12px);
+    letter-spacing:0.2em;text-transform:uppercase;opacity:0.5;
+    aspect-ratio:16/9;width:100%;max-height:30vh;margin:0.5vh 0;
+  }
+  .slide.dark .img-slot{border-color:rgba(var(--paper-rgb),0.2)}
+  .img-slot.r-4x3{aspect-ratio:4/3}
+  .img-slot.r-3x2{aspect-ratio:3/2}
+
+  /* ============ 高亮 ============ */
+  .hi{position:relative;display:inline}
+  .slide.dark .hi::after{content:'';position:absolute;left:-0.1em;right:-0.1em;bottom:-0.05em;height:0.28em;background:rgba(var(--paper-rgb),0.12);z-index:-1}
+  .slide.light .hi::after{content:'';position:absolute;left:-0.1em;right:-0.1em;bottom:-0.05em;height:0.28em;background:rgba(var(--ink-rgb),0.08);z-index:-1}
+
+  /* ============ 导航 ============ */
+  #nav{position:fixed;left:50%;bottom:1.8vh;transform:translateX(-50%);z-index:30;display:flex;gap:8px;padding:6px 12px;border-radius:999px;background:rgba(var(--ink-rgb),0.1);backdrop-filter:blur(8px)}
+  #nav .dot{width:7px;height:7px;border-radius:50%;background:rgba(var(--ink-rgb),0.25);cursor:pointer;transition:all 0.3s ease;border:0;padding:0}
+  #nav .dot:hover{background:rgba(var(--ink-rgb),0.4);transform:scale(1.15)}
+  #nav .dot.active{background:var(--accent);width:18px;border-radius:999px}
+  #hint{position:fixed;bottom:2vh;right:2vw;z-index:30;font-family:var(--mono);font-size:clamp(8px,0.55vw,11px);letter-spacing:0.15em;text-transform:uppercase;opacity:0.3;color:var(--ink)}
+
+  /* ============ 封面/幕封专用 ============ */
+  .hero-frame{
+    display:flex;flex-direction:column;justify-content:center;align-items:center;
+    height:100vh;text-align:center;padding:6vh 8vw;gap:2vh;
+  }
+  .hero-frame.left{justify-content:center;align-items:flex-start;text-align:left;padding:6vh 10vw}
+
+  /* ============ 响应式 ============ */
+  @media (max-width:900px){
+    .slide.with-sidebar{grid-template-columns:1fr}
+    .sidebar{display:none}
+    .content-area{padding:2vh 3vw}
+    .h-hero{font-size:clamp(28px,8vw,56px)}
+    .h-xl{font-size:clamp(22px,6vw,42px)}
+    .pipeline{grid-template-columns:repeat(2,1fr)}
+  }
+</style>
+<style>
+/* ===== inlined unified course styles for standalone distribution ===== */
+/* Course-wide visual normalization.
+   This file intentionally mirrors the warm academic style of 1.html while
+   preserving each deck's existing navigation/runtime structure. */
+:root{
+  --bg:#faf7f0!important;
+  --bg-soft:#f0ece0!important;
+  --surface:#ffffff!important;
+  --surface-2:#f7f1e3!important;
+  --border:rgba(90,60,30,.13)!important;
+  --border-strong:rgba(90,60,30,.28)!important;
+  --text-1:#2a1f12!important;
+  --text-2:#5a4a33!important;
+  --text-3:#8a7859!important;
+  --accent:#3b7a5a!important;
+  --accent-2:#c4812a!important;
+  --accent-3:#b8452e!important;
+  --paper:#faf7f0!important;
+  --paper-tint:#f0ece0!important;
+  --paper-rgb:250,247,240!important;
+  --ink:#2a1f12!important;
+  --ink-rgb:42,31,18!important;
+  --ink-tint:#5a4a33!important;
+  --code-bg:#2a1f12!important;
+  --radius:14px!important;
+  --radius-sm:12px!important;
+  --shadow:0 8px 24px rgba(90,60,30,.07)!important;
+  --font-sans:'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif!important;
+  --font-serif:'Playfair Display','Noto Serif SC',Georgia,serif!important;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace!important;
+}
+html,body,#deck,.deck{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+  font-family:var(--font-sans)!important;
+  letter-spacing:-.01em;
+}
+.slide,
+section[class*="slide"],
+.slide.light,
+.slide.dark,
+.slide-cover,
+.slide-divider{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+}
+.slide.full,
+.cover,
+.slide-cover{
+  background:var(--bg)!important;
+}
+.main,
+.content,
+.slide-content,
+.main-content,
+.right,
+.body,
+.stage{
+  color:var(--text-1)!important;
+  min-height:0!important;
+}
+h1,h2,h3,
+.h1,.h2,.h3,
+.slide-title,
+.cover-title,
+.end-title,
+.h-hero,
+.h-xl,
+.main h1,
+.main h2,
+.main h3{
+  font-family:var(--font-serif)!important;
+  color:var(--text-1)!important;
+  letter-spacing:-.02em!important;
+}
+h1,.h1,.cover-title,.slide-title,.h-hero{
+  font-weight:800!important;
+}
+h2,.h2,.h-xl{
+  font-weight:700!important;
+}
+p,li,td,th,.lede,.dim,.dim2,.fn-desc,.body-text,.txt,.label{
+  color:var(--text-2);
+}
+strong,b{color:var(--text-1)}
+.kicker,
+.eyebrow,
+.module-label,
+.sidebar-module-label,
+.module-code,
+.obj-label,
+.obj-title,
+.obj-header,
+.objectives-title,
+.lb-title,
+.sidebar-label{
+  color:var(--accent-2)!important;
+  font-family:var(--font-sans)!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  letter-spacing:.14em!important;
+  text-transform:uppercase!important;
+}
+.sidebar,
+aside.sidebar,
+.learning-sidebar,
+.slide-sidebar,
+.left-col{
+  background:transparent!important;
+  border-right:1px solid var(--border)!important;
+  border-left:0!important;
+  padding-right:24px!important;
+  color:var(--text-2)!important;
+  box-shadow:none!important;
+}
+.sidebar-title,
+.module-title,
+.sidebar-module,
+.lb-module,
+.brand,
+.sidebar .brand{
+  font-family:var(--font-serif)!important;
+  color:var(--accent)!important;
+  font-size:20px!important;
+  line-height:1.25!important;
+  font-weight:700!important;
+}
+.obj-list,
+.objectives,
+.objective-list,
+.learning-sidebar ul,
+.slide-sidebar ul{
+  list-style:none!important;
+  padding:0!important;
+  margin:0!important;
+  font-family:var(--font-sans)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+  color:var(--text-2)!important;
+}
+.obj-list li,
+.objectives li,
+.objective-list li,
+.learning-sidebar li,
+.slide-sidebar li{
+  position:relative!important;
+  padding:7px 0 7px 22px!important;
+  border-bottom:1px dashed var(--border)!important;
+  color:var(--text-2)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+}
+.obj-list li::before,
+.objectives li::before,
+.objective-list li::before,
+.learning-sidebar li::before,
+.slide-sidebar li::before{
+  content:"○"!important;
+  position:absolute!important;
+  left:0!important;
+  top:7px!important;
+  color:var(--accent)!important;
+  width:auto!important;
+  height:auto!important;
+  background:transparent!important;
+  border-radius:0!important;
+  opacity:1!important;
+}
+.obj-list li.current::before,
+.objectives li.current::before,
+.objective-list li.current::before,
+.obj-list li.highlight::before,
+.objectives li.highlight::before,
+.objective-list li.highlight::before{
+  content:"▸"!important;
+  color:var(--accent-2)!important;
+}
+.obj-list li.current,
+.objectives li.current,
+.objective-list li.current,
+.obj-list li.highlight,
+.objectives li.highlight,
+.objective-list li.highlight{
+  color:var(--text-1)!important;
+  font-weight:700!important;
+}
+.card,
+.concept-box,
+.col-item,
+.metric-card,
+.panel,
+.info-card,
+.tip-box,
+.callout-box,
+.comp-item,
+.diagram-box,
+.data-card,
+.feature-card,
+.task-card,
+.warning-card,
+.workflow-card{
+  background:var(--surface)!important;
+  border:1px solid var(--border)!important;
+  border-radius:var(--radius)!important;
+  box-shadow:var(--shadow)!important;
+  color:var(--text-1)!important;
+}
+.card-accent,
+.accent-card,
+.concept-box h4{
+  border-color:var(--border)!important;
+}
+.callout,
+.tip,
+.note-box{
+  background:var(--surface-2)!important;
+  border-left:4px solid var(--accent-2)!important;
+  border-radius:0 var(--radius) var(--radius) 0!important;
+  color:var(--text-2)!important;
+}
+.warn-box,
+.warning,
+.alert{
+  background:rgba(196,129,42,.08)!important;
+  border:1px solid rgba(196,129,42,.3)!important;
+  border-radius:var(--radius)!important;
+  color:var(--text-2)!important;
+}
+.course-bridge{
+  max-width:72ch;
+  margin-top:16px!important;
+  padding:10px 16px!important;
+  font-size:13px!important;
+  line-height:1.45!important;
+}
+.course-bridge b{
+  color:var(--accent-2)!important;
+}
+
+
+.slide > .sidebar + .main-content + .course-bridge{
+  left:calc(18vw + 3vw)!important;
+  max-width:min(760px,70vw)!important;
+}
+
+.slide > .course-bridge,
+.hero .course-bridge,
+.slide.full .course-bridge,
+section.full .course-bridge{
+  position:absolute!important;
+  left:6vw!important;
+  right:auto!important;
+  bottom:9vh!important;
+  max-width:min(760px,64vw)!important;
+  margin:0!important;
+  z-index:3!important;
+}
+.slide.compact .h2,
+section.compact .h2,
+.slide.compact h2,
+section.compact h2{
+  font-size:clamp(25px,2.15vw,34px)!important;
+  line-height:1.12!important;
+  margin-bottom:6px!important;
+}
+.slide.compact .lede,
+section.compact .lede,
+.slide.compact .fn-desc,
+section.compact .fn-desc,
+.slide.compact p,
+section.compact p{
+  font-size:clamp(13px,1.05vw,16px)!important;
+  line-height:1.45!important;
+}
+.slide.compact .card,
+section.compact .card,
+.slide.compact .concept-box,
+section.compact .concept-box,
+.slide.compact .col-item,
+section.compact .col-item{
+  padding:12px 15px!important;
+}
+.slide.compact .concept-box h4,
+section.compact .concept-box h4,
+.slide.compact .card h4,
+section.compact .card h4{
+  font-size:clamp(14px,1.1vw,17px)!important;
+  line-height:1.25!important;
+  margin-bottom:4px!important;
+}
+.slide.compact .grid,
+section.compact .grid{
+  gap:12px!important;
+}
+.slide.compact .mt-l,
+section.compact .mt-l{
+  margin-top:14px!important;
+}
+.slide.compact .mt-m,
+section.compact .mt-m{
+  margin-top:8px!important;
+}
+.problem-grid .concept-box{
+  min-height:118px;
+}
+.problem-grid .concept-box:last-child{
+  grid-column:1/-1;
+  min-height:96px;
+}
+.slide.code-heavy .code-block,
+section.code-heavy .code-block{
+  font-size:clamp(10px,.82vw,12px)!important;
+  line-height:1.28!important;
+  padding:10px 12px!important;
+}
+.slide.compact .data-table th,
+.slide.compact .data-table td,
+section.compact .data-table th,
+section.compact .data-table td{
+  padding:4px 7px!important;
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.3!important;
+}
+.slide.compact .code-block,
+section.compact .code-block{
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.35!important;
+  padding:10px 12px!important;
+}
+pre,
+code,
+.code,
+.code-block,
+.code-panel{
+  font-family:var(--font-mono)!important;
+}
+pre,
+.code,
+.code-block,
+.code-panel{
+  background:#2a1f12!important;
+  color:#f0ece0!important;
+  border:0!important;
+  border-radius:var(--radius)!important;
+  box-shadow:none!important;
+}
+code:not(pre code){
+  background:rgba(90,60,30,.08)!important;
+  color:var(--text-1)!important;
+}
+table,
+.data-table{
+  border-color:var(--border)!important;
+}
+th,
+.data-table th{
+  background:var(--surface-2)!important;
+  color:var(--text-1)!important;
+}
+td,
+.data-table td{
+  background:var(--surface)!important;
+  color:var(--text-2)!important;
+}
+.pill,
+.pill-academic,
+.tag,
+.badge{
+  background:var(--surface-2)!important;
+  color:var(--text-2)!important;
+  border:1px solid var(--border)!important;
+  border-radius:4px!important;
+  font-family:var(--font-mono)!important;
+}
+.pill-accent,
+.tag.accent,
+.badge.accent{
+  color:var(--accent)!important;
+  border-color:color-mix(in srgb,var(--accent) 28%,transparent)!important;
+}
+.deck-footer,
+.page-meta,
+.footer,
+.slide-meta{
+  color:var(--text-3)!important;
+}
+.progress-bar>span,
+.progress,
+.progress-dot.active,
+.dot.active{
+  background:var(--accent)!important;
+}
+svg text{font-family:var(--font-sans)!important}
+/* ===== end inlined unified course styles ===== */
+</style>
+</head>
+<body>
+
+<div id="hint">← → 翻页 · ESC 索引</div>
+
+<div id="deck">
+
+<!-- ================================================================ -->
+<!-- SLIDE 1 · 封面 -->
+<!-- ================================================================ -->
+<section class="slide hero dark">
+  <div class="hero-frame left">
+    <div class="kicker" style="opacity:0.5;letter-spacing:0.4em">计算机视觉课程 · 第十四讲</div>
+    <h1 class="h-hero" style="font-size:clamp(32px,5.2vw,88px);max-width:80vw;line-height:1.08">
+      多算法集成
+    </h1>
+    <h2 class="h-sub" style="max-width:70vw;margin-top:1vh">
+      YOLO、FsDet、GroundingDINO 的统一展示
+    </h2>
+    <div style="margin-top:4vh;display:flex;flex-direction:column;gap:0.6vh;align-items:flex-start">
+      <div class="meta">课程专题 · 90 分钟</div>
+      <div class="meta" style="opacity:0.4">计算机视觉检测系统 · 工程实践专题</div>
+    </div>
+  </div>
+  <div class="foot" style="position:absolute;bottom:3vh;left:6vw;right:6vw;border-top-color:rgba(var(--paper-rgb),0.1)">
+    <div class="title">多算法集成 · 统一展示架构</div>
+    <div>01 / 31</div>
+  </div>
+
+  <div class="callout course-bridge"><b>课程衔接。</b>承接检测应用原型，本讲完成课程收束：把 YOLO、FsDet 与 GroundingDINO 统一接入同一平台，形成可比较、可扩展的多算法检测系统。</div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 2 · 第一幕：多算法集成概述 -->
+<!-- ================================================================ -->
+<section class="slide hero light">
+  <div class="hero-frame left">
+    <div class="kicker">Act I</div>
+    <h1 class="h-hero" style="font-size:clamp(28px,4.5vw,76px)">多算法集成概述</h1>
+    <p class="lead" style="max-width:55vw;margin-top:2vh">
+      单一模型无法覆盖所有检测场景。多算法集成的核心问题不是"堆功能"，而是理解不同模型解决不同问题的能力边界。
+    </p>
+    <div style="margin-top:3vh;display:flex;gap:1.5vw;flex-wrap:wrap">
+      <span class="tag">YOLO · 固定类别高速检测</span>
+      <span class="tag">FsDet · 少样本新类别适应</span>
+      <span class="tag accent">GroundingDINO · 开放词表语言驱动</span>
+    </div>
+  </div>
+  <div class="foot" style="position:absolute;bottom:3vh;left:6vw;right:6vw">
+    <div class="title">第一幕 · 多算法集成概述</div>
+    <div>02 / 31</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 3 · 单一模型的局限性 -->
+<!-- ================================================================ -->
+<section class="slide light with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块一 · 多算法集成概述</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>理解单一模型的局限性</li>
+      <li>掌握三类检测能力的定位差异</li>
+      <li>认识多算法集成的核心意义</li>
+    </ul>
+    <div class="sidebar-pagenb">03 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>单一模型局限 · Limitation</div>
+      <div>Act I · 03 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.8vh">单一模型的局限性</h2>
+      <p class="body-text" style="margin-bottom:1vh">
+        任何单一目标检测模型都只能在特定维度上取得最优表现。以下三类典型场景分别对应不同的模型需求：
+      </p>
+
+      <div class="grid-3" style="gap:1.2vw;margin-top:0.5vh">
+        <div class="stat-card" style="border-top-color:var(--accent)">
+          <div class="stat-label">场景 A · 固定类别</div>
+          <div class="stat-nb" style="font-size:clamp(20px,2.2vw,40px)">YOLO</div>
+          <div class="stat-note">安全帽检测、车牌识别等类别固定的工业场景。需要高速推理（≥30 FPS），部署在边缘设备。类别列表在训练时确定，无法在推理时扩展。</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">场景 B · 少样本适应</div>
+          <div class="stat-nb" style="font-size:clamp(20px,2.2vw,40px)">FsDet</div>
+          <div class="stat-note">新品类检测需求，标注数据极少（每类仅 1-10 张）。需要基类预训练 + 少样本微调。适用于快速验证新检测目标的可行性。</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">场景 C · 开放词表</div>
+          <div class="stat-nb" style="font-size:clamp(20px,2.2vw,40px)">GroundingDINO</div>
+          <div class="stat-note">自然语言描述的目标检测。无需训练即可检测任意类别。适用于快速检索、辅助标注、探索性分析。推理速度较慢，不适合实时场景。</div>
+        </div>
+      </div>
+
+      <div class="note-box" style="margin-top:0.8vh">
+        <span class="label">核心观点</span>
+        多算法集成的目标不是让一个平台运行多个模型，而是让不同模型在各自擅长的场景下发挥作用，通过统一接口对外提供服务。
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">单一模型局限 · 三类典型场景</div>
+      <div>Act I · 场景分析</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 4 · 三类检测能力的定位 -->
+<!-- ================================================================ -->
+<section class="slide dark with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块一 · 多算法集成概述</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>理解三类模型的定位差异</li>
+      <li>掌握各模型的技术特征</li>
+      <li>认识适用场景边界</li>
+    </ul>
+    <div class="sidebar-pagenb">04 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>三类检测能力 · Capability</div>
+      <div>Act I · 04 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">三类检测能力的定位</h2>
+
+      <div class="split" style="gap:1.5vw;margin-top:0.5vh">
+        <div>
+          <div class="h-md" style="margin-bottom:0.6vh">YOLO（You Only Look Once）</div>
+          <ul class="content-list compact">
+            <li>单阶段检测器，回归边界框 + 类别概率</li>
+            <li>推理速度 30-100+ FPS（取决于模型大小）</li>
+            <li>类别在训练时固定，无法动态扩展</li>
+            <li>适合部署：TensorRT / ONNX / NCNN</li>
+            <li>官方实现：<span class="en">github.com/ultralytics/ultralytics</span></li>
+          </ul>
+        </div>
+        <div>
+          <div class="h-md" style="margin-bottom:0.6vh">FsDet（Few-shot Detection）</div>
+          <ul class="content-list compact">
+            <li>基于 Detectron2 的少样本检测框架</li>
+            <li>基类预训练 → 少样本微调（fine-tune）</li>
+            <li>支持 novel 类别快速适应（每类 1-10 样本）</li>
+            <li>推理速度中等，依赖 ResNet 骨干网络</li>
+            <li>官方实现：<span class="en">github.com/ucbdrive/few-shot-object-detection</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="note-box" style="margin-top:0.5vh">
+        <span class="label">GroundingDINO</span>
+        基于 Transformer 的开放词表检测器。将文本编码与图像编码对齐，通过跨模态注意力实现语言驱动的目标检测。输入任意文本描述（如 "a person wearing a red helmet"），模型输出匹配目标的边界框。推理依赖 GPU，单张图像约 200-500ms。官方实现：<span class="en">github.com/IDEA-Research/GroundingDINO</span>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">三类检测能力 · 技术特征与适用场景</div>
+      <div>Act I · 模型定位</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 5 · 多算法集成的意义 -->
+<!-- ================================================================ -->
+<section class="slide light with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块一 · 多算法集成概述</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>理解多算法集成的核心意义</li>
+      <li>认识"统一展示"的设计目标</li>
+      <li>掌握集成设计的基本原则</li>
+    </ul>
+    <div class="sidebar-pagenb">05 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>集成意义 · Rationale</div>
+      <div>Act I · 05 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">多算法集成的意义</h2>
+      <p class="body-text" style="margin-bottom:0.8vh">
+        多算法集成不是简单地在界面上排列多个按钮。核心设计目标围绕同一输入，比较不同算法的结果和适用边界，帮助学生形成技术选型能力。
+      </p>
+
+      <div class="grid-3" style="gap:1.2vw">
+        <div class="callout" style="border-left-color:var(--accent);padding:1.2vh 1.2vw">
+          <div style="font-family:var(--serif-zh);font-weight:600;font-size:clamp(14px,1.1vw,21px)">
+            同一输入，多模型推理
+          </div>
+          <div class="cite" style="margin-top:0.4vh">用户上传一张图片，平台依次调用各模型，返回统一格式的结果</div>
+        </div>
+        <div class="callout" style="border-left-color:var(--accent);padding:1.2vh 1.2vw">
+          <div style="font-family:var(--serif-zh);font-weight:600;font-size:clamp(14px,1.1vw,21px)">
+            结果对比，理解差异
+          </div>
+          <div class="cite" style="margin-top:0.4vh">同一检测任务，不同模型在准确性、速度、召回率上的表现差异</div>
+        </div>
+        <div class="callout" style="border-left-color:var(--accent);padding:1.2vh 1.2vw">
+          <div style="font-family:var(--serif-zh);font-weight:600;font-size:clamp(14px,1.1vw,21px)">
+            技术选型，而非迷信模型
+          </div>
+          <div class="cite" style="margin-top:0.4vh">理解各模型的适用边界，在工程实践中做出合理的技术决策</div>
+        </div>
+      </div>
+
+      <div class="code-block" style="margin-top:0.6vh">
+        <span class="cm"># 多算法集成的核心原则</span>
+        <span class="cm"># 1. 统一输入：同一张图片、同一组参数</span>
+        <span class="cm"># 2. 统一输出：相同的数据结构，前端无需关心模型内部</span>
+        <span class="cm"># 3. 统一评估：准确性、速度、资源消耗在同一尺度下比较</span>
+        <span class="cm"># 4. 可扩展：新增模型只需实现标准接口，不影响现有系统</span>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">多算法集成 · 核心设计目标</div>
+      <div>Act I · 设计原则</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 6 · 课程项目全景 -->
+<!-- ================================================================ -->
+<section class="slide dark with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块一 · 多算法集成概述</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>认识课程项目整体架构</li>
+      <li>理解各模块之间的关系</li>
+      <li>掌握数据流向</li>
+    </ul>
+    <div class="sidebar-pagenb">06 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>项目全景 · Architecture</div>
+      <div>Act I · 06 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">课程项目全景</h2>
+
+      <div class="pipeline" data-cols="5" style="margin-bottom:0.6vh">
+        <div class="step">
+          <div class="step-nb">01</div>
+          <div class="step-title">图像输入</div>
+          <div class="step-desc">文件上传 / 摄像头 / URL</div>
+        </div>
+        <div class="step">
+          <div class="step-nb">02</div>
+          <div class="step-title">模型选择</div>
+          <div class="step-desc">YOLO / FsDet / DINO</div>
+        </div>
+        <div class="step">
+          <div class="step-nb">03</div>
+          <div class="step-title">Adapter 调用</div>
+          <div class="step-desc">统一接口 · 内部适配</div>
+        </div>
+        <div class="step">
+          <div class="step-nb">04</div>
+          <div class="step-title">结果统一</div>
+          <div class="step-desc">JSON 标准化输出</div>
+        </div>
+        <div class="step">
+          <div class="step-nb">05</div>
+          <div class="step-title">前端展示</div>
+          <div class="step-desc">结果图 + 检测列表 + 指标</div>
+        </div>
+      </div>
+
+      <div class="split" style="gap:1.5vw;margin-top:0.3vh">
+        <div>
+          <div class="h-md" style="margin-bottom:0.4vh;font-size:clamp(16px,1.4vw,26px)">后端架构</div>
+          <ul class="content-list compact">
+            <li>Flask / FastAPI 提供 REST API</li>
+            <li>模型适配器层隔离各模型依赖</li>
+            <li>按需加载，单次仅运行一个模型</li>
+            <li>统一错误处理与超时机制</li>
+          </ul>
+        </div>
+        <div>
+          <div class="h-md" style="margin-bottom:0.4vh;font-size:clamp(16px,1.4vw,26px)">前端架构</div>
+          <ul class="content-list compact">
+            <li>HTML + JavaScript 单页应用</li>
+            <li>控件区：模型选择 / 参数 / 上传</li>
+            <li>结果区：图像 + 检测列表 + 指标</li>
+            <li>对比模式：多模型结果并列展示</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">课程项目 · 整体架构与数据流向</div>
+      <div>Act I · 项目全景</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 7 · 第二幕：统一架构设计 -->
+<!-- ================================================================ -->
+<section class="slide hero light">
+  <div class="hero-frame left">
+    <div class="kicker">Act II</div>
+    <h1 class="h-hero" style="font-size:clamp(28px,4.5vw,76px)">统一架构设计</h1>
+    <p class="lead" style="max-width:55vw;margin-top:2vh">
+      无论底层模型如何，平台都应返回统一结构。统一输出格式、Adapter 设计模式、可扩展的接口体系。
+    </p>
+    <div style="margin-top:3vh;display:flex;gap:1.5vw;flex-wrap:wrap">
+      <span class="tag">统一 JSON 协议</span>
+      <span class="tag">Adapter 模式</span>
+      <span class="tag accent">可扩展接口</span>
+    </div>
+  </div>
+  <div class="foot" style="position:absolute;bottom:3vh;left:6vw;right:6vw">
+    <div class="title">第二幕 · 统一架构设计</div>
+    <div>07 / 31</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 8 · 统一输入输出格式 -->
+<!-- ================================================================ -->
+<section class="slide light with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块二 · 统一架构设计</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>掌握统一输出格式协议</li>
+      <li>理解 JSON 字段设计意图</li>
+      <li>认识统一格式的工程价值</li>
+    </ul>
+    <div class="sidebar-pagenb">08 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>统一格式 · Protocol</div>
+      <div>Act II · 08 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">统一输入输出格式</h2>
+      <p class="body-text" style="margin-bottom:0.6vh">
+        无论底层模型是 YOLO、FsDet 还是 GroundingDINO，平台对外返回统一 JSON 结构：
+      </p>
+
+      <div class="code-block" style="font-size:clamp(11px,0.85vw,16px)">
+{
+  <span class="str">"algorithm"</span>: <span class="str">"yolo"</span>,          <span class="cm">// 模型标识</span>
+  <span class="str">"elapsed_ms"</span>: 38,                    <span class="cm">// 推理耗时（毫秒）</span>
+  <span class="str">"detections"</span>: [
+    {
+      <span class="str">"label"</span>: <span class="str">"helmet"</span>,               <span class="cm">// 检测类别标签</span>
+      <span class="str">"confidence"</span>: 0.91,               <span class="cm">// 置信度 [0, 1]</span>
+      <span class="str">"bbox"</span>: [120, 80, 240, 210],      <span class="cm">// [x1, y1, x2, y2] 像素坐标</span>
+      <span class="str">"source"</span>: <span class="str">"yolo"</span>               <span class="cm">// 来源模型标识</span>
+    }
+  ],
+  <span class="str">"result_image"</span>: <span class="str">"outputs/result.jpg"</span>, <span class="cm">// 标注结果图路径</span>
+  <span class="str">"parameters"</span>: {                      <span class="cm">// 本次调用的参数记录</span>
+    <span class="str">"conf_threshold"</span>: 0.5,
+    <span class="str">"prompt"</span>: <span class="str">"helmet"</span>               <span class="cm">// 仅 GroundingDINO 使用</span>
+  }
+}
+      </div>
+
+      <div class="note-box" style="margin-top:0.4vh">
+        <span class="label">设计要点</span>
+        <span class="en">bbox</span> 使用绝对像素坐标 [x1, y1, x2, y2]，左上角为原点。<span class="en">source</span> 字段记录检测来源，便于多模型结果合并时追溯。<span class="en">parameters</span> 记录调用参数，支持实验复现和结果审计。
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">统一输出格式 · JSON 协议</div>
+      <div>Act II · 数据协议</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 9 · JSON 协议详解 -->
+<!-- ================================================================ -->
+<section class="slide dark with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块二 · 统一架构设计</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>理解各字段的设计意图</li>
+      <li>掌握不同模型的输出差异</li>
+      <li>认识字段映射的必要性</li>
+    </ul>
+    <div class="sidebar-pagenb">09 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>协议详解 · Specification</div>
+      <div>Act II · 09 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">JSON 协议字段详解</h2>
+
+      <table class="tbl">
+        <thead>
+          <tr><th style="width:22%">字段</th><th style="width:18%">类型</th><th>说明</th><th style="width:22%">模型差异</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">algorithm</td><td class="mono">string</td><td>模型标识：yolo / fsdet / grounding-dino</td><td class="mono">固定值</td></tr>
+          <tr><td class="mono">elapsed_ms</td><td class="mono">number</td><td>端到端推理耗时，含预处理和后处理</td><td>YOLO &lt; 50ms, DINO 200-500ms</td></tr>
+          <tr><td class="mono">detections[].label</td><td class="mono">string</td><td>检测类别标签</td><td>YOLO: 固定; DINO: 来自 prompt token</td></tr>
+          <tr><td class="mono">detections[].confidence</td><td class="mono">number</td><td>置信度分数，范围 [0, 1]</td><td>各模型校准方式不同</td></tr>
+          <tr><td class="mono">detections[].bbox</td><td class="mono">[4]number</td><td>边界框 [x1, y1, x2, y2]，绝对像素</td><td>坐标系统一归一化</td></tr>
+          <tr><td class="mono">detections[].source</td><td class="mono">string</td><td>来源模型标识，多模型合并时追溯</td><td>与 algorithm 一致</td></tr>
+          <tr><td class="mono">result_image</td><td class="mono">string</td><td>标注结果图的文件路径或 base64</td><td>各模型绘制风格不同</td></tr>
+          <tr><td class="mono">parameters</td><td class="mono">object</td><td>调用参数快照，支持实验复现</td><td>YOLO: conf; DINO: conf+prompt</td></tr>
+        </tbody>
+      </table>
+
+      <div class="note-box" style="margin-top:0.6vh">
+        <span class="label">字段映射的必要性</span>
+        YOLO 输出固定类别 ID（如 class_id=0 对应 helmet），GroundingDINO 输出与文本 token 相关的标签（如 "helmet" 的注意力权重），FsDet 输出 novel 类结果。统一字段 <span class="en">label</span> 需要各 Adapter 在内部完成映射。
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">JSON 协议 · 字段详解与模型差异</div>
+      <div>Act II · 协议规范</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 10 · Adapter 设计思想 -->
+<!-- ================================================================ -->
+<section class="slide light with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块二 · 统一架构设计</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>理解 Adapter 设计模式</li>
+      <li>掌握统一接口定义</li>
+      <li>认识多态在工程中的应用</li>
+    </ul>
+    <div class="sidebar-pagenb">10 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>Adapter 模式 · Pattern</div>
+      <div>Act II · 10 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">Adapter 设计思想</h2>
+      <p class="body-text" style="margin-bottom:0.6vh">
+        为每种模型编写一个适配器（Adapter），所有适配器实现同一接口。后端调用方无需关心具体模型内部实现：
+      </p>
+
+      <div class="code-block" style="font-size:clamp(11px,0.85vw,16px)">
+<span class="kw">from</span> abc <span class="kw">import</span> ABC, abstractmethod
+
+<span class="kw">class</span> <span class="en">Detector</span>(ABC):
+    <span class="cm">"""所有检测模型的统一抽象接口"""</span>
+    @abstractmethod
+    <span class="kw">def</span> <span class="en">predict</span>(self, image_path: str, **kwargs) -> dict:
+        <span class="cm">"""输入图像路径，返回统一格式的 dict"""</span>
+        <span class="kw">pass</span>
+
+<span class="kw">class</span> <span class="en">YoloDetector</span>(Detector):
+    <span class="kw">def</span> <span class="en">predict</span>(self, image_path: str, **kwargs) -> dict:
+        <span class="cm"># YOLO 特有的模型加载、预处理、推理逻辑</span>
+        results = self.model(image_path, conf=kwargs.get(<span class="str">"conf"</span>, 0.5))
+        <span class="kw">return</span> self._format_output(results)
+
+<span class="kw">class</span> <span class="en">GroundingDinoDetector</span>(Detector):
+    <span class="kw">def</span> <span class="en">predict</span>(self, image_path: str, **kwargs) -> dict:
+        <span class="cm"># GroundingDINO 特有的文本编码、跨模态推理</span>
+        prompt = kwargs.get(<span class="str">"prompt"</span>, <span class="str">"object"</span>)
+        results = self.model(image_path, text=prompt)
+        <span class="kw">return</span> self._format_output(results)
+      </div>
+
+      <div class="note-box" style="margin-top:0.4vh">
+        <span class="label">工程思想</span>
+        后端接口只需一行代码切换模型：<span class="en">detector = get_detector(model_name); result = detector.predict(image_path, conf=conf, prompt=prompt)</span>。新增模型只需新增一个 Adapter 类，无需修改调用逻辑。
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">Adapter 设计模式 · 统一接口、内部适配</div>
+      <div>Act II · 设计模式</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 11 · Python 接口实现 -->
+<!-- ================================================================ -->
+<section class="slide dark with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块二 · 统一架构设计</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>掌握 Adapter 完整实现</li>
+      <li>理解工厂方法模式</li>
+      <li>能够实现模型选择逻辑</li>
+    </ul>
+    <div class="sidebar-pagenb">11 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>接口实现 · Implementation</div>
+      <div>Act II · 11 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">Adapter 工厂与调用</h2>
+
+      <div class="split" style="gap:1.2vw;margin-top:0.3vh">
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.4vh">工厂方法</div>
+          <div class="code-block" style="font-size:clamp(10px,0.78vw,15px);padding:0.8vh 1vw">
+<span class="kw">def</span> <span class="en">get_detector</span>(model_name: str) -> Detector:
+    <span class="cm">"""根据模型名称返回对应的 Adapter 实例"""</span>
+    detectors = {
+        <span class="str">"yolo"</span>: YoloDetector(),
+        <span class="str">"fsdet"</span>: FsDetDetector(),
+        <span class="str">"grounding-dino"</span>: GroundingDinoDetector(),
+    }
+    <span class="kw">if</span> model_name <span class="kw">not in</span> detectors:
+        <span class="kw">raise</span> ValueError(<span class="str">f"Unknown model: {model_name}"</span>)
+    <span class="kw">return</span> detectors[model_name]
+          </div>
+        </div>
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.4vh">API 调用</div>
+          <div class="code-block" style="font-size:clamp(10px,0.78vw,15px);padding:0.8vh 1vw">
+<span class="kw">from</span> flask <span class="kw">import</span> Flask, request, jsonify
+
+app = Flask(__name__)
+
+@app.route(<span class="str">"/detect"</span>, methods=[<span class="str">"POST"</span>])
+<span class="kw">def</span> <span class="en">detect</span>():
+    data = request.get_json()
+    model = data.get(<span class="str">"model"</span>, <span class="str">"yolo"</span>)
+    image_path = data.get(<span class="str">"image_path"</span>)
+    conf = data.get(<span class="str">"conf"</span>, 0.5)
+    prompt = data.get(<span class="str">"prompt"</span>, <span class="str">""</span>)
+
+    detector = get_detector(model)
+    result = detector.predict(
+        image_path, conf=conf, prompt=prompt
+    )
+    <span class="kw">return</span> jsonify(result)
+          </div>
+        </div>
+      </div>
+
+      <div class="note-box" style="margin-top:0.3vh">
+        <span class="label">实现要点</span>
+        工厂方法模式将模型实例化集中管理。Adapter 实例可在应用启动时预创建（模型加载），或按需创建（懒加载）。<span class="en">get_detector</span> 函数是后端调用方与模型实现之间的唯一耦合点。
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">Adapter 工厂 · 模型选择与统一调用</div>
+      <div>Act II · 代码实现</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 12 · 统一格式的好处 -->
+<!-- ================================================================ -->
+<section class="slide light with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块二 · 统一架构设计</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>理解统一格式的工程价值</li>
+      <li>认识前端解耦的意义</li>
+      <li>掌握可扩展性设计原则</li>
+    </ul>
+    <div class="sidebar-pagenb">12 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>统一价值 · Benefits</div>
+      <div>Act II · 12 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">统一格式的工程价值</h2>
+
+      <div class="grid-3" style="gap:1.2vw;margin-top:0.5vh">
+        <div class="stat-card" style="border-top-color:var(--accent)">
+          <div class="stat-label">前端解耦</div>
+          <div class="stat-nb" style="font-size:clamp(18px,1.8vw,34px)">1 套渲染逻辑</div>
+          <div class="stat-note">前端只需解析统一 JSON，无需为每个模型编写独立的渲染代码。新增模型时前端代码零改动。</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">结果可记录</div>
+          <div class="stat-nb" style="font-size:clamp(18px,1.8vw,34px)">统一日志格式</div>
+          <div class="stat-note">所有模型的检测结果进入同一数据库表或日志文件。支持跨模型的批量分析和性能对比。</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">可扩展性</div>
+          <div class="stat-nb" style="font-size:clamp(18px,1.8vw,34px)">新增 1 个文件</div>
+          <div class="stat-note">新增模型只需编写一个 Adapter 类 + 在工厂注册。后端 API、前端展示、日志系统均无需修改。</div>
+        </div>
+      </div>
+
+      <div class="code-block" style="margin-top:0.6vh;font-size:clamp(11px,0.85vw,16px)">
+        <span class="cm"># 统一格式使结果对比变得简单</span>
+        <span class="kw">def</span> <span class="en">compare_models</span>(image_path: str):
+            results = {}
+            <span class="kw">for</span> model_name <span class="kw">in</span> [<span class="str">"yolo"</span>, <span class="str">"fsdet"</span>, <span class="str">"grounding-dino"</span>]:
+                detector = get_detector(model_name)
+                results[model_name] = detector.predict(image_path)
+            <span class="kw">return</span> results  <span class="cm"># 三个 dict 结构完全相同，可直接比较</span>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">统一格式 · 前端解耦、结果可记录、可扩展</div>
+      <div>Act II · 工程价值</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 13 · 第三幕：前端交互设计 -->
+<!-- ================================================================ -->
+<section class="slide hero dark">
+  <div class="hero-frame left">
+    <div class="kicker">Act III</div>
+    <h1 class="h-hero" style="font-size:clamp(28px,4.5vw,76px)">前端交互设计</h1>
+    <p class="lead" style="max-width:55vw;margin-top:2vh">
+      通过合理控件和默认值降低使用成本。不在页面上写大量使用说明，让界面本身引导操作。
+    </p>
+    <div style="margin-top:3vh;display:flex;gap:1.5vw;flex-wrap:wrap">
+      <span class="tag">控件设计</span>
+      <span class="tag">结果展示</span>
+      <span class="tag accent">交互流程</span>
+    </div>
+  </div>
+  <div class="foot" style="position:absolute;bottom:3vh;left:6vw;right:6vw;border-top-color:rgba(var(--paper-rgb),0.1)">
+    <div class="title">第三幕 · 前端交互设计</div>
+    <div>13 / 31</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 14 · 基础控件设计 -->
+<!-- ================================================================ -->
+<section class="slide light with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块三 · 前端交互设计</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>掌握基础控件设计原则</li>
+      <li>理解条件启用的交互逻辑</li>
+      <li>认识默认值设计的重要性</li>
+    </ul>
+    <div class="sidebar-pagenb">14 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>控件设计 · Controls</div>
+      <div>Act III · 14 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">基础控件设计</h2>
+
+      <div class="split" style="gap:1.5vw;margin-top:0.3vh">
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.4vh">控件列表</div>
+          <ul class="content-list compact">
+            <li>文件上传：支持 JPG / PNG，单张图片</li>
+            <li>模型选择：YOLO / FsDet / GroundingDINO 单选</li>
+            <li>置信度阈值：滑动条 0.1-0.9，默认 0.5</li>
+            <li>文本提示词：仅 GroundingDINO 选中时启用</li>
+            <li>检测按钮：触发推理请求</li>
+          </ul>
+        </div>
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.4vh">条件启用逻辑</div>
+          <div class="code-block" style="font-size:clamp(10px,0.78vw,15px);padding:0.8vh 1vw">
+<span class="cm">// 模型选择变化时更新提示词输入状态</span>
+modelSelect.addEventListener(<span class="str">"change"</span>, () => {
+    <span class="kw">const</span> isDino = modelSelect.value === <span class="str">"grounding-dino"</span>;
+    promptInput.disabled = !isDino;
+    promptInput.placeholder = isDino
+        ? <span class="str">"输入检测目标描述..."</span>
+        : <span class="str">"仅 GroundingDINO 支持"</span>;
+});
+          </div>
+          <div class="note-box" style="margin-top:0.3vh;padding:0.8vh 1vw">
+            <span class="label">设计原则</span>
+            通过控件状态（启用/禁用）引导用户操作，而非文字说明。默认值选择最常用的配置，减少用户决策成本。
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">基础控件 · 文件上传、模型选择、参数配置</div>
+      <div>Act III · 控件设计</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 15 · 结果展示区 -->
+<!-- ================================================================ -->
+<section class="slide dark with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块三 · 前端交互设计</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>掌握结果展示区布局</li>
+      <li>理解多信息层级设计</li>
+      <li>认识速度指标的作用</li>
+    </ul>
+    <div class="sidebar-pagenb">15 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>结果展示 · Results</div>
+      <div>Act III · 15 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">结果展示区设计</h2>
+
+      <div class="split" style="gap:1.5vw;margin-top:0.3vh">
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.4vh">展示区域划分</div>
+          <ul class="content-list compact">
+            <li>检测结果图：标注后的图像，边界框 + 标签 + 置信度</li>
+            <li>检测列表：表格展示所有检测项，支持排序</li>
+            <li>速度指标：推理耗时（毫秒），直观对比</li>
+            <li>参数记录：当前调用的参数快照</li>
+            <li>算法说明：当前模型的适用场景标签</li>
+          </ul>
+        </div>
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.4vh">检测列表格式</div>
+          <div class="code-block" style="font-size:clamp(10px,0.78vw,15px);padding:0.8vh 1vw">
+<span class="cm">&lt;!-- 检测结果列表模板 --&gt;</span>
+&lt;table&gt;
+  &lt;tr&gt;
+    &lt;th&gt;标签&lt;/th&gt;
+    &lt;th&gt;置信度&lt;/th&gt;
+    &lt;th&gt;位置 (x1,y1,x2,y2)&lt;/th&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+    &lt;td&gt;helmet&lt;/td&gt;
+    &lt;td&gt;0.91&lt;/td&gt;
+    &lt;td&gt;(120, 80, 240, 210)&lt;/td&gt;
+  &lt;/tr&gt;
+  &lt;tr&gt;
+    &lt;td&gt;person&lt;/td&gt;
+    &lt;td&gt;0.87&lt;/td&gt;
+    &lt;td&gt;(300, 150, 450, 480)&lt;/td&gt;
+  &lt;/tr&gt;
+&lt;/table&gt;
+          </div>
+        </div>
+      </div>
+
+      <div class="note-box" style="margin-top:0.3vh">
+        <span class="label">信息层级</span>
+        结果图占据视觉主体，检测列表提供结构化数据，速度指标和参数记录作为辅助信息。三者构成"概览 → 细节 → 元数据"的信息层级。
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">结果展示 · 图像、列表、指标三层信息</div>
+      <div>Act III · 结果区</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 16 · 交互流程 -->
+<!-- ================================================================ -->
+<section class="slide light with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块三 · 前端交互设计</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>理解完整交互流程</li>
+      <li>掌握状态管理设计</li>
+      <li>认识错误处理机制</li>
+    </ul>
+    <div class="sidebar-pagenb">16 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>交互流程 · Flow</div>
+      <div>Act III · 16 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">交互流程与状态管理</h2>
+
+      <div class="pipeline" data-cols="5" style="margin-bottom:0.6vh">
+        <div class="step">
+          <div class="step-nb">01</div>
+          <div class="step-title">上传图片</div>
+          <div class="step-desc">选择文件，预览缩略图</div>
+        </div>
+        <div class="step">
+          <div class="step-nb">02</div>
+          <div class="step-title">配置参数</div>
+          <div class="step-desc">模型 + 阈值 + 提示词</div>
+        </div>
+        <div class="step">
+          <div class="step-nb">03</div>
+          <div class="step-title">发送请求</div>
+          <div class="step-desc">POST /detect，显示加载</div>
+        </div>
+        <div class="step">
+          <div class="step-nb">04</div>
+          <div class="step-title">渲染结果</div>
+          <div class="step-desc">解析 JSON，更新界面</div>
+        </div>
+        <div class="step">
+          <div class="step-nb">05</div>
+          <div class="step-title">错误处理</div>
+          <div class="step-desc">超时 / 模型未加载 / 无效输入</div>
+        </div>
+      </div>
+
+      <div class="code-block" style="font-size:clamp(11px,0.85vw,16px);margin-top:0.3vh">
+<span class="cm">// 前端请求示例（fetch API）</span>
+<span class="kw">async</span> <span class="kw">function</span> <span class="en">runDetection</span>() {
+    <span class="kw">const</span> res = <span class="kw">await</span> fetch(<span class="str">"/detect"</span>, {
+        method: <span class="str">"POST"</span>,
+        headers: { <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span> },
+        body: JSON.stringify({
+            model: modelSelect.value,
+            image_path: <span class="str">"uploads/"</span> + fileName,
+            conf: confSlider.value,
+            prompt: promptInput.value
+        })
+    });
+    <span class="kw">if</span> (!res.ok) {
+        showError(<span class="str">"检测请求失败: "</span> + res.status);
+        <span class="kw">return</span>;
+    }
+    <span class="kw">const</span> data = <span class="kw">await</span> res.json();
+    renderResults(data);  <span class="cm">// 统一渲染逻辑</span>
+}
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">交互流程 · 上传 → 配置 → 请求 → 渲染 → 错误处理</div>
+      <div>Act III · 流程</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 17 · 第四幕：结果对比与技术选型 -->
+<!-- ================================================================ -->
+<section class="slide hero light">
+  <div class="hero-frame left">
+    <div class="kicker">Act IV</div>
+    <h1 class="h-hero" style="font-size:clamp(28px,4.5vw,76px)">结果对比与技术选型</h1>
+    <p class="lead" style="max-width:55vw;margin-top:2vh">
+      同一张图片，三种方法。从准确性、速度、适用场景三个维度理解各模型的差异，形成技术选型能力。
+    </p>
+    <div style="margin-top:3vh;display:flex;gap:1.5vw;flex-wrap:wrap">
+      <span class="tag">对比维度</span>
+      <span class="tag">技术选型</span>
+      <span class="tag accent">决策框架</span>
+    </div>
+  </div>
+  <div class="foot" style="position:absolute;bottom:3vh;left:6vw;right:6vw">
+    <div class="title">第四幕 · 结果对比与技术选型</div>
+    <div>17 / 31</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 18 · 对比维度总览 -->
+<!-- ================================================================ -->
+<section class="slide dark with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块四 · 结果对比与技术选型</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>掌握多维度对比方法</li>
+      <li>理解各维度的工程含义</li>
+      <li>认识维度之间的权衡关系</li>
+    </ul>
+    <div class="sidebar-pagenb">18 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>对比维度 · Dimensions</div>
+      <div>Act IV · 18 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">对比维度总览</h2>
+      <p class="body-text" style="margin-bottom:0.6vh">
+        每组可以选择同一张图片，依次调用三种模型，从以下维度进行比较：
+      </p>
+
+      <table class="tbl">
+        <thead>
+          <tr><th>维度</th><th>YOLO</th><th>FsDet</th><th>GroundingDINO</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>是否需要训练</td><td>需要（固定类别）</td><td>需要少样本微调</td><td>可零样本</td></tr>
+          <tr><td>推理速度</td><td>快（30-100+ FPS）</td><td>中等（10-30 FPS）</td><td>较慢（2-5 FPS）</td></tr>
+          <tr><td>类别灵活性</td><td>低（训练时固定）</td><td>中（可适应新类）</td><td>高（任意文本描述）</td></tr>
+          <tr><td>部署难度</td><td>中（ONNX/TensorRT）</td><td>高（Detectron2 依赖）</td><td>高（Transformer 大模型）</td></tr>
+          <tr><td>显存占用</td><td>低（1-4 GB）</td><td>中（4-8 GB）</td><td>高（8-16 GB）</td></tr>
+          <tr><td>适合答辩展示</td><td>主结果</td><td>扩展体验</td><td>亮点展示</td></tr>
+        </tbody>
+      </table>
+
+      <div class="note-box" style="margin-top:0.5vh">
+        <span class="label">维度解读</span>
+        速度与灵活性之间存在根本性权衡。YOLO 的固定类别设计使其可以高度优化推理管线；GroundingDINO 的开放词表能力依赖 Transformer 的跨模态注意力计算，推理成本显著更高。FsDet 处于中间地带，在少样本场景下提供合理的速度-灵活性平衡。
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">对比维度 · 六维度全面比较</div>
+      <div>Act IV · 维度总览</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 19 · 对比表格 -->
+<!-- ================================================================ -->
+<section class="slide light with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块四 · 结果对比与技术选型</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>掌握对比表格分析方法</li>
+      <li>理解各模型的适用场景</li>
+      <li>认识技术选型的决策依据</li>
+    </ul>
+    <div class="sidebar-pagenb">19 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>对比分析 · Analysis</div>
+      <div>Act IV · 19 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">适用场景对比分析</h2>
+
+      <div class="grid-3" style="gap:1vw;margin-top:0.3vh">
+        <div class="callout" style="border-left-color:var(--accent);padding:1vh 1vw">
+          <div style="font-family:var(--serif-zh);font-weight:600;font-size:clamp(14px,1.1vw,21px);margin-bottom:0.3vh">YOLO 适用场景</div>
+          <ul class="content-list compact" style="gap:0.2vh">
+            <li>工业质检：固定缺陷类别检测</li>
+            <li>安全监控：安全帽、车辆、行人</li>
+            <li>边缘部署：Jetson / Raspberry Pi</li>
+            <li>实时视频流：≥30 FPS 要求</li>
+          </ul>
+        </div>
+        <div class="callout" style="border-left-color:var(--accent);padding:1vh 1vw">
+          <div style="font-family:var(--serif-zh);font-weight:600;font-size:clamp(14px,1.1vw,21px);margin-bottom:0.3vh">FsDet 适用场景</div>
+          <ul class="content-list compact" style="gap:0.2vh">
+            <li>新品类快速验证：标注数据极少</li>
+            <li>科研探索：检测未见类别</li>
+            <li>数据增强：少样本扩充训练集</li>
+            <li>领域适应：从基类迁移到新域</li>
+          </ul>
+        </div>
+        <div class="callout" style="border-left-color:var(--accent);padding:1vh 1vw">
+          <div style="font-family:var(--serif-zh);font-weight:600;font-size:clamp(14px,1.1vw,21px);margin-bottom:0.3vh">GroundingDINO 适用场景</div>
+          <ul class="content-list compact" style="gap:0.2vh">
+            <li>数据标注辅助：自动生成标注候选</li>
+            <li>开放检索：自然语言描述的目标搜索</li>
+            <li>探索性分析：未知类别发现</li>
+            <li>快速原型：无需训练的检测验证</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="note-box" style="margin-top:0.4vh">
+        <span class="label">选型决策框架</span>
+        固定类别 + 实时要求 → YOLO。新类别 + 少量标注 → FsDet。任意类别 + 无需训练 → GroundingDINO。实际工程中常采用"YOLO 为主 + DINO 辅助"的混合策略。
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">适用场景 · 三类模型的典型应用</div>
+      <div>Act IV · 场景分析</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 20 · 技术选型分析 -->
+<!-- ================================================================ -->
+<section class="slide dark with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块四 · 结果对比与技术选型</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>掌握技术选型决策方法</li>
+      <li>理解混合策略的设计</li>
+      <li>能够撰写技术选型说明</li>
+    </ul>
+    <div class="sidebar-pagenb">20 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>技术选型 · Decision</div>
+      <div>Act IV · 20 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">技术选型决策分析</h2>
+
+      <div class="split" style="gap:1.5vw;margin-top:0.3vh">
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.4vh">决策树</div>
+          <div class="code-block" style="font-size:clamp(10px,0.78vw,15px);padding:0.8vh 1vw">
+<span class="cm"># 技术选型决策逻辑</span>
+<span class="kw">def</span> <span class="en">select_model</span>(requirements: dict) -> str:
+    <span class="kw">if</span> requirements[<span class="str">"real_time"</span>]:
+        <span class="kw">return</span> <span class="str">"yolo"</span>  <span class="cm"># 实时场景唯一选择</span>
+    <span class="kw">if</span> requirements[<span class="str">"few_shot"</span>]:
+        <span class="kw">return</span> <span class="str">"fsdet"</span>  <span class="cm"># 少样本适应</span>
+    <span class="kw">if</span> requirements[<span class="str">"open_vocab"</span>]:
+        <span class="kw">return</span> <span class="str">"grounding-dino"</span>
+    <span class="kw">return</span> <span class="str">"yolo"</span>  <span class="cm"># 默认使用 YOLO</span>
+          </div>
+        </div>
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.4vh">混合策略示例</div>
+          <ul class="content-list compact">
+            <li>YOLO 处理 80% 的常规检测请求</li>
+            <li>GroundingDINO 处理长尾、未知类别</li>
+            <li>FsDet 用于新场景的快速验证</li>
+            <li>统一接口使切换成本趋近于零</li>
+          </ul>
+          <div class="note-box" style="margin-top:0.5vh;padding:0.8vh 1vw">
+            <span class="label">核心观点</span>
+            技术选型的核心不是找到"最好的模型"，而是理解各模型的适用边界，在工程实践中做出合理的组合决策。
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">技术选型 · 决策树与混合策略</div>
+      <div>Act IV · 选型分析</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 21 · 第五幕：工程集成难点 -->
+<!-- ================================================================ -->
+<section class="slide hero light">
+  <div class="hero-frame left">
+    <div class="kicker">Act V</div>
+    <h1 class="h-hero" style="font-size:clamp(28px,4.5vw,76px)">工程集成难点</h1>
+    <p class="lead" style="max-width:55vw;margin-top:2vh">
+      依赖冲突、模型加载、显存管理、输出差异——多算法集成的主要工程挑战及其解决方案。
+    </p>
+    <div style="margin-top:3vh;display:flex;gap:1.5vw;flex-wrap:wrap">
+      <span class="tag">依赖隔离</span>
+      <span class="tag">模型缓存</span>
+      <span class="tag accent">显存管理</span>
+    </div>
+  </div>
+  <div class="foot" style="position:absolute;bottom:3vh;left:6vw;right:6vw">
+    <div class="title">第五幕 · 工程集成难点</div>
+    <div>21 / 31</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 22 · 依赖冲突与隔离 -->
+<!-- ================================================================ -->
+<section class="slide dark with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块五 · 工程集成难点</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>认识依赖冲突的根源</li>
+      <li>掌握虚拟环境隔离方案</li>
+      <li>理解 Docker 容器化方案</li>
+    </ul>
+    <div class="sidebar-pagenb">22 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>依赖冲突 · Dependency</div>
+      <div>Act V · 22 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">依赖冲突与隔离方案</h2>
+      <p class="body-text" style="margin-bottom:0.6vh">
+        不同模型可能依赖不同版本的 PyTorch、CUDA、Transformers 或 Detectron2。以下为典型依赖矩阵：
+      </p>
+
+      <table class="tbl">
+        <thead>
+          <tr><th>模型</th><th>PyTorch</th><th>CUDA</th><th>特殊依赖</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">YOLOv8</td><td>≥1.8</td><td>≥11.0</td><td>ultralytics, ONNX</td></tr>
+          <tr><td class="mono">FsDet</td><td>1.9-1.12</td><td>11.3-11.6</td><td>detectron2, fvcore</td></tr>
+          <tr><td class="mono">GroundingDINO</td><td>≥2.0</td><td>≥11.6</td><td>transformers, torchvision</td></tr>
+        </tbody>
+      </table>
+
+      <div class="split" style="gap:1.5vw;margin-top:0.5vh">
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.3vh">方案 A：独立虚拟环境</div>
+          <div class="cmd-block" style="font-size:clamp(10px,0.78vw,15px);padding:0.6vh 0.8vw">
+<span class="prompt">$</span> conda create -n yolo-env python=3.10
+<span class="prompt">$</span> conda activate yolo-env
+<span class="prompt">$</span> pip install ultralytics
+
+<span class="prompt">$</span> conda create -n fsdet-env python=3.9
+<span class="prompt">$</span> conda activate fsdet-env
+<span class="prompt">$</span> pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu113/torch1.10/index.html
+          </div>
+        </div>
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.3vh">方案 B：Docker 容器化</div>
+          <div class="cmd-block" style="font-size:clamp(10px,0.78vw,15px);padding:0.6vh 0.8vw">
+<span class="prompt">$</span> <span class="cm"># YOLO 服务容器</span>
+<span class="prompt">$</span> docker run -d --gpus all \
+    --name yolo-service \
+    ultralytics/ultralytics:latest
+
+<span class="prompt">$</span> <span class="cm"># DINO 服务容器</span>
+<span class="prompt">$</span> docker run -d --gpus all \
+    --name dino-service \
+    grounding-dino:latest
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">依赖冲突 · 虚拟环境与 Docker 隔离方案</div>
+      <div>Act V · 依赖管理</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 23 · 模型加载与缓存 -->
+<!-- ================================================================ -->
+<section class="slide light with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块五 · 工程集成难点</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>掌握模型加载策略</li>
+      <li>理解缓存机制设计</li>
+      <li>认识单例模式的应用</li>
+    </ul>
+    <div class="sidebar-pagenb">23 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>模型加载 · Loading</div>
+      <div>Act V · 23 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">模型加载与缓存策略</h2>
+      <p class="body-text" style="margin-bottom:0.6vh">
+        大型模型每次请求都重新加载会导致极慢的响应时间。应在应用启动时加载，或使用缓存机制：
+      </p>
+
+      <div class="split" style="gap:1.5vw;margin-top:0.3vh">
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.3vh">启动时预加载</div>
+          <div class="code-block" style="font-size:clamp(10px,0.78vw,15px);padding:0.8vh 1vw">
+<span class="cm"># 应用启动时预加载模型</span>
+<span class="kw">class</span> <span class="en">ModelManager</span>:
+    _instances = {}
+
+    @classmethod
+    <span class="kw">def</span> <span class="en">get_model</span>(cls, name: str):
+        <span class="kw">if</span> name <span class="kw">not in</span> cls._instances:
+            cls._instances[name] = cls._load(name)
+        <span class="kw">return</span> cls._instances[name]
+
+    @staticmethod
+    <span class="kw">def</span> <span class="en">_load</span>(name: str):
+        <span class="kw">if</span> name == <span class="str">"yolo"</span>:
+            <span class="kw">return</span> YOLO(<span class="str">"yolov8n.pt"</span>)
+        <span class="kw">elif</span> name == <span class="str">"grounding-dino"</span>:
+            <span class="kw">return</span> GroundingDINO.from_pretrained(<span class="str">"IDEA-Research/grounding-dino-base"</span>)
+          </div>
+        </div>
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.3vh">加载时间参考</div>
+          <table class="tbl" style="font-size:clamp(10px,0.8vw,15px)">
+            <thead><tr><th>模型</th><th>首次加载</th><th>后续推理</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">YOLOv8n</td><td>2-5 秒</td><td>10-30 ms</td></tr>
+              <tr><td class="mono">YOLOv8x</td><td>5-10 秒</td><td>30-80 ms</td></tr>
+              <tr><td class="mono">GroundingDINO</td><td>15-30 秒</td><td>200-500 ms</td></tr>
+            </tbody>
+          </table>
+          <div class="note-box" style="margin-top:0.4vh;padding:0.6vh 0.8vw">
+            <span class="label">关键结论</span>
+            首次加载耗时远大于推理耗时。预加载 + 缓存是生产环境的必要条件。
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">模型加载 · 预加载与缓存策略</div>
+      <div>Act V · 加载策略</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 24 · 显存管理 -->
+<!-- ================================================================ -->
+<section class="slide dark with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块五 · 工程集成难点</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>理解显存占用问题</li>
+      <li>掌握按需加载策略</li>
+      <li>认识显存监控方法</li>
+    </ul>
+    <div class="sidebar-pagenb">24 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>显存管理 · Memory</div>
+      <div>Act V · 24 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">显存占用与管理</h2>
+      <p class="body-text" style="margin-bottom:0.6vh">
+        多个模型同时加载到 GPU 可能导致显存不足（OOM）。典型显存占用如下：
+      </p>
+
+      <table class="tbl">
+        <thead>
+          <tr><th>模型</th><th>显存占用</th><th>推理分辨率</th><th>建议策略</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">YOLOv8n</td><td>约 1.2 GB</td><td>640×640</td><td>常驻 GPU</td></tr>
+          <tr><td class="mono">YOLOv8x</td><td>约 4.5 GB</td><td>640×640</td><td>常驻或按需</td></tr>
+          <tr><td class="mono">FsDet (R50)</td><td>约 3.8 GB</td><td>1333×800</td><td>按需加载</td></tr>
+          <tr><td class="mono">GroundingDINO</td><td>约 8-12 GB</td><td>800×1333</td><td>必须按需</td></tr>
+        </tbody>
+      </table>
+
+      <div class="split" style="gap:1.5vw;margin-top:0.5vh">
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.3vh">按需加载实现</div>
+          <div class="code-block" style="font-size:clamp(10px,0.78vw,15px);padding:0.8vh 1vw">
+<span class="kw">import</span> torch
+
+<span class="kw">class</span> <span class="en">LazyModelManager</span>:
+    <span class="kw">def</span> <span class="en">__init__</span>(self):
+        self.models = {}
+        self.current = <span class="kw">None</span>
+
+    <span class="kw">def</span> <span class="en">load</span>(self, name: str):
+        <span class="kw">if</span> self.current <span class="kw">and</span> self.current != name:
+            <span class="kw">del</span> self.models[self.current]
+            torch.cuda.empty_cache()
+        <span class="kw">if</span> name <span class="kw">not in</span> self.models:
+            self.models[name] = self._load_model(name)
+        self.current = name
+        <span class="kw">return</span> self.models[name]
+          </div>
+        </div>
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.3vh">显存监控命令</div>
+          <div class="cmd-block" style="font-size:clamp(10px,0.78vw,15px);padding:0.6vh 0.8vw">
+<span class="prompt">$</span> nvidia-smi --query-gpu=memory.used,memory.total --format=csv
+memory.used, memory.total
+5120 MiB, 24576 MiB
+
+<span class="prompt">$</span> <span class="cm"># Python 中监控</span>
+<span class="prompt">$</span> python -c "<span class="kw">import</span> torch; print(torch.cuda.memory_summary())"
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">显存管理 · 按需加载与 GPU 监控</div>
+      <div>Act V · 显存管理</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 25 · 输出差异统一 -->
+<!-- ================================================================ -->
+<section class="slide light with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块五 · 工程集成难点</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>理解各模型输出差异</li>
+      <li>掌握字段映射方法</li>
+      <li>认识统一格式的实现</li>
+    </ul>
+    <div class="sidebar-pagenb">25 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>输出差异 · Output</div>
+      <div>Act V · 25 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">输出差异与字段统一</h2>
+      <p class="body-text" style="margin-bottom:0.6vh">
+        各模型的原始输出格式差异显著，Adapter 的核心职责之一就是将这些差异统一为标准字段：
+      </p>
+
+      <table class="tbl">
+        <thead>
+          <tr><th>差异点</th><th>YOLO</th><th>FsDet</th><th>GroundingDINO</th><th>统一字段</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>标签来源</td><td>class_id → 映射表</td><td>novel class name</td><td>文本 token 关联</td><td class="mono">label</td></tr>
+          <tr><td>坐标格式</td><td>xywh 归一化</td><td>xyxy 绝对像素</td><td>xyxy 绝对像素</td><td class="mono">bbox [x1,y1,x2,y2]</td></tr>
+          <tr><td>置信度</td><td>分类置信度</td><td>检测置信度</td><td>对齐分数</td><td class="mono">confidence [0,1]</td></tr>
+          <tr><td>输出结构</td><td>Results 对象</td><td>Instances 对象</td><td>dict 格式</td><td>统一 JSON</td></tr>
+        </tbody>
+      </table>
+
+      <div class="code-block" style="margin-top:0.5vh;font-size:clamp(11px,0.85vw,16px)">
+<span class="cm"># YOLO Adapter 内部格式转换示例</span>
+<span class="kw">def</span> <span class="en">_format_output</span>(self, yolo_results) -> dict:
+    detections = []
+    <span class="kw">for</span> r <span class="kw">in</span> yolo_results:
+        <span class="kw">for</span> box <span class="kw">in</span> r.boxes:
+            x1, y1, x2, y2 = box.xyxy[0].tolist()  <span class="cm"># 归一化 → 绝对坐标</span>
+            detections.append({
+                <span class="str">"label"</span>: self.names[int(box.cls[0])],
+                <span class="str">"confidence"</span>: float(box.conf[0]),
+                <span class="str">"bbox"</span>: [int(x1), int(y1), int(x2), int(y2)],
+                <span class="str">"source"</span>: <span class="str">"yolo"</span>
+            })
+    <span class="kw">return</span> {<span class="str">"algorithm"</span>: <span class="str">"yolo"</span>, <span class="str">"detections"</span>: detections, ...}
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">输出差异 · 各模型格式对比与统一方法</div>
+      <div>Act V · 格式统一</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 26 · 错误处理 -->
+<!-- ================================================================ -->
+<section class="slide dark with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块五 · 工程集成难点</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>掌握错误处理策略</li>
+      <li>理解超时与重试机制</li>
+      <li>认识优雅降级设计</li>
+    </ul>
+    <div class="sidebar-pagenb">26 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>错误处理 · Error</div>
+      <div>Act V · 26 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">错误处理与优雅降级</h2>
+
+      <div class="split" style="gap:1.5vw;margin-top:0.3vh">
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.3vh">典型错误场景</div>
+          <ul class="content-list compact">
+            <li>模型未加载：返回 503 + 错误信息</li>
+            <li>GPU 显存不足：捕获 OOM，释放缓存后重试</li>
+            <li>无效输入：图片格式不支持 / 路径不存在</li>
+            <li>推理超时：设置超时阈值（默认 30 秒）</li>
+            <li>模型推理异常：返回部分结果 + 错误标记</li>
+          </ul>
+        </div>
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.3vh">错误处理实现</div>
+          <div class="code-block" style="font-size:clamp(10px,0.78vw,15px);padding:0.8vh 1vw">
+<span class="kw">def</span> <span class="en">safe_predict</span>(detector, image_path, **kwargs):
+    <span class="kw">try</span>:
+        result = detector.predict(image_path, **kwargs)
+        result[<span class="str">"status"</span>] = <span class="str">"success"</span>
+    <span class="kw">except</span> torch.cuda.OutOfMemoryError:
+        torch.cuda.empty_cache()
+        result = {<span class="str">"status"</span>: <span class="str">"error"</span>,
+                  <span class="str">"message"</span>: <span class="str">"GPU OOM"</span>}
+    <span class="kw">except</span> Exception <span class="kw">as</span> e:
+        result = {<span class="str">"status"</span>: <span class="str">"error"</span>,
+                  <span class="str">"message"</span>: str(e)}
+    <span class="kw">return</span> result
+          </div>
+        </div>
+      </div>
+
+      <div class="note-box" style="margin-top:0.3vh">
+        <span class="label">设计原则</span>
+        错误信息应包含可操作的提示（如"显存不足，请关闭其他模型后再试"），而非仅返回状态码。前端根据 <span class="en">status</span> 字段决定展示结果还是错误提示。
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">错误处理 · 典型场景与实现策略</div>
+      <div>Act V · 错误处理</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 27 · 第六幕：课程实现与拓展 -->
+<!-- ================================================================ -->
+<section class="slide hero dark">
+  <div class="hero-frame left">
+    <div class="kicker">Act VI</div>
+    <h1 class="h-hero" style="font-size:clamp(28px,4.5vw,76px)">课程实现与拓展</h1>
+    <p class="lead" style="max-width:55vw;margin-top:2vh">
+      从最低要求到挑战要求，三个实现层级覆盖不同基础的学习者。课外拓展指向模型服务化与工程架构。
+    </p>
+    <div style="margin-top:3vh;display:flex;gap:1.5vw;flex-wrap:wrap">
+      <span class="tag">最低要求</span>
+      <span class="tag">进阶要求</span>
+      <span class="tag accent">挑战要求</span>
+    </div>
+  </div>
+  <div class="foot" style="position:absolute;bottom:3vh;left:6vw;right:6vw;border-top-color:rgba(var(--paper-rgb),0.1)">
+    <div class="title">第六幕 · 课程实现与拓展</div>
+    <div>27 / 31</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 28 · 推荐实现层级 -->
+<!-- ================================================================ -->
+<section class="slide light with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块六 · 课程实现与拓展</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>了解三个实现层级</li>
+      <li>理解各层级的技术要求</li>
+      <li>能够评估自身实现水平</li>
+    </ul>
+    <div class="sidebar-pagenb">28 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>实现层级 · Levels</div>
+      <div>Act VI · 28 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">推荐课程实现层级</h2>
+
+      <div class="grid-3" style="gap:1.2vw;margin-top:0.5vh">
+        <div class="callout" style="border-left-color:var(--accent);padding:1.2vh 1.2vw">
+          <div style="font-family:var(--serif-zh);font-weight:600;font-size:clamp(14px,1.1vw,21px);margin-bottom:0.4vh">最低要求</div>
+          <ul class="content-list compact" style="gap:0.2vh">
+            <li>平台端到端接入 YOLO</li>
+            <li>实现文件上传 + 参数配置</li>
+            <li>结果展示：图像 + 检测列表</li>
+            <li>FsDet 和 DINO 以截图展示</li>
+            <li>统一 JSON 输出格式</li>
+          </ul>
+        </div>
+        <div class="callout" style="border-left-color:var(--accent);padding:1.2vh 1.2vw">
+          <div style="font-family:var(--serif-zh);font-weight:600;font-size:clamp(14px,1.1vw,21px);margin-bottom:0.4vh">进阶要求</div>
+          <ul class="content-list compact" style="gap:0.2vh">
+            <li>GroundingDINO 独立接口接入</li>
+            <li>输入 prompt 后返回检测结果</li>
+            <li>实现 Adapter 接口抽象</li>
+            <li>模型选择 + 条件启用逻辑</li>
+            <li>结果对比：YOLO vs DINO</li>
+          </ul>
+        </div>
+        <div class="callout" style="border-left-color:var(--accent);padding:1.2vh 1.2vw">
+          <div style="font-family:var(--serif-zh);font-weight:600;font-size:clamp(14px,1.1vw,21px);margin-bottom:0.4vh">挑战要求</div>
+          <ul class="content-list compact" style="gap:0.2vh">
+            <li>三种模型统一接口调用</li>
+            <li>同一页面支持结果对比</li>
+            <li>按需加载 + 显存管理</li>
+            <li>错误处理与优雅降级</li>
+            <li>技术选型说明文档</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="note-box" style="margin-top:0.5vh">
+        <span class="label">实施建议</span>
+        建议从最低要求开始，确保 YOLO 端到端流程完整运行后再逐步扩展。GroundingDINO 的接入可作为独立模块开发，不影响主平台的稳定性。
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">实现层级 · 最低 → 进阶 → 挑战</div>
+      <div>Act VI · 层级</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 29 · 课堂任务 -->
+<!-- ================================================================ -->
+<section class="slide dark with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块六 · 课程实现与拓展</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>掌握课堂任务要求</li>
+      <li>理解各任务的技术要点</li>
+      <li>能够独立完成任务</li>
+    </ul>
+    <div class="sidebar-pagenb">29 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>课堂任务 · Tasks</div>
+      <div>Act VI · 29 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">课堂任务</h2>
+
+      <div style="display:flex;flex-direction:column;gap:0.8vh;margin-top:0.3vh">
+        <div class="callout" style="padding:1vh 1.2vw;border-left-color:var(--accent)">
+          <div style="font-family:var(--serif-zh);font-weight:600;font-size:clamp(14px,1.1vw,21px)">任务一：设计统一输出 JSON</div>
+          <div class="cite" style="margin-top:0.3vh">定义 <span class="en">DetectResult</span> 数据结构，包含 algorithm、detections、elapsed_ms 等字段。编写 JSON Schema 验证函数。</div>
+        </div>
+        <div class="callout" style="padding:1vh 1.2vw;border-left-color:var(--accent)">
+          <div style="font-family:var(--serif-zh);font-weight:600;font-size:clamp(14px,1.1vw,21px)">任务二：实现模型选择逻辑</div>
+          <div class="cite" style="margin-top:0.3vh">实现 <span class="en">get_detector()</span> 工厂函数，支持 YOLO / FsDet / GroundingDINO 三种模型的选择与切换。</div>
+        </div>
+        <div class="callout" style="padding:1vh 1.2vw;border-left-color:var(--accent)">
+          <div style="font-family:var(--serif-zh);font-weight:600;font-size:clamp(14px,1.1vw,21px)">任务三：YOLO 端到端接入平台</div>
+          <div class="cite" style="margin-top:0.3vh">完成 YOLO 模型的 Adapter 实现，包括预处理、推理、后处理、结果格式化。确保端到端流程可运行。</div>
+        </div>
+        <div class="callout" style="padding:1vh 1.2vw;border-left-color:var(--accent)">
+          <div style="font-family:var(--serif-zh);font-weight:600;font-size:clamp(14px,1.1vw,21px)">任务四：扩展模块展示</div>
+          <div class="cite" style="margin-top:0.3vh">将 GroundingDINO 或 FsDet 的实验结果作为扩展模块展示。至少包含结果截图和适用场景说明。</div>
+        </div>
+        <div class="callout" style="padding:1vh 1.2vw;border-left-color:var(--accent)">
+          <div style="font-family:var(--serif-zh);font-weight:600;font-size:clamp(14px,1.1vw,21px)">任务五：技术选型说明</div>
+          <div class="cite" style="margin-top:0.3vh">撰写技术选型说明：为什么主线使用 YOLO，为什么扩展介绍开放词表 / 少样本检测。不少于 300 字。</div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">课堂任务 · 五项实践任务</div>
+      <div>Act VI · 任务</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 30 · 课外拓展 -->
+<!-- ================================================================ -->
+<section class="slide light with-sidebar">
+  <div class="sidebar">
+    <div class="sidebar-module">模块六 · 课程实现与拓展</div>
+    <div class="sidebar-label">学习目标</div>
+    <ul class="sidebar-list">
+      <li>认识课外拓展方向</li>
+      <li>了解模型服务化工具</li>
+      <li>理解微服务架构设计</li>
+    </ul>
+    <div class="sidebar-pagenb">30 / 31</div>
+  </div>
+  <div class="content-area">
+    <div class="chrome">
+      <div>课外拓展 · Extension</div>
+      <div>Act VI · 30 / 31</div>
+    </div>
+    <div class="frame">
+      <h2 class="h-xl" style="margin-bottom:0.6vh">课外拓展方向</h2>
+
+      <div class="split" style="gap:1.5vw;margin-top:0.3vh">
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.4vh">模型服务化</div>
+          <ul class="content-list compact">
+            <li><span class="en">TorchServe</span>：PyTorch 官方模型服务框架，支持 REST API 和模型版本管理</li>
+            <li><span class="en">Triton Inference Server</span>：NVIDIA 高性能推理服务器，支持多框架和多模型并发</li>
+            <li><span class="en">ONNX Runtime</span>：跨平台推理引擎，支持模型优化和量化</li>
+          </ul>
+          <div class="cmd-block" style="margin-top:0.5vh;font-size:clamp(10px,0.78vw,15px);padding:0.6vh 0.8vw">
+<span class="prompt">$</span> <span class="cm"># TorchServe 启动示例</span>
+<span class="prompt">$</span> torchserve --start --model-store model_store \
+    --models yolo=yolov8n.mar
+<span class="prompt">$</span> curl http://localhost:8080/predictions/yolo -T image.jpg
+          </div>
+        </div>
+        <div>
+          <div class="h-md" style="font-size:clamp(15px,1.3vw,24px);margin-bottom:0.4vh">异步处理与架构</div>
+          <ul class="content-list compact">
+            <li><span class="en">Celery</span>：分布式任务队列，用于处理耗时视频检测</li>
+            <li><span class="en">Redis Queue</span>：轻量级任务队列，适合中小规模部署</li>
+            <li><span class="en">RabbitMQ</span>：消息中间件，解耦算法服务与业务后端</li>
+          </ul>
+          <div class="note-box" style="margin-top:0.5vh;padding:0.8vh 1vw">
+            <span class="label">思考题</span>
+            企业平台常将算法服务与业务后端拆开部署，主要基于扩展性、稳定性和资源隔离三类工程考虑。
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <div class="title">课外拓展 · 模型服务化与异步架构</div>
+      <div>Act VI · 拓展</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 31 · 结束页 -->
+<!-- ================================================================ -->
+<section class="slide hero dark">
+  <div class="hero-frame left">
+    <div class="kicker" style="opacity:0.4">第十四讲 · 本讲总结</div>
+    <h1 class="h-hero" style="font-size:clamp(28px,4.5vw,76px);max-width:70vw">
+      多算法集成
+    </h1>
+    <h2 class="h-sub" style="max-width:60vw;margin-top:1.5vh">
+      YOLO、FsDet、GroundingDINO 的统一展示
+    </h2>
+    <div style="margin-top:4vh;display:flex;flex-direction:column;gap:0.8vh;align-items:flex-start">
+      <div class="meta">核心要点回顾</div>
+      <ul class="content-list" style="margin-top:0.5vh">
+        <li>统一输出格式是集成的基础</li>
+        <li>Adapter 模式实现模型无关调用</li>
+        <li>工程难点：依赖隔离、显存管理、错误处理</li>
+        <li>技术选型：理解边界，而非迷信模型</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot" style="position:absolute;bottom:3vh;left:6vw;right:6vw;border-top-color:rgba(var(--paper-rgb),0.1)">
+    <div class="title">多算法集成 · 计算机视觉课程第十四讲</div>
+    <div>31 / 31</div>
+  </div>
+</section>
+
+</div>
+
+<div id="nav"></div>
+
+<script>
+// =============== 导航 ===============
+const deck=document.getElementById('deck');
+const slides=deck.querySelectorAll('.slide');
+const nav=document.getElementById('nav');
+let idx=0,total=slides.length,lock=false;
+
+deck.style.width=(total*100)+'vw';
+
+slides.forEach((s,i)=>{
+  const b=document.createElement('button');
+  b.className='dot';b.dataset.i=i;b.setAttribute('aria-label','Page '+(i+1));
+  b.onclick=()=>go(i);
+  nav.appendChild(b);
+});
+
+function go(n){
+  if(lock)return;
+  idx=Math.max(0,Math.min(total-1,n));
+  deck.style.transform=`translateX(${-idx*100}vw)`;
+  slides.forEach((s,i)=>s.classList.toggle('active',i===idx));
+  nav.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===idx));
+  const el=slides[idx];
+  const th=el.classList.contains('light')?'light':'dark';
+  document.body.style.background=th==='light'?'var(--paper)':'var(--ink)';
+  lock=true;setTimeout(()=>lock=false,700);
+}
+
+// =============== ESC 索引视图 ===============
+let overviewOn=false;
+const ov=document.createElement('div');
+ov.id='overview';
+ov.style.cssText='position:fixed;inset:0;z-index:100;background:rgba(var(--ink-rgb),.92);backdrop-filter:blur(12px);display:none;overflow-y:auto;padding:4vh 4vw';
+document.body.appendChild(ov);
+
+function buildOverview(){
+  ov.innerHTML='';
+  const grid=document.createElement('div');
+  grid.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:2vh 1.6vw;max-width:90vw;margin:0 auto';
+  slides.forEach((s,i)=>{
+    const card=document.createElement('div');
+    card.style.cssText='cursor:pointer;border-radius:6px;overflow:hidden;border:2px solid '+(i===idx?'rgba(var(--paper-rgb),.8)':'rgba(var(--paper-rgb),.15)')+';transition:border-color .2s';
+    card.onmouseenter=()=>card.style.borderColor='rgba(var(--paper-rgb),.6)';
+    card.onmouseleave=()=>card.style.borderColor=i===idx?'rgba(var(--paper-rgb),.8)':'rgba(var(--paper-rgb),.15)';
+    const wrap=document.createElement('div');
+    wrap.style.cssText='width:100%;aspect-ratio:16/9;overflow:hidden;position:relative;pointer-events:none;background:'+(s.classList.contains('light')?'var(--paper)':'var(--ink)');
+    const clone=s.cloneNode(true);
+    clone.style.cssText='width:100vw;height:100vh;transform:scale('+(1/4.5)+');transform-origin:top left;position:absolute;top:0;left:0;pointer-events:none';
+    wrap.appendChild(clone);
+    const label=document.createElement('div');
+    label.style.cssText='padding:6px 10px;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--paper);opacity:.7';
+    label.textContent=(i+1)+' / '+total;
+    card.appendChild(wrap);
+    card.appendChild(label);
+    card.onclick=()=>{toggleOverview();go(i)};
+    grid.appendChild(card);
+  });
+  ov.appendChild(grid);
+}
+
+function toggleOverview(){
+  overviewOn=!overviewOn;
+  if(overviewOn){buildOverview();ov.style.display='block';}
+  else{ov.style.display='none';}
+}
+
+addEventListener('keydown',e=>{
+  if(e.key==='Escape'){e.preventDefault();toggleOverview();return;}
+  if(overviewOn)return;
+  if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '||e.key==='ArrowDown')go(idx+1);
+  if(e.key==='ArrowLeft'||e.key==='PageUp'||e.key==='ArrowUp')go(idx-1);
+  if(e.key==='Home')go(0);
+  if(e.key==='End')go(total-1);
+});
+
+let wheelTO=null,wheelAcc=0;
+addEventListener('wheel',e=>{
+  wheelAcc+=e.deltaY+e.deltaX;
+  if(Math.abs(wheelAcc)>50){go(idx+(wheelAcc>0?1:-1));wheelAcc=0;}
+  clearTimeout(wheelTO);wheelTO=setTimeout(()=>wheelAcc=0,150);
+},{passive:true});
+
+let tx=0,ty=0;
+addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY},{passive:true});
+addEventListener('touchend',e=>{
+  const dx=(e.changedTouches[0].clientX-tx);
+  const dy=(e.changedTouches[0].clientY-ty);
+  if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy))go(idx+(dx<0?1:-1));
+},{passive:true});
+
+go(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,2672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YOLOv5-Lite 项目跑通、源码结构与推理流程 · 课程专题</title>
+<style>
+/* ============ 主题色：暖色纸张（牛皮纸调） ============ */
+:root {
+  --ink: #2a1e13;
+  --ink-rgb: 42, 30, 19;
+  --paper: #eedfc7;
+  --paper-rgb: 238, 223, 199;
+  --paper-tint: #e0d0b6;
+  --ink-tint: #3a2a1d;
+  --accent: #b8864e;
+  --accent-rgb: 184, 134, 78;
+  --sidebar-bg: #2a1e13;
+  --sidebar-fg: #eedfc7;
+  --code-bg: rgba(42, 30, 19, 0.08);
+  --border-color: rgba(42, 30, 19, 0.18);
+
+  --font-serif: 'Noto Serif SC', serif;
+  --font-sans: 'Noto Sans SC', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============ 纸张纹理背景 ============ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 3px,
+      rgba(0,0,0,0.012) 3px,
+      rgba(0,0,0,0.012) 4px
+    ),
+    radial-gradient(ellipse at 20% 50%, rgba(184,134,78,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 30%, rgba(184,134,78,0.04) 0%, transparent 50%),
+    var(--paper);
+  pointer-events: none;
+}
+
+/* ============ Deck 容器 ============ */
+#deck {
+  position: fixed;
+  inset: 0;
+  width: 10000vw;
+  height: 100vh;
+  display: flex;
+  flex-wrap: nowrap;
+  transition: transform 0.7s cubic-bezier(0.77, 0, 0.175, 1);
+  z-index: 10;
+  will-change: transform;
+}
+
+/* ============ Slide 基础 ============ */
+.slide {
+  width: 100vw;
+  height: 100vh;
+  flex: 0 0 100vw;
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  color: var(--ink);
+}
+
+/* ============ 左侧固定栏 ============ */
+.sidebar {
+  width: 18vw;
+  min-width: 240px;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-fg);
+  padding: 4vh 1.6vw;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+}
+
+.sidebar .module-badge {
+  font-family: var(--font-mono);
+  font-size: clamp(11px, 0.75vw, 14px);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-bottom: 2.2vh;
+  padding-bottom: 1.2vh;
+  border-bottom: 1px solid rgba(238, 223, 199, 0.2);
+}
+
+.sidebar h3 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: clamp(14px, 1.1vw, 20px);
+  margin-bottom: 2vh;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+}
+
+.sidebar ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1.4vh;
+}
+
+.sidebar ul li {
+  font-family: var(--font-sans);
+  font-size: clamp(12px, 0.9vw, 16px);
+  line-height: 1.5;
+  opacity: 0.85;
+  padding-left: 1em;
+  position: relative;
+}
+
+.sidebar ul li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 5px;
+  height: 5px;
+  background: var(--accent);
+  border-radius: 50%;
+  opacity: 0.7;
+}
+
+.sidebar .page-num {
+  margin-top: auto;
+  font-family: var(--font-mono);
+  font-size: clamp(11px, 0.7vw, 13px);
+  letter-spacing: 0.15em;
+  opacity: 0.4;
+  padding-top: 2vh;
+  border-top: 1px solid rgba(238, 223, 199, 0.12);
+}
+
+/* ============ 右侧内容区 ============ */
+.content {
+  flex: 1;
+  padding: 3.5vh 3.5vw 4vh 3vw;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  position: relative;
+  z-index: 1;
+}
+
+.content::-webkit-scrollbar { width: 4px; }
+.content::-webkit-scrollbar-track { background: transparent; }
+.content::-webkit-scrollbar-thumb { background: rgba(42,30,19,0.15); border-radius: 2px; }
+
+/* ============ 标题层级 ============ */
+.slide-title {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: clamp(24px, 2.6vw, 48px);
+  line-height: 1.25;
+  margin-bottom: 1.6vh;
+  letter-spacing: 0.01em;
+  color: var(--ink);
+}
+
+.slide-subtitle {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: clamp(16px, 1.4vw, 26px);
+  line-height: 1.35;
+  margin-bottom: 2vh;
+  opacity: 0.75;
+}
+
+.section-title {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: clamp(18px, 1.6vw, 30px);
+  line-height: 1.3;
+  margin-top: 1.6vh;
+  margin-bottom: 1vh;
+  color: var(--ink-tint);
+}
+
+/* ============ 正文 ============ */
+.body-text {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: clamp(14px, 1.2vw, 22px);
+  line-height: 1.7;
+  opacity: 0.88;
+  margin-bottom: 1.2vh;
+}
+
+.body-text strong {
+  font-weight: 600;
+  color: var(--ink-tint);
+}
+
+/* ============ 代码块 ============ */
+.code-block {
+  font-family: var(--font-mono);
+  font-size: clamp(12px, 0.95vw, 17px);
+  line-height: 1.55;
+  background: var(--code-bg);
+  border-left: 3px solid var(--accent);
+  padding: 1.2vh 1.2vw;
+  margin: 1vh 0 1.6vh 0;
+  border-radius: 0 4px 4px 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.code-block .comment {
+  opacity: 0.5;
+  font-style: italic;
+}
+
+.code-inline {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--code-bg);
+  padding: 0.1em 0.4em;
+  border-radius: 3px;
+}
+
+/* ============ 列表 ============ */
+.content ul, .content ol {
+  padding-left: 1.5em;
+  margin: 0.8vh 0 1.2vh 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6vh;
+}
+
+.content li {
+  font-family: var(--font-sans);
+  font-size: clamp(13px, 1.1vw, 20px);
+  line-height: 1.6;
+  opacity: 0.88;
+}
+
+/* ============ 信息卡片 ============ */
+.info-card {
+  background: rgba(184, 134, 78, 0.08);
+  border: 1px solid rgba(184, 134, 78, 0.2);
+  border-radius: 6px;
+  padding: 1.4vh 1.4vw;
+  margin: 1vh 0 1.4vh 0;
+}
+
+.info-card .card-title {
+  font-family: var(--font-mono);
+  font-size: clamp(10px, 0.7vw, 13px);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-bottom: 0.6vh;
+}
+
+.info-card .card-body {
+  font-family: var(--font-sans);
+  font-size: clamp(13px, 1.05vw, 19px);
+  line-height: 1.6;
+  opacity: 0.9;
+}
+
+/* ============ 双列布局 ============ */
+.cols-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2vw;
+  flex: 1;
+  align-items: start;
+  margin-top: 0.8vh;
+}
+
+.cols-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1.5vw;
+  flex: 1;
+  align-items: start;
+  margin-top: 0.8vh;
+}
+
+/* ============ 流程图/步骤 ============ */
+.steps {
+  display: flex;
+  gap: 0.8vw;
+  margin: 1.2vh 0;
+  flex-wrap: wrap;
+}
+
+.step-box {
+  flex: 1;
+  min-width: 0;
+  background: rgba(184, 134, 78, 0.06);
+  border: 1px solid rgba(42, 30, 19, 0.1);
+  border-radius: 6px;
+  padding: 1.2vh 1vw;
+  text-align: center;
+}
+
+.step-box .step-num {
+  font-family: var(--font-mono);
+  font-size: clamp(10px, 0.65vw, 12px);
+  letter-spacing: 0.15em;
+  opacity: 0.5;
+  margin-bottom: 0.4vh;
+}
+
+.step-box .step-label {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: clamp(12px, 0.95vw, 17px);
+  line-height: 1.3;
+}
+
+.step-box .step-desc {
+  font-family: var(--font-sans);
+  font-size: clamp(11px, 0.8vw, 14px);
+  line-height: 1.4;
+  opacity: 0.75;
+  margin-top: 0.3vh;
+}
+
+/* ============ 表格 ============ */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1vh 0 1.4vh 0;
+  font-size: clamp(12px, 0.95vw, 17px);
+}
+
+.data-table th {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: clamp(10px, 0.7vw, 13px);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0.8vh 0.8vw;
+  border-bottom: 2px solid var(--accent);
+  opacity: 0.7;
+}
+
+.data-table td {
+  font-family: var(--font-sans);
+  padding: 0.7vh 0.8vw;
+  border-bottom: 1px solid var(--border-color);
+  line-height: 1.5;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ============ 参数表格 ============ */
+.param-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1vh 0 1.4vh 0;
+  font-size: clamp(12px, 0.9vw, 16px);
+}
+
+.param-table th {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: clamp(10px, 0.65vw, 12px);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0.6vh 0.8vw;
+  background: rgba(42, 30, 19, 0.06);
+  border-bottom: 2px solid var(--accent);
+  opacity: 0.7;
+}
+
+.param-table td {
+  font-family: var(--font-sans);
+  padding: 0.6vh 0.8vw;
+  border-bottom: 1px solid var(--border-color);
+  line-height: 1.5;
+}
+
+.param-table td:first-child {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+/* ============ 提示框 ============ */
+.tip-box {
+  background: rgba(184, 134, 78, 0.1);
+  border-left: 4px solid var(--accent);
+  padding: 1.2vh 1.2vw;
+  margin: 1vh 0 1.4vh 0;
+  border-radius: 0 4px 4px 0;
+}
+
+.tip-box .tip-label {
+  font-family: var(--font-mono);
+  font-size: clamp(9px, 0.6vw, 11px);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  margin-bottom: 0.4vh;
+}
+
+.tip-box .tip-body {
+  font-family: var(--font-sans);
+  font-size: clamp(12px, 0.95vw, 17px);
+  line-height: 1.6;
+  opacity: 0.9;
+}
+
+/* ============ 分隔线 ============ */
+.divider {
+  width: 100%;
+  height: 1px;
+  background: var(--border-color);
+  margin: 1.2vh 0;
+}
+
+/* ============ 章节封面特殊样式 ============ */
+.slide.act-cover .content {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.slide.act-cover .act-number {
+  font-family: var(--font-mono);
+  font-size: clamp(11px, 0.75vw, 14px);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  opacity: 0.5;
+  margin-bottom: 1.5vh;
+}
+
+.slide.act-cover .act-title {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: clamp(32px, 3.8vw, 70px);
+  line-height: 1.15;
+  margin-bottom: 1.2vh;
+}
+
+.slide.act-cover .act-sub {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: clamp(16px, 1.3vw, 24px);
+  opacity: 0.65;
+}
+
+/* ============ 标题页 ============ */
+.slide.title-slide .content {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.slide.title-slide .main-title {
+  font-family: var(--font-serif);
+  font-weight: 900;
+  font-size: clamp(36px, 4.2vw, 78px);
+  line-height: 1.15;
+  margin-bottom: 2vh;
+  letter-spacing: 0.02em;
+}
+
+.slide.title-slide .sub-title {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: clamp(18px, 1.5vw, 28px);
+  opacity: 0.7;
+  margin-bottom: 4vh;
+}
+
+.slide.title-slide .meta-info {
+  font-family: var(--font-mono);
+  font-size: clamp(11px, 0.75vw, 14px);
+  letter-spacing: 0.15em;
+  opacity: 0.5;
+  line-height: 1.8;
+}
+
+/* ============ 导航 ============ */
+#nav {
+  position: fixed;
+  left: 50%;
+  bottom: 2.2vh;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(42, 30, 19, 0.15);
+  backdrop-filter: blur(8px);
+}
+
+#nav .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(42, 30, 19, 0.25);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 0;
+  padding: 0;
+}
+
+#nav .dot:hover {
+  background: rgba(42, 30, 19, 0.4);
+  transform: scale(1.15);
+}
+
+#nav .dot.active {
+  background: var(--accent);
+  width: 20px;
+  border-radius: 999px;
+}
+
+#hint {
+  position: fixed;
+  bottom: 2.6vh;
+  right: 2.5vw;
+  z-index: 30;
+  font-family: var(--font-mono);
+  font-size: clamp(8px, 0.55vw, 10px);
+  letter-spacing: 0.15em;
+  opacity: 0.3;
+  color: var(--ink);
+}
+
+/* ============ 响应式 ============ */
+@media (max-width: 1200px) {
+  .sidebar { width: 22vw; min-width: 200px; }
+  .sidebar ul li { font-size: clamp(11px, 1vw, 14px); }
+  .slide-title { font-size: clamp(20px, 2.8vw, 36px); }
+  .body-text { font-size: clamp(13px, 1.3vw, 18px); }
+  .code-block { font-size: clamp(11px, 1vw, 15px); }
+}
+
+@media (max-width: 900px) {
+  .sidebar { width: 26vw; min-width: 160px; padding: 3vh 2vw; }
+  .cols-2, .cols-3 { grid-template-columns: 1fr; }
+  .steps { flex-direction: column; }
+}
+
+/* ============ 打印 ============ */
+@media print {
+  #nav, #hint { display: none; }
+  .slide { page-break-after: always; }
+}
+
+/* ============ 模块标签行 ============ */
+.module-tag {
+  font-family: var(--font-mono);
+  font-size: clamp(9px, 0.6vw, 11px);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.45;
+  margin-bottom: 0.6vh;
+}
+
+/* ============ 图片占位 ============ */
+.diagram-placeholder {
+  background: rgba(42, 30, 19, 0.04);
+  border: 1.5px dashed rgba(42, 30, 19, 0.2);
+  border-radius: 6px;
+  padding: 2vh 2vw;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: clamp(10px, 0.65vw, 12px);
+  letter-spacing: 0.15em;
+  opacity: 0.5;
+  margin: 1vh 0;
+  min-height: 8vh;
+}
+
+/* ============ 箭头符号 ============ */
+.arrow {
+  font-family: var(--font-sans);
+  opacity: 0.4;
+  margin: 0 0.3em;
+}
+
+/* ============ 高亮 ============ */
+.highlight {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ============ 小标签 ============ */
+.badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: clamp(9px, 0.55vw, 10px);
+  letter-spacing: 0.1em;
+  padding: 0.2em 0.6em;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--accent);
+  margin-right: 0.4em;
+}
+
+/* ============ 结束页 ============ */
+.slide.end-slide .content {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.slide.end-slide .end-title {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: clamp(28px, 3vw, 55px);
+  line-height: 1.2;
+  margin-bottom: 2vh;
+}
+
+.slide.end-slide .end-sub {
+  font-family: var(--font-sans);
+  font-size: clamp(14px, 1.1vw, 20px);
+  opacity: 0.6;
+  line-height: 1.8;
+}
+</style>
+<style>
+/* ===== inlined unified course styles for standalone distribution ===== */
+/* Course-wide visual normalization.
+   This file intentionally mirrors the warm academic style of 1.html while
+   preserving each deck's existing navigation/runtime structure. */
+:root{
+  --bg:#faf7f0!important;
+  --bg-soft:#f0ece0!important;
+  --surface:#ffffff!important;
+  --surface-2:#f7f1e3!important;
+  --border:rgba(90,60,30,.13)!important;
+  --border-strong:rgba(90,60,30,.28)!important;
+  --text-1:#2a1f12!important;
+  --text-2:#5a4a33!important;
+  --text-3:#8a7859!important;
+  --accent:#3b7a5a!important;
+  --accent-2:#c4812a!important;
+  --accent-3:#b8452e!important;
+  --paper:#faf7f0!important;
+  --paper-tint:#f0ece0!important;
+  --paper-rgb:250,247,240!important;
+  --ink:#2a1f12!important;
+  --ink-rgb:42,31,18!important;
+  --ink-tint:#5a4a33!important;
+  --code-bg:#2a1f12!important;
+  --radius:14px!important;
+  --radius-sm:12px!important;
+  --shadow:0 8px 24px rgba(90,60,30,.07)!important;
+  --font-sans:'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif!important;
+  --font-serif:'Playfair Display','Noto Serif SC',Georgia,serif!important;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace!important;
+}
+html,body,#deck,.deck{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+  font-family:var(--font-sans)!important;
+  letter-spacing:-.01em;
+}
+.slide,
+section[class*="slide"],
+.slide.light,
+.slide.dark,
+.slide-cover,
+.slide-divider{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+}
+.slide.full,
+.cover,
+.slide-cover{
+  background:var(--bg)!important;
+}
+.main,
+.content,
+.slide-content,
+.main-content,
+.right,
+.body,
+.stage{
+  color:var(--text-1)!important;
+  min-height:0!important;
+}
+h1,h2,h3,
+.h1,.h2,.h3,
+.slide-title,
+.cover-title,
+.end-title,
+.h-hero,
+.h-xl,
+.main h1,
+.main h2,
+.main h3{
+  font-family:var(--font-serif)!important;
+  color:var(--text-1)!important;
+  letter-spacing:-.02em!important;
+}
+h1,.h1,.cover-title,.slide-title,.h-hero{
+  font-weight:800!important;
+}
+h2,.h2,.h-xl{
+  font-weight:700!important;
+}
+p,li,td,th,.lede,.dim,.dim2,.fn-desc,.body-text,.txt,.label{
+  color:var(--text-2);
+}
+strong,b{color:var(--text-1)}
+.kicker,
+.eyebrow,
+.module-label,
+.sidebar-module-label,
+.module-code,
+.obj-label,
+.obj-title,
+.obj-header,
+.objectives-title,
+.lb-title,
+.sidebar-label{
+  color:var(--accent-2)!important;
+  font-family:var(--font-sans)!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  letter-spacing:.14em!important;
+  text-transform:uppercase!important;
+}
+.sidebar,
+aside.sidebar,
+.learning-sidebar,
+.slide-sidebar,
+.left-col{
+  background:transparent!important;
+  border-right:1px solid var(--border)!important;
+  border-left:0!important;
+  padding-right:24px!important;
+  color:var(--text-2)!important;
+  box-shadow:none!important;
+}
+.sidebar-title,
+.module-title,
+.sidebar-module,
+.lb-module,
+.brand,
+.sidebar .brand{
+  font-family:var(--font-serif)!important;
+  color:var(--accent)!important;
+  font-size:20px!important;
+  line-height:1.25!important;
+  font-weight:700!important;
+}
+.obj-list,
+.objectives,
+.objective-list,
+.learning-sidebar ul,
+.slide-sidebar ul{
+  list-style:none!important;
+  padding:0!important;
+  margin:0!important;
+  font-family:var(--font-sans)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+  color:var(--text-2)!important;
+}
+.obj-list li,
+.objectives li,
+.objective-list li,
+.learning-sidebar li,
+.slide-sidebar li{
+  position:relative!important;
+  padding:7px 0 7px 22px!important;
+  border-bottom:1px dashed var(--border)!important;
+  color:var(--text-2)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+}
+.obj-list li::before,
+.objectives li::before,
+.objective-list li::before,
+.learning-sidebar li::before,
+.slide-sidebar li::before{
+  content:"○"!important;
+  position:absolute!important;
+  left:0!important;
+  top:7px!important;
+  color:var(--accent)!important;
+  width:auto!important;
+  height:auto!important;
+  background:transparent!important;
+  border-radius:0!important;
+  opacity:1!important;
+}
+.obj-list li.current::before,
+.objectives li.current::before,
+.objective-list li.current::before,
+.obj-list li.highlight::before,
+.objectives li.highlight::before,
+.objective-list li.highlight::before{
+  content:"▸"!important;
+  color:var(--accent-2)!important;
+}
+.obj-list li.current,
+.objectives li.current,
+.objective-list li.current,
+.obj-list li.highlight,
+.objectives li.highlight,
+.objective-list li.highlight{
+  color:var(--text-1)!important;
+  font-weight:700!important;
+}
+.card,
+.concept-box,
+.col-item,
+.metric-card,
+.panel,
+.info-card,
+.tip-box,
+.callout-box,
+.comp-item,
+.diagram-box,
+.data-card,
+.feature-card,
+.task-card,
+.warning-card,
+.workflow-card{
+  background:var(--surface)!important;
+  border:1px solid var(--border)!important;
+  border-radius:var(--radius)!important;
+  box-shadow:var(--shadow)!important;
+  color:var(--text-1)!important;
+}
+.card-accent,
+.accent-card,
+.concept-box h4{
+  border-color:var(--border)!important;
+}
+.callout,
+.tip,
+.note-box{
+  background:var(--surface-2)!important;
+  border-left:4px solid var(--accent-2)!important;
+  border-radius:0 var(--radius) var(--radius) 0!important;
+  color:var(--text-2)!important;
+}
+.warn-box,
+.warning,
+.alert{
+  background:rgba(196,129,42,.08)!important;
+  border:1px solid rgba(196,129,42,.3)!important;
+  border-radius:var(--radius)!important;
+  color:var(--text-2)!important;
+}
+.course-bridge{
+  max-width:72ch;
+  margin-top:16px!important;
+  padding:10px 16px!important;
+  font-size:13px!important;
+  line-height:1.45!important;
+}
+.course-bridge b{
+  color:var(--accent-2)!important;
+}
+.title-slide .content .course-bridge{
+  width:min(720px,86%)!important;
+  align-self:center!important;
+  margin-top:1.4rem!important;
+  text-align:left!important;
+}
+
+
+
+.slide > .sidebar + .main-content + .course-bridge{
+  left:calc(18vw + 3vw)!important;
+  max-width:min(760px,70vw)!important;
+}
+
+.slide > .course-bridge,
+.hero .course-bridge,
+.slide.full .course-bridge,
+section.full .course-bridge{
+  position:absolute!important;
+  left:6vw!important;
+  right:auto!important;
+  bottom:9vh!important;
+  max-width:min(760px,64vw)!important;
+  margin:0!important;
+  z-index:3!important;
+}
+.slide.compact .h2,
+section.compact .h2,
+.slide.compact h2,
+section.compact h2{
+  font-size:clamp(25px,2.15vw,34px)!important;
+  line-height:1.12!important;
+  margin-bottom:6px!important;
+}
+.slide.compact .lede,
+section.compact .lede,
+.slide.compact .fn-desc,
+section.compact .fn-desc,
+.slide.compact p,
+section.compact p{
+  font-size:clamp(13px,1.05vw,16px)!important;
+  line-height:1.45!important;
+}
+.slide.compact .card,
+section.compact .card,
+.slide.compact .concept-box,
+section.compact .concept-box,
+.slide.compact .col-item,
+section.compact .col-item{
+  padding:12px 15px!important;
+}
+.slide.compact .concept-box h4,
+section.compact .concept-box h4,
+.slide.compact .card h4,
+section.compact .card h4{
+  font-size:clamp(14px,1.1vw,17px)!important;
+  line-height:1.25!important;
+  margin-bottom:4px!important;
+}
+.slide.compact .grid,
+section.compact .grid{
+  gap:12px!important;
+}
+.slide.compact .mt-l,
+section.compact .mt-l{
+  margin-top:14px!important;
+}
+.slide.compact .mt-m,
+section.compact .mt-m{
+  margin-top:8px!important;
+}
+.problem-grid .concept-box{
+  min-height:118px;
+}
+.problem-grid .concept-box:last-child{
+  grid-column:1/-1;
+  min-height:96px;
+}
+.slide.code-heavy .code-block,
+section.code-heavy .code-block{
+  font-size:clamp(10px,.82vw,12px)!important;
+  line-height:1.28!important;
+  padding:10px 12px!important;
+}
+.slide.compact .data-table th,
+.slide.compact .data-table td,
+section.compact .data-table th,
+section.compact .data-table td{
+  padding:4px 7px!important;
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.3!important;
+}
+.slide.compact .code-block,
+section.compact .code-block{
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.35!important;
+  padding:10px 12px!important;
+}
+pre,
+code,
+.code,
+.code-block,
+.code-panel{
+  font-family:var(--font-mono)!important;
+}
+pre,
+.code,
+.code-block,
+.code-panel{
+  background:#2a1f12!important;
+  color:#f0ece0!important;
+  border:0!important;
+  border-radius:var(--radius)!important;
+  box-shadow:none!important;
+}
+code:not(pre code){
+  background:rgba(90,60,30,.08)!important;
+  color:var(--text-1)!important;
+}
+table,
+.data-table{
+  border-color:var(--border)!important;
+}
+th,
+.data-table th{
+  background:var(--surface-2)!important;
+  color:var(--text-1)!important;
+}
+td,
+.data-table td{
+  background:var(--surface)!important;
+  color:var(--text-2)!important;
+}
+.pill,
+.pill-academic,
+.tag,
+.badge{
+  background:var(--surface-2)!important;
+  color:var(--text-2)!important;
+  border:1px solid var(--border)!important;
+  border-radius:4px!important;
+  font-family:var(--font-mono)!important;
+}
+.pill-accent,
+.tag.accent,
+.badge.accent{
+  color:var(--accent)!important;
+  border-color:color-mix(in srgb,var(--accent) 28%,transparent)!important;
+}
+.deck-footer,
+.page-meta,
+.footer,
+.slide-meta{
+  color:var(--text-3)!important;
+}
+.progress-bar>span,
+.progress,
+.progress-dot.active,
+.dot.active{
+  background:var(--accent)!important;
+}
+svg text{font-family:var(--font-sans)!important}
+/* ===== end inlined unified course styles ===== */
+</style>
+</head>
+<body>
+
+<div id="hint">← → 翻页</div>
+
+<div id="deck">
+
+<!-- ================================================================ -->
+<!-- SLIDE 01 · 标题页 -->
+<!-- ================================================================ -->
+<section class="slide title-slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 00 · 导引</div>
+    <h3>本讲定位</h3>
+    <ul>
+      <li>建立开源项目源码学习的系统方法</li>
+      <li>理解YOLOv5-Lite的整体架构</li>
+      <li>掌握从环境搭建到推理运行的全流程</li>
+    </ul>
+    <div class="page-num">01 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">计算机视觉 · 目标检测实践</div>
+    <div class="main-title">YOLOv5-Lite<br>项目跑通、源码结构与推理流程</div>
+    <div class="sub-title">从开源项目到可运行系统 · 全流程解析</div>
+    <div class="divider" style="width:40%;margin:2vh auto"></div>
+    <div class="meta-info">
+      课程专题 · 90分钟连堂<br>
+      目标检测专题 · 第六讲
+    </div>
+  
+  <div class="callout course-bridge"><b>课程衔接。</b>承接 YOLO 原理，本讲转入项目实践：跑通 YOLOv5-Lite、阅读源码结构、理解推理链路，为后续数据集构建和模型训练做准备。</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 02 · 课程概述 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 01 · 课程导论</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解YOLOv5-Lite的项目定位与技术背景</li>
+      <li>掌握开源项目源码学习的核心方法</li>
+      <li>建立"项目目录地图"的认知框架</li>
+    </ul>
+    <div class="page-num">02 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 01 · 课程导论与项目总览</div>
+    <div class="slide-title">为什么需要理解源码结构</div>
+    <div class="body-text">
+      开源项目常被当作黑盒使用：复制命令、下载权重、运行脚本。这种方式虽然能快速得到结果，但一旦遇到报错或需要改造，便无从下手。理解源码结构是解决这一问题的根本途径。
+    </div>
+    <div class="info-card">
+      <div class="card-title">核心认知</div>
+      <div class="card-body">
+        建立"项目目录地图"——明确哪些文件负责模型结构、哪些负责训练配置、哪些负责数据读取、哪些负责推理与可视化、哪些是可以修改的业务入口。这张地图是后续所有开发工作的基础。
+      </div>
+    </div>
+    <div class="slide-subtitle" style="margin-top:1.2vh">本节课覆盖的核心能力</div>
+    <ul>
+      <li>从GitHub获取项目并完成本地环境搭建</li>
+      <li>解析YOLOv5-Lite的目录结构与各模块职责</li>
+      <li>理解推理命令的完整含义与参数调优方法</li>
+      <li>掌握从输入读取到结果可视化的完整推理流水线</li>
+      <li>具备常见错误的独立排查能力</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 03 · YOLO系列发展 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 01 · 课程导论</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解YOLOv5-Lite的项目定位与技术背景</li>
+      <li>掌握开源项目源码学习的核心方法</li>
+      <li>建立"项目目录地图"的认知框架</li>
+    </ul>
+    <div class="page-num">03 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 01 · 课程导论与项目总览</div>
+    <div class="slide-title">YOLO系列发展脉络</div>
+    <div class="body-text">
+      YOLO（You Only Look Once）系列是目标检测领域最具影响力的算法家族之一，经历了多个重要版本的演进：
+    </div>
+    <div class="steps" style="margin-top:1.6vh">
+      <div class="step-box">
+        <div class="step-num">2016</div>
+        <div class="step-label">YOLOv1</div>
+        <div class="step-desc">开创性将检测视为回归问题，单次前向完成定位与分类</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">2017</div>
+        <div class="step-label">YOLOv2</div>
+        <div class="step-desc">引入Anchor Box与Batch Normalization，提升召回率</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">2018</div>
+        <div class="step-label">YOLOv3</div>
+        <div class="step-desc">多尺度预测 + Darknet-53骨干网络，成为工业界标准</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">2020</div>
+        <div class="step-label">YOLOv4/v5</div>
+        <div class="step-desc">CSPDarknet + Mosaic增强，速度和精度达到新高度</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">2021+</div>
+        <div class="step-label">YOLOv5-Lite</div>
+        <div class="step-desc">轻量化改进，适配移动端与边缘设备部署</div>
+      </div>
+    </div>
+    <div class="tip-box" style="margin-top:1.4vh">
+      <div class="tip-label">技术背景</div>
+      <div class="tip-body">
+        YOLOv5-Lite 基于 Ultralytics YOLOv5 进行轻量化改造，核心改进包括：使用 ShuffleNet 或 MobileNet 等轻量骨干网络替换 CSPDarknet，减少参数量和计算量，同时保持可接受的检测精度。适用于 Jetson Nano、树莓派、手机等资源受限平台。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 04 · YOLOv5-Lite 技术定位 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 01 · 课程导论</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解YOLOv5-Lite的项目定位与技术背景</li>
+      <li>掌握开源项目源码学习的核心方法</li>
+      <li>建立"项目目录地图"的认知框架</li>
+    </ul>
+    <div class="page-num">04 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 01 · 课程导论与项目总览</div>
+    <div class="slide-title">YOLOv5-Lite 技术定位与优势</div>
+    <div class="body-text">
+      YOLOv5-Lite 由社区开发者 ppogg 维护，旨在提供一种可在边缘设备上高效运行的目标检测方案。其核心设计理念是在模型大小、推理速度和检测精度之间取得平衡。
+    </div>
+    <div class="cols-2" style="margin-top:1.2vh">
+      <div>
+        <div class="section-title">技术特征</div>
+        <ul>
+          <li>轻量骨干网络（ShuffleNetv2 / MobileNetv3 等）</li>
+          <li>FPN + PAN 特征金字塔结构</li>
+          <li>解耦检测头（Decoupled Head）</li>
+          <li>支持 TensorRT / NCNN / ONNX 导出</li>
+          <li>模型体积可压缩至数 MB</li>
+        </ul>
+      </div>
+      <div>
+        <div class="section-title">适用场景</div>
+        <ul>
+          <li>嵌入式设备实时检测（Jetson Nano / TX2）</li>
+          <li>移动端 App 集成（Android / iOS）</li>
+          <li>边缘计算节点部署</li>
+          <li>低延迟要求的工业检测</li>
+          <li>无人机 / 机器人视觉感知</li>
+        </ul>
+      </div>
+    </div>
+    <div class="info-card" style="margin-top:1vh">
+      <div class="card-title">参考仓库</div>
+      <div class="card-body">
+        主仓库：<span class="code-inline">https://github.com/ppogg/YOLOv5-Lite</span> —— 建议课堂使用固定版本或教师提供的压缩包，避免因网络和版本变化导致不一致。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 05 · 章节封面：项目获取与环境搭建 -->
+<!-- ================================================================ -->
+<section class="slide act-cover">
+  <div class="sidebar">
+    <div class="module-badge">Module 02</div>
+    <h3>本模块目标</h3>
+    <ul>
+      <li>掌握从GitHub获取项目源码的方法</li>
+      <li>能够独立创建并配置Python虚拟环境</li>
+      <li>完成所有依赖安装与环境验证</li>
+    </ul>
+    <div class="page-num">05 / 34</div>
+  </div>
+  <div class="content">
+    <div class="act-number">Module 02</div>
+    <div class="act-title">项目获取与环境搭建</div>
+    <div class="act-sub">从 GitHub 到本地可运行环境 · 全流程操作指南</div>
+    <div class="divider" style="width:30%;margin:2.5vh auto"></div>
+    <div class="body-text" style="opacity:0.6;max-width:70%">
+      涵盖仓库克隆、虚拟环境配置、依赖安装、权重下载与环境验证，确保每位学习者具备一致的运行环境。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 06 · GitHub 仓库获取 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 02 · 环境搭建</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>掌握从GitHub获取项目源码的方法</li>
+      <li>能够独立创建并配置Python虚拟环境</li>
+      <li>完成所有依赖安装与环境验证</li>
+    </ul>
+    <div class="page-num">06 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 02 · 项目获取与环境搭建</div>
+    <div class="slide-title">从 GitHub 获取项目</div>
+    <div class="body-text">
+      推荐使用 Git 克隆仓库，便于后续版本管理和分支切换。若网络条件受限，可直接下载 ZIP 压缩包。
+    </div>
+    <div class="section-title" style="margin-top:1.2vh">方式一：Git 克隆（推荐）</div>
+    <div class="code-block">git clone https://github.com/ppogg/YOLOv5-Lite.git
+cd YOLOv5-Lite</div>
+    <div class="section-title">方式二：直接下载 ZIP</div>
+    <div class="code-block"># 访问以下地址，点击 "Code" → "Download ZIP"
+# https://github.com/ppogg/YOLOv5-Lite
+# 解压后进入目录
+unzip YOLOv5-Lite-main.zip
+cd YOLOv5-Lite-main</div>
+    <div class="tip-box">
+      <div class="tip-label">版本一致性建议</div>
+      <div class="tip-body">
+        课堂环境建议统一使用特定 commit 或 release 版本，避免因仓库更新导致代码行为不一致。教师可提前准备压缩包分发，减少网络下载时间。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 07 · 虚拟环境创建 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 02 · 环境搭建</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>掌握从GitHub获取项目源码的方法</li>
+      <li>能够独立创建并配置Python虚拟环境</li>
+      <li>完成所有依赖安装与环境验证</li>
+    </ul>
+    <div class="page-num">07 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 02 · 项目获取与环境搭建</div>
+    <div class="slide-title">Python 虚拟环境配置</div>
+    <div class="body-text">
+      虚拟环境隔离项目依赖，避免与系统全局 Python 包冲突。推荐使用 <span class="code-inline">venv</span> 或 <span class="code-inline">conda</span> 创建独立环境。
+    </div>
+    <div class="cols-2" style="margin-top:1.2vh">
+      <div>
+        <div class="section-title">使用 venv</div>
+        <div class="code-block"># 创建虚拟环境
+python -m venv yolov5_lite_env
+
+# 激活环境（Linux/macOS）
+source yolov5_lite_env/bin/activate
+
+# 激活环境（Windows）
+yolov5_lite_env\Scripts\activate
+
+# 确认 Python 版本
+python --version</div>
+      </div>
+      <div>
+        <div class="section-title">使用 conda</div>
+        <div class="code-block"># 创建 conda 环境
+conda create -n yolov5_lite python=3.8
+
+# 激活环境
+conda activate yolov5_lite
+
+# 确认环境信息
+conda info --envs
+python --version</div>
+      </div>
+    </div>
+    <div class="tip-box" style="margin-top:0.8vh">
+      <div class="tip-label">环境管理建议</div>
+      <div class="tip-body">
+        建议 Python 版本 3.8–3.10，PyTorch 1.8+。创建环境后立即执行 <span class="code-inline">pip list</span> 记录初始包列表，便于后续排查依赖冲突。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 08 · 依赖安装 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 02 · 环境搭建</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>掌握从GitHub获取项目源码的方法</li>
+      <li>能够独立创建并配置Python虚拟环境</li>
+      <li>完成所有依赖安装与环境验证</li>
+    </ul>
+    <div class="page-num">08 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 02 · 项目获取与环境搭建</div>
+    <div class="slide-title">依赖安装详解</div>
+    <div class="body-text">
+      YOLOv5-Lite 的依赖项集中在 <span class="code-inline">requirements.txt</span> 中。安装前需确认 PyTorch 版本与 CUDA 版本的匹配关系。
+    </div>
+    <div class="section-title">标准依赖安装</div>
+    <div class="code-block"># 安装核心依赖
+pip install -r requirements.txt
+
+# 若需指定国内镜像加速
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple</div>
+    <div class="section-title">PyTorch 单独安装（按 CUDA 版本）</div>
+    <div class="code-block"># CPU 版本
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+# CUDA 11.8 版本
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+
+# CUDA 12.1 版本
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121</div>
+    <div class="info-card">
+      <div class="card-title">关键依赖清单</div>
+      <div class="card-body">
+        <span class="code-inline">torch</span> · <span class="code-inline">torchvision</span> · <span class="code-inline">opencv-python</span> · <span class="code-inline">numpy</span> · <span class="code-inline">matplotlib</span> · <span class="code-inline">PyYAML</span> · <span class="code-inline">tqdm</span> · <span class="code-inline">pillow</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 09 · 权重文件下载 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 02 · 环境搭建</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>掌握从GitHub获取项目源码的方法</li>
+      <li>能够独立创建并配置Python虚拟环境</li>
+      <li>完成所有依赖安装与环境验证</li>
+    </ul>
+    <div class="page-num">09 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 02 · 项目获取与环境搭建</div>
+    <div class="slide-title">预训练权重文件下载</div>
+    <div class="body-text">
+      权重文件（<span class="code-inline">.pt</span> 格式）存储了模型在大型数据集（如 COCO）上预训练的参数。推理前必须下载对应版本的权重文件。
+    </div>
+    <div class="section-title">权重获取方式</div>
+    <div class="code-block"># 方式一：从 Release 页面下载
+# 访问 https://github.com/ppogg/YOLOv5-Lite/releases
+# 下载 yolov5-lite.pt 或对应变体权重
+
+# 方式二：使用 wget 直接下载
+wget https://github.com/ppogg/YOLOv5-Lite/releases/download/v1.0/yolov5-lite.pt -P weights/
+
+# 方式三：运行 detect.py 自动下载（首次推理时触发）
+python detect.py --weights weights/yolov5-lite.pt --source data/images</div>
+    <div class="tip-box">
+      <div class="tip-label">权重文件组织规范</div>
+      <div class="tip-body">
+        建议将所有权重文件统一存放于项目根目录下的 <span class="code-inline">weights/</span> 文件夹中。目录结构为 <span class="code-inline">YOLOv5-Lite/weights/yolov5-lite.pt</span>。若该目录不存在，需手动创建。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 10 · 环境验证 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 02 · 环境搭建</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>掌握从GitHub获取项目源码的方法</li>
+      <li>能够独立创建并配置Python虚拟环境</li>
+      <li>完成所有依赖安装与环境验证</li>
+    </ul>
+    <div class="page-num">10 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 02 · 项目获取与环境搭建</div>
+    <div class="slide-title">环境验证与测试</div>
+    <div class="body-text">
+      完成依赖安装后，需逐项验证各核心组件是否正常工作。以下验证脚本可一次性检测关键依赖状态。
+    </div>
+    <div class="section-title">环境验证脚本</div>
+    <div class="code-block">python -c "
+import torch
+import torchvision
+import cv2
+import numpy as np
+
+print('PyTorch 版本:', torch.__version__)
+print('Torchvision 版本:', torchvision.__version__)
+print('OpenCV 版本:', cv2.__version__)
+print('NumPy 版本:', np.__version__)
+print('CUDA 可用:', torch.cuda.is_available())
+if torch.cuda.is_available():
+    print('CUDA 版本:', torch.version.cuda)
+    print('GPU 名称:', torch.cuda.get_device_name(0))
+"</div>
+    <div class="info-card">
+      <div class="card-title">验证结果解读</div>
+      <div class="card-body">
+        <span class="code-inline">CUDA 可用: True</span> 表示 GPU 可用，推理速度将显著提升。<span class="code-inline">False</span> 时仍可使用 CPU 推理，但速度较慢。若需 GPU 加速，需确保显卡驱动、CUDA Toolkit、PyTorch CUDA 版本三者匹配。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 11 · 章节封面：目录结构解析 -->
+<!-- ================================================================ -->
+<section class="slide act-cover">
+  <div class="sidebar">
+    <div class="module-badge">Module 03</div>
+    <h3>本模块目标</h3>
+    <ul>
+      <li>理解YOLOv5-Lite的顶层目录功能划分</li>
+      <li>掌握models/data/utils各目录的作用</li>
+      <li>能够识别各配置文件的用途</li>
+    </ul>
+    <div class="page-num">11 / 34</div>
+  </div>
+  <div class="content">
+    <div class="act-number">Module 03</div>
+    <div class="act-title">目录结构解析</div>
+    <div class="act-sub">建立项目目录地图 · 理解每个文件的功能角色</div>
+    <div class="divider" style="width:30%;margin:2.5vh auto"></div>
+    <div class="body-text" style="opacity:0.6;max-width:70%">
+      开源项目不需要读懂每个文件。先抓主入口，再沿着函数调用链阅读，是最高效的源码学习方法。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 12 · 顶层目录总览 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 03 · 目录结构</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解YOLOv5-Lite的顶层目录功能划分</li>
+      <li>掌握models/data/utils各目录的作用</li>
+      <li>能够识别各配置文件的用途</li>
+    </ul>
+    <div class="page-num">12 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 03 · 目录结构解析</div>
+    <div class="slide-title">顶层目录总览</div>
+    <div class="body-text">
+      YOLOv5-Lite 的项目根目录按功能划分为若干子目录和入口脚本。以下为典型结构（不同版本可能略有差异）：
+    </div>
+    <div class="code-block" style="font-size:clamp(11px,0.85vw,15px);line-height:1.7">YOLOv5-Lite/
+├── models/          # 网络结构定义、模型配置文件（.yaml）
+├── data/            # 数据集配置、类别名称文件
+├── utils/           # 通用工具：数据处理、NMS、可视化、日志
+├── weights/         # 预训练权重或训练后权重（.pt 文件）
+├── runs/            # 推理/训练输出目录（自动生成）
+├── detect.py        # 推理入口脚本
+├── train.py         # 训练入口脚本
+├── test.py / val.py # 验证/测试入口脚本
+├── requirements.txt # Python 依赖清单
+└── README.md        # 项目说明文档</div>
+    <div class="tip-box">
+      <div class="tip-label">阅读策略</div>
+      <div class="tip-body">
+        初次接触时，按 <span class="code-inline">detect.py → utils/ → models/ → data/</span> 的顺序阅读。detect.py 是推理入口，沿着其函数调用链可以自然理解其他模块的作用。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 13 · models/ 目录详解 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 03 · 目录结构</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解YOLOv5-Lite的顶层目录功能划分</li>
+      <li>掌握models/data/utils各目录的作用</li>
+      <li>能够识别各配置文件的用途</li>
+    </ul>
+    <div class="page-num">13 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 03 · 目录结构解析</div>
+    <div class="slide-title">models/ 目录详解</div>
+    <div class="body-text">
+      <span class="code-inline">models/</span> 目录是模型结构的核心，包含网络架构定义和配置文件。这是整个项目中最重要的目录。
+    </div>
+    <div class="code-block" style="font-size:clamp(11px,0.85vw,15px);line-height:1.7">models/
+├── common.py        # 通用模块：Conv、DWConv、SPP、Focus、C3 等基础组件
+├── yolo.py          # 检测模型主干：Model 类、parse_model 函数
+├── export.py        # 模型导出：ONNX、TorchScript、TensorRT
+└── yolov5l.yaml     # 模型配置文件：深度、宽度、骨干网络结构参数</div>
+    <div class="cols-2" style="margin-top:1vh">
+      <div>
+        <div class="section-title">common.py 核心组件</div>
+        <ul>
+          <li><span class="code-inline">Conv</span>：标准卷积 + BN + SiLU</li>
+          <li><span class="code-inline">DWConv</span>：深度可分离卷积（轻量关键）</li>
+          <li><span class="code-inline">C3</span>：CSP 瓶颈模块</li>
+          <li><span class="code-inline">SPP</span>：空间金字塔池化</li>
+          <li><span class="code-inline">Focus</span>：下采样切片操作</li>
+        </ul>
+      </div>
+      <div>
+        <div class="section-title">yolo.py 核心功能</div>
+        <ul>
+          <li><span class="code-inline">Model</span> 类：整体模型容器</li>
+          <li><span class="code-inline">parse_model</span>：解析 yaml 配置构建网络</li>
+          <li><span class="code-inline">Detect</span> 类：检测头（输出层）</li>
+          <li>前向传播逻辑编排</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 14 · data/ 目录详解 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 03 · 目录结构</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解YOLOv5-Lite的顶层目录功能划分</li>
+      <li>掌握models/data/utils各目录的作用</li>
+      <li>能够识别各配置文件的用途</li>
+    </ul>
+    <div class="page-num">14 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 03 · 目录结构解析</div>
+    <div class="slide-title">data/ 目录详解</div>
+    <div class="body-text">
+      <span class="code-inline">data/</span> 目录管理数据集配置和类别定义。推理模式下主要使用类别名称文件，训练模式下需要完整的数据集配置。
+    </div>
+    <div class="code-block" style="font-size:clamp(11px,0.85vw,15px);line-height:1.7">data/
+├── coco128.yaml     # COCO 128 子集数据集配置（训练用）
+├── coco.yaml        # 完整 COCO 数据集配置
+├── voc.yaml         # VOC 数据集配置
+├── ImageNet.yaml    # ImageNet 分类数据集配置
+├── hyps/            # 超参数配置文件
+│   ├── hyp.scratch-low.yaml
+│   └── hyp.scratch-high.yaml
+└── images/          # 示例测试图片
+    ├── bus.jpg
+    └── zidane.jpg</div>
+    <div class="info-card">
+      <div class="card-title">数据集 YAML 配置结构</div>
+      <div class="card-body">
+        <span class="code-inline">path: ../datasets/coco128</span> —— 数据集根路径<br>
+        <span class="code-inline">train: images/train2017</span> —— 训练集相对路径<br>
+        <span class="code-inline">val: images/val2017</span> —— 验证集相对路径<br>
+        <span class="code-inline">nc: 80</span> —— 类别数量<br>
+        <span class="code-inline">names: ['person', 'bicycle', 'car', ...]</span> —— 类别名称列表
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 15 · utils/ 目录详解 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 03 · 目录结构</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解YOLOv5-Lite的顶层目录功能划分</li>
+      <li>掌握models/data/utils各目录的作用</li>
+      <li>能够识别各配置文件的用途</li>
+    </ul>
+    <div class="page-num">15 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 03 · 目录结构解析</div>
+    <div class="slide-title">utils/ 目录详解</div>
+    <div class="body-text">
+      <span class="code-inline">utils/</span> 目录汇集了各类辅助工具函数，是项目中文件最多、功能最杂的目录。按功能可分为以下几组：
+    </div>
+    <div class="cols-2" style="margin-top:1.2vh">
+      <div>
+        <div class="section-title">数据处理</div>
+        <ul>
+          <li><span class="code-inline">datasets.py</span>：数据加载与增强</li>
+          <li><span class="code-inline">augmentations.py</span>：Mosaic、MixUp 等</li>
+          <li><span class="code-inline">letterbox</span>：等比例缩放填充</li>
+        </ul>
+        <div class="section-title" style="margin-top:1.6vh">后处理</div>
+        <ul>
+          <li><span class="code-inline">nms.py</span> / <span class="code-inline">nms_export.py</span>：非极大值抑制</li>
+          <li><span class="code-inline">plots.py</span>：检测结果可视化</li>
+        </ul>
+      </div>
+      <div>
+        <div class="section-title">通用工具</div>
+        <ul>
+          <li><span class="code-inline">general.py</span>：路径处理、文件 IO、指标计算</li>
+          <li><span class="code-inline">torch_utils.py</span>：模型设备管理、profile</li>
+          <li><span class="code-inline">loggers.py</span>：日志与 wandb 集成</li>
+          <li><span class="code-inline">metrics.py</span>：mAP、Recall、Precision 计算</li>
+        </ul>
+        <div class="section-title" style="margin-top:1.6vh">激活函数</div>
+        <ul>
+          <li><span class="code-inline">activations.py</span>：自定义激活函数实现</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 16 · 配置文件解析 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 03 · 目录结构</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解YOLOv5-Lite的顶层目录功能划分</li>
+      <li>掌握models/data/utils各目录的作用</li>
+      <li>能够识别各配置文件的用途</li>
+    </ul>
+    <div class="page-num">16 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 03 · 目录结构解析</div>
+    <div class="slide-title">模型配置文件解析</div>
+    <div class="body-text">
+      YOLOv5-Lite 使用 YAML 格式的配置文件定义网络结构。以 <span class="code-inline">models/yolov5l.yaml</span> 为例，其核心参数如下：
+    </div>
+    <div class="code-block" style="font-size:clamp(11px,0.8vw,14px);line-height:1.6"># YOLOv5-Lite 模型配置示例
+# parameters
+nc: 80                    # 类别数量（COCO 数据集为 80 类）
+depth_multiple: 0.67      # 模型深度缩放系数
+width_multiple: 0.75      # 模型宽度（通道数）缩放系数
+
+# anchors
+anchors:
+  - [10,13, 16,30, 33,23]   # P3/8 特征图锚点
+  - [30,61, 62,45, 59,119]  # P4/16 特征图锚点
+  - [116,90, 156,198, 373,326] # P5/32 特征图锚点
+
+# backbone 骨干网络定义
+backbone:
+  [ [-1, 1, Focus, [64, 3]],         # 0-P1
+    [-1, 1, Conv, [128, 3, 2]],      # 1-P2
+    [-1, 3, C3, [128]],              # 2
+    [-1, 1, Conv, [256, 3, 2]],      # 3-P3
+    [-1, 6, C3, [256]],              # 4
+    [-1, 1, Conv, [512, 3, 2]],      # 5-P4
+    [-1, 9, C3, [512]],              # 6
+    [-1, 1, Conv, [1024, 3, 2]],     # 7-P5
+    [-1, 3, C3, [1024]],             # 8
+    [-1, 1, SPPF, [1024, 5]],        # 9
+  ]</div>
+    <div class="tip-box">
+      <div class="tip-label">配置参数解读</div>
+      <div class="tip-body">
+        每行格式为 <span class="code-inline">[from, number, module, args]</span>：<span class="code-inline">from</span> 表示输入来自哪一层（-1 为上一层），<span class="code-inline">number</span> 为该模块重复次数（乘以 depth_multiple），<span class="code-inline">module</span> 为模块名称，<span class="code-inline">args</span> 为模块参数。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 17 · 章节封面：推理命令与参数 -->
+<!-- ================================================================ -->
+<section class="slide act-cover">
+  <div class="sidebar">
+    <div class="module-badge">Module 04</div>
+    <h3>本模块目标</h3>
+    <ul>
+      <li>理解detect.py作为推理入口的工作机制</li>
+      <li>掌握各命令行参数的含义与调优方法</li>
+      <li>能够针对不同输入来源配置推理参数</li>
+    </ul>
+    <div class="page-num">17 / 34</div>
+  </div>
+  <div class="content">
+    <div class="act-number">Module 04</div>
+    <div class="act-title">推理命令与参数配置</div>
+    <div class="act-sub">detect.py 入口分析 · 命令行参数详解 · 调优实践</div>
+    <div class="divider" style="width:30%;margin:2.5vh auto"></div>
+    <div class="body-text" style="opacity:0.6;max-width:70%">
+      理解每个参数的含义和影响范围，是有效使用开源检测工具的前提。参数调整直接影响检测效果和运行效率。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 18 · detect.py 入口分析 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 04 · 推理命令</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解detect.py作为推理入口的工作机制</li>
+      <li>掌握各命令行参数的含义与调优方法</li>
+      <li>能够针对不同输入来源配置推理参数</li>
+    </ul>
+    <div class="page-num">18 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 04 · 推理命令与参数配置</div>
+    <div class="slide-title">detect.py 入口分析</div>
+    <div class="body-text">
+      <span class="code-inline">detect.py</span> 是推理的入口脚本，其主函数执行流程可概括为以下步骤：
+    </div>
+    <div class="steps" style="margin-top:1.6vh">
+      <div class="step-box">
+        <div class="step-num">Step 1</div>
+        <div class="step-label">参数解析</div>
+        <div class="step-desc">argparse 读取命令行参数</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">Step 2</div>
+        <div class="step-label">模型加载</div>
+        <div class="step-desc">从 .pt 文件加载权重 + 配置</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">Step 3</div>
+        <div class="step-label">数据源判断</div>
+        <div class="step-desc">区分图片/视频/摄像头</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">Step 4</div>
+        <div class="step-label">预处理</div>
+        <div class="step-desc">Letterbox + 归一化 + 维度转换</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">Step 5</div>
+        <div class="step-label">推理循环</div>
+        <div class="step-desc">逐帧/逐图前向 + NMS + 绘制</div>
+      </div>
+    </div>
+    <div class="code-block" style="margin-top:1.6vh"># 标准推理命令
+python detect.py --weights weights/yolov5-lite.pt \
+                 --source data/images \
+                 --img 640 \
+                 --conf 0.25 \
+                 --device cpu</div>
+    <div class="info-card">
+      <div class="card-title">函数调用链</div>
+      <div class="card-body">
+        <span class="code-inline">detect.py:run()</span> → <span class="code-inline">utils/datasets.py:LoadImages</span> → <span class="code-inline">models/yolo.py:Model.forward()</span> → <span class="code-inline">utils/nms.py:non_max_suppression()</span> → <span class="code-inline">utils/plots.py:plot_one_box()</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 19 · 命令行参数详解 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 04 · 推理命令</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解detect.py作为推理入口的工作机制</li>
+      <li>掌握各命令行参数的含义与调优方法</li>
+      <li>能够针对不同输入来源配置推理参数</li>
+    </ul>
+    <div class="page-num">19 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 04 · 推理命令与参数配置</div>
+    <div class="slide-title">命令行参数详解</div>
+    <div class="body-text">
+      detect.py 支持丰富的命令行参数，以下为最常用的参数及其说明：
+    </div>
+    <table class="param-table" style="margin-top:1.2vh">
+      <tr>
+        <th>参数</th>
+        <th>默认值</th>
+        <th>说明</th>
+      </tr>
+      <tr>
+        <td>--weights</td>
+        <td>yolov5s.pt</td>
+        <td>模型权重文件路径，支持 .pt / .onnx / .engine 格式</td>
+      </tr>
+      <tr>
+        <td>--source</td>
+        <td>data/images</td>
+        <td>输入来源：图片目录/单张图片/视频文件/摄像头ID/URL</td>
+      </tr>
+      <tr>
+        <td>--img</td>
+        <td>640</td>
+        <td>模型输入尺寸（像素），需为 32 的倍数</td>
+      </tr>
+      <tr>
+        <td>--conf</td>
+        <td>0.25</td>
+        <td>置信度阈值，低于此值的检测框将被过滤</td>
+      </tr>
+      <tr>
+        <td>--iou</td>
+        <td>0.45</td>
+        <td>NMS 的 IoU 阈值，控制重叠框的去除力度</td>
+      </tr>
+      <tr>
+        <td>--device</td>
+        <td>''</td>
+        <td>计算设备：'cpu' / '0'（GPU 设备号） / '0,1'（多 GPU）</td>
+      </tr>
+      <tr>
+        <td>--project</td>
+        <td>runs/detect</td>
+        <td>结果保存目录</td>
+      </tr>
+      <tr>
+        <td>--name</td>
+        <td>exp</td>
+        <td>实验名称，结果保存于 {project}/{name}/</td>
+      </tr>
+      <tr>
+        <td>--exist-ok</td>
+        <td>False</td>
+        <td>允许覆盖已有结果目录</td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 20 · 参数调优实践 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 04 · 推理命令</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解detect.py作为推理入口的工作机制</li>
+      <li>掌握各命令行参数的含义与调优方法</li>
+      <li>能够针对不同输入来源配置推理参数</li>
+    </ul>
+    <div class="page-num">20 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 04 · 推理命令与参数配置</div>
+    <div class="slide-title">参数调优实践</div>
+    <div class="body-text">
+      参数调整直接影响检测效果。以下通过具体案例说明不同参数设置对结果的影响：
+    </div>
+    <div class="section-title">置信度阈值的影响</div>
+    <div class="code-block"># 低阈值：召回率高但误检多
+python detect.py --conf 0.10 --source data/images
+
+# 中等阈值：平衡方案（推荐默认）
+python detect.py --conf 0.25 --source data/images
+
+# 高阈值：误检少但可能漏检
+python detect.py --conf 0.60 --source data/images</div>
+    <div class="cols-2" style="margin-top:1vh">
+      <div>
+        <div class="section-title">IoU 阈值的影响</div>
+        <ul>
+          <li><span class="code-inline">--iou 0.3</span>：NMS 更严格，重叠框去除多</li>
+          <li><span class="code-inline">--iou 0.45</span>：默认值，平衡去重与保留</li>
+          <li><span class="code-inline">--iou 0.7</span>：NMS 宽松，密集场景保留更多框</li>
+        </ul>
+      </div>
+      <div>
+        <div class="section-title">输入尺寸的影响</div>
+        <ul>
+          <li><span class="code-inline">--img 320</span>：速度快但小目标易漏</li>
+          <li><span class="code-inline">--img 640</span>：标准尺寸，速度与精度平衡</li>
+          <li><span class="code-inline">--img 1280</span>：精度高但速度显著下降</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 21 · 多来源输入 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 04 · 推理命令</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解detect.py作为推理入口的工作机制</li>
+      <li>掌握各命令行参数的含义与调优方法</li>
+      <li>能够针对不同输入来源配置推理参数</li>
+    </ul>
+    <div class="page-num">21 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 04 · 推理命令与参数配置</div>
+    <div class="slide-title">多来源输入处理</div>
+    <div class="body-text">
+      detect.py 支持多种输入来源，通过 <span class="code-inline">--source</span> 参数统一控制。程序内部根据路径后缀和格式自动判断来源类型。
+    </div>
+    <table class="param-table" style="margin-top:1.2vh">
+      <tr>
+        <th>来源类型</th>
+        <th>--source 示例</th>
+        <th>说明</th>
+      </tr>
+      <tr>
+        <td>单张图片</td>
+        <td>data/images/bus.jpg</td>
+        <td>对单张图片执行检测</td>
+      </tr>
+      <tr>
+        <td>图片目录</td>
+        <td>data/images/</td>
+        <td>遍历目录下所有图片</td>
+      </tr>
+      <tr>
+        <td>视频文件</td>
+        <td>video.mp4</td>
+        <td>逐帧检测视频文件</td>
+      </tr>
+      <tr>
+        <td>摄像头</td>
+        <td>0</td>
+        <td>使用设备编号 0 的摄像头实时检测</td>
+      </tr>
+      <tr>
+        <td>网络流</td>
+        <td>rtsp://192.168.1.100/stream</td>
+        <td>RTSP 视频流实时检测</td>
+      </tr>
+      <tr>
+        <td>YouTube</td>
+        <td>https://youtu.be/...</td>
+        <td>在线视频 URL 检测</td>
+      </tr>
+    </table>
+    <div class="tip-box" style="margin-top:1vh">
+      <div class="tip-label">摄像头检测注意事项</div>
+      <div class="tip-body">
+        使用 <span class="code-inline">--source 0</span> 时，程序调用 OpenCV 的 <span class="code-inline">VideoCapture(0)</span> 读取默认摄像头。若系统有多个摄像头，可尝试 1、2 等编号。首次调用可能需要授权摄像头访问权限。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 22 · 章节封面：推理内部流程 -->
+<!-- ================================================================ -->
+<section class="slide act-cover">
+  <div class="sidebar">
+    <div class="module-badge">Module 05</div>
+    <h3>本模块目标</h3>
+    <ul>
+      <li>理解从输入到输出的完整推理流水线</li>
+      <li>掌握Letterbox预处理与坐标映射原理</li>
+      <li>理解NMS后处理与可视化流程</li>
+    </ul>
+    <div class="page-num">22 / 34</div>
+  </div>
+  <div class="content">
+    <div class="act-number">Module 05</div>
+    <div class="act-title">推理内部流程</div>
+    <div class="act-sub">从输入读取到结果可视化的完整流水线</div>
+    <div class="divider" style="width:30%;margin:2.5vh auto"></div>
+    <div class="body-text" style="opacity:0.6;max-width:70%">
+      理解推理内部流程是排查问题、优化性能、进行二次开发的基础。每个环节都有其设计考量和潜在陷阱。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 23 · 整体流程概览 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 05 · 推理流程</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解从输入到输出的完整推理流水线</li>
+      <li>掌握Letterbox预处理与坐标映射原理</li>
+      <li>理解NMS后处理与可视化流程</li>
+    </ul>
+    <div class="page-num">23 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 05 · 推理内部流程</div>
+    <div class="slide-title">推理流水线总览</div>
+    <div class="body-text">
+      从原始输入到最终检测结果，YOLOv5-Lite 的推理过程包含 6 个核心阶段：
+    </div>
+    <div class="steps" style="margin-top:1.6vh">
+      <div class="step-box">
+        <div class="step-num">01</div>
+        <div class="step-label">输入读取</div>
+        <div class="step-desc">OpenCV 读取图片/视频帧</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">02</div>
+        <div class="step-label">Letterbox</div>
+        <div class="step-desc">等比例缩放 + 边缘填充</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">03</div>
+        <div class="step-label">归一化</div>
+        <div class="step-desc">BGR→RGB, HWC→CHW, 0-255→0-1</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">04</div>
+        <div class="step-label">模型前向</div>
+        <div class="step-desc">Backbone→Neck→Head 推理</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">05</div>
+        <div class="step-label">NMS</div>
+        <div class="step-desc">非极大值抑制去重</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">06</div>
+        <div class="step-label">可视化</div>
+        <div class="step-desc">绘制检测框并保存结果</div>
+      </div>
+    </div>
+    <div class="info-card" style="margin-top:1.4vh">
+      <div class="card-title">关键认知</div>
+      <div class="card-body">
+        模型只处理张量（Tensor），不关心输入来源。OpenCV 负责 I/O 层，PyTorch 负责计算层。两者之间的数据格式转换（步骤 02-03）是推理 pipeline 中最容易出错的环节。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 24 · 输入读取与预处理 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 05 · 推理流程</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解从输入到输出的完整推理流水线</li>
+      <li>掌握Letterbox预处理与坐标映射原理</li>
+      <li>理解NMS后处理与可视化流程</li>
+    </ul>
+    <div class="page-num">24 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 05 · 推理内部流程</div>
+    <div class="slide-title">输入读取与来源判断</div>
+    <div class="body-text">
+      程序首先判断 <span class="code-inline">--source</span> 参数的类型，然后调用相应的读取器。这一逻辑在 <span class="code-inline">utils/datasets.py</span> 的 <span class="code-inline">LoadImages</span> 和 <span class="code-inline">LoadStreams</span> 类中实现。
+    </div>
+    <div class="section-title">来源类型判断逻辑</div>
+    <div class="code-block">def get_source_type(source):
+    # 判断逻辑（简化示意）
+    if source.isdigit():            # 纯数字 → 摄像头
+        return 'camera'
+    elif source.startswith(('http','rtsp')):  # URL → 网络流
+        return 'stream'
+    elif source.endswith(('.mp4','.avi','.mov')):  # 视频后缀 → 视频
+        return 'video'
+    elif os.path.isdir(source):     # 目录 → 图片集
+        return 'image_dir'
+    else:                           # 单文件 → 单张图片
+        return 'image'</div>
+    <div class="cols-2" style="margin-top:1vh">
+      <div>
+        <div class="section-title">图片读取</div>
+        <div class="code-block" style="font-size:clamp(10px,0.8vw,14px)">img = cv2.imread(path)  # BGR, HWC, uint8
+# shape: (H, W, 3)</div>
+      </div>
+      <div>
+        <div class="section-title">视频读取</div>
+        <div class="code-block" style="font-size:clamp(10px,0.8vw,14px)">cap = cv2.VideoCapture(path)
+ret, frame = cap.read()  # 逐帧读取
+# frame shape: (H, W, 3)</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 25 · Letterbox 原理 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 05 · 推理流程</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解从输入到输出的完整推理流水线</li>
+      <li>掌握Letterbox预处理与坐标映射原理</li>
+      <li>理解NMS后处理与可视化流程</li>
+    </ul>
+    <div class="page-num">25 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 05 · 推理内部流程</div>
+    <div class="slide-title">Letterbox 预处理原理</div>
+    <div class="body-text">
+      YOLO 系列要求输入图像尺寸能被网络步长整除（通常为 32 的倍数，如 640×640）。Letterbox 操作在保持原始宽高比的前提下，对图像进行缩放并用边缘填充补齐到目标尺寸。
+    </div>
+    <div class="section-title">Letterbox 计算过程</div>
+    <div class="code-block" style="font-size:clamp(11px,0.85vw,15px)">def letterbox(img, new_shape=640, color=(114,114,114)):
+    shape = img.shape[:2]  # 原图尺寸 (h, w)
+    r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
+    # 等比例缩放
+    new_unpad = (int(round(shape[1] * r)), int(round(shape[0] * r)))
+    img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
+    # 计算填充
+    dw = (new_shape[1] - new_unpad[0]) / 2  # 宽度填充
+    dh = (new_shape[0] - new_unpad[1]) / 2  # 高度填充
+    # 添加灰边填充
+    top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+    left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+    img = cv2.copyMakeBorder(img, top, bottom, left, right,
+                             cv2.BORDER_CONSTANT, value=color)
+    return img, (r, r), (dw, dh)</div>
+    <div class="tip-box">
+      <div class="tip-label">坐标映射关键点</div>
+      <div class="tip-body">
+        模型输出的检测框坐标基于 Letterbox 后的图像尺寸。后处理时必须将坐标从"模型输入尺寸"映射回"原图尺寸"。映射公式为：<span class="code-inline">x_original = (x_model - dw) / r</span>。这一步出错会导致框位置偏移或大小异常。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 26 · 归一化与维度转换 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 05 · 推理流程</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解从输入到输出的完整推理流水线</li>
+      <li>掌握Letterbox预处理与坐标映射原理</li>
+      <li>理解NMS后处理与可视化流程</li>
+    </ul>
+    <div class="page-num">26 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 05 · 推理内部流程</div>
+    <div class="slide-title">归一化与维度转换</div>
+    <div class="body-text">
+      OpenCV 读取的图像格式与 PyTorch 模型期望的输入格式存在差异，需要进行以下转换：
+    </div>
+    <div class="steps" style="margin-top:1.4vh">
+      <div class="step-box">
+        <div class="step-num">转换 1</div>
+        <div class="step-label">BGR → RGB</div>
+        <div class="step-desc">OpenCV 默认 BGR 通道顺序，模型训练使用 RGB</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">转换 2</div>
+        <div class="step-label">HWC → CHW</div>
+        <div class="step-desc">NumPy H×W×C → PyTorch C×H×W</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">转换 3</div>
+        <div class="step-label">uint8 → float32</div>
+        <div class="step-desc">0-255 整数 → 浮点数</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">转换 4</div>
+        <div class="step-label">0-255 → 0-1</div>
+        <div class="step-desc">除以 255 归一化到 [0,1] 区间</div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">转换 5</div>
+        <div class="step-label">添加 Batch 维</div>
+        <div class="step-desc">(3,H,W) → (1,3,H,W)</div>
+      </div>
+    </div>
+    <div class="code-block" style="margin-top:1.4vh"># 完整预处理代码（detect.py 中的实现）
+img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # BGR → RGB
+img = img.transpose(2, 0, 1)                 # HWC → CHW
+img = np.ascontiguousarray(img)              # 内存连续化
+img = torch.from_numpy(img).float()          # uint8 → float32
+img /= 255.0                                  # 归一化到 [0,1]
+img = img.unsqueeze(0)                        # 添加 batch 维度</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 27 · 模型前向与后处理 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 05 · 推理流程</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>理解从输入到输出的完整推理流水线</li>
+      <li>掌握Letterbox预处理与坐标映射原理</li>
+      <li>理解NMS后处理与可视化流程</li>
+    </ul>
+    <div class="page-num">27 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 05 · 推理内部流程</div>
+    <div class="slide-title">模型前向与 NMS 后处理</div>
+    <div class="body-text">
+      预处理后的张量送入模型进行前向推理，输出原始预测结果，再经过 NMS 后处理得到最终检测框。
+    </div>
+    <div class="section-title">模型前向推理</div>
+    <div class="code-block" style="font-size:clamp(11px,0.85vw,15px)"># 模型前向（简化）
+pred = model(img)  # 输出 shape: (1, num_anchors*3, 85)
+# 每个预测向量包含: [x, y, w, h, obj_conf, cls1_conf, ..., cls80_conf]</div>
+    <div class="section-title">NMS 非极大值抑制</div>
+    <div class="code-block" style="font-size:clamp(11px,0.85vw,15px)">from utils.nms import non_max_suppression
+
+# NMS 处理
+pred = non_max_suppression(pred, conf_thres=0.25, iou_thres=0.45)
+# 输出: list of tensors, 每张图一个元素
+# 每个检测框: [x1, y1, x2, y2, confidence, class_id]</div>
+    <div class="cols-2" style="margin-top:1vh">
+      <div>
+        <div class="section-title">NMS 执行步骤</div>
+        <ul>
+          <li>按置信度阈值过滤低分框</li>
+          <li>按类别分组</li>
+          <li>每组内按置信度排序</li>
+          <li>保留最高分框，剔除 IoU 超阈值的重叠框</li>
+          <li>迭代至无框可剔除</li>
+        </ul>
+      </div>
+      <div>
+        <div class="section-title">坐标还原</div>
+        <ul>
+          <li>NMS 输出坐标基于模型输入尺寸</li>
+          <li>需使用 Letterbox 的缩放比 r 和填充 (dw, dh)</li>
+          <li>还原公式：<span class="code-inline">x1_orig = (x1 - dw) / r</span></li>
+          <li>还原后坐标用于在原图上绘制检测框</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 28 · 章节封面：常见错误排查 -->
+<!-- ================================================================ -->
+<section class="slide act-cover">
+  <div class="sidebar">
+    <div class="module-badge">Module 06</div>
+    <h3>本模块目标</h3>
+    <ul>
+      <li>掌握依赖缺失与虚拟环境问题的排查方法</li>
+      <li>理解权重路径与CUDA配置的常见问题</li>
+      <li>能够独立解决路径编码与数据加载错误</li>
+    </ul>
+    <div class="page-num">28 / 34</div>
+  </div>
+  <div class="content">
+    <div class="act-number">Module 06</div>
+    <div class="act-title">常见错误排查</div>
+    <div class="act-sub">系统化排查方法 · 典型错误根因分析 · 解决方案</div>
+    <div class="divider" style="width:30%;margin:2.5vh auto"></div>
+    <div class="body-text" style="opacity:0.6;max-width:70%">
+      掌握系统化的错误排查方法，比记忆具体错误信息更为重要。以下按错误类型分类，覆盖最常遇到的四类问题。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 29 · ModuleNotFoundError -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 06 · 错误排查</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>掌握依赖缺失与虚拟环境问题的排查方法</li>
+      <li>理解权重路径与CUDA配置的常见问题</li>
+      <li>能够独立解决路径编码与数据加载错误</li>
+    </ul>
+    <div class="page-num">29 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 06 · 常见错误排查</div>
+    <div class="slide-title">ModuleNotFoundError 依赖缺失</div>
+    <div class="body-text">
+      这是最常遇到的错误类型，根本原因是依赖未安装或虚拟环境未正确激活。
+    </div>
+    <div class="section-title">错误现象</div>
+    <div class="code-block">Traceback (most recent call last):
+  File "detect.py", line 10, in &lt;module&gt;
+    import torch
+ModuleNotFoundError: No module named 'torch'</div>
+    <div class="section-title">系统化排查步骤</div>
+    <div class="code-block"># 1. 确认当前使用的 Python 解释器路径
+which python    # macOS/Linux
+where python    # Windows
+
+# 2. 确认虚拟环境已激活（应显示环境名）
+# 终端提示符前应有 (yolov5_lite_env)
+
+# 3. 检查目标包是否已安装
+pip show torch
+pip show opencv-python
+pip list | grep -i torch
+
+# 4. 对比 requirements.txt 逐项检查
+pip install -r requirements.txt --quiet</div>
+    <div class="tip-box">
+      <div class="tip-label">排查要点</div>
+      <div class="tip-body">
+        使用 <span class="code-inline">which python</span> 确认解释器路径是否指向虚拟环境内部。若路径显示系统 Python（如 <span class="code-inline">/usr/bin/python</span>），说明虚拟环境未激活。重新执行激活命令后再试。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 30 · 权重路径与 CUDA 问题 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 06 · 错误排查</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>掌握依赖缺失与虚拟环境问题的排查方法</li>
+      <li>理解权重路径与CUDA配置的常见问题</li>
+      <li>能够独立解决路径编码与数据加载错误</li>
+    </ul>
+    <div class="page-num">30 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 06 · 常见错误排查</div>
+    <div class="slide-title">权重路径错误与 CUDA 不可用</div>
+    <div class="body-text">
+      权重文件加载失败和 GPU 不可用是两类高频问题，但排查思路截然不同。
+    </div>
+    <div class="cols-2" style="margin-top:1.2vh">
+      <div>
+        <div class="section-title">权重路径错误</div>
+        <div class="code-block" style="font-size:clamp(10px,0.8vw,14px)"># 错误：FileNotFoundError
+# 排查：确认当前工作目录
+pwd  # 应在 YOLOv5-Lite 根目录
+
+# 确认权重文件存在
+ls -la weights/
+# 应看到 yolov5-lite.pt
+
+# 使用绝对路径测试
+python detect.py --weights \
+  $(pwd)/weights/yolov5-lite.pt \
+  --source data/images</div>
+        <div class="body-text" style="margin-top:0.8vh;font-size:clamp(11px,0.85vw,15px)">
+          注意：相对路径从<strong>当前工作目录</strong>开始计算，不是从脚本文件所在目录开始。这是最常见的路径理解误区。
+        </div>
+      </div>
+      <div>
+        <div class="section-title">CUDA 不可用</div>
+        <div class="code-block" style="font-size:clamp(10px,0.8vw,14px)"># 诊断命令
+python -c "import torch; \
+  print(torch.cuda.is_available())"
+
+# 若返回 False，逐项检查：
+# 1. 显卡驱动版本
+nvidia-smi
+
+# 2. CUDA Toolkit 版本
+nvcc --version
+
+# 3. PyTorch CUDA 版本
+python -c "import torch; \
+  print(torch.version.cuda)"
+
+# 三者必须匹配</div>
+        <div class="body-text" style="margin-top:0.8vh;font-size:clamp(11px,0.85vw,15px)">
+          CUDA 不可用不一定是错误。使用 <span class="code-inline">--device cpu</span> 可在 CPU 上推理，仅速度较慢。若必须使用 GPU，需确保驱动、Toolkit、PyTorch 版本链完整匹配。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 31 · 路径编码与数据问题 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 06 · 错误排查</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>掌握依赖缺失与虚拟环境问题的排查方法</li>
+      <li>理解权重路径与CUDA配置的常见问题</li>
+      <li>能够独立解决路径编码与数据加载错误</li>
+    </ul>
+    <div class="page-num">31 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 06 · 常见错误排查</div>
+    <div class="slide-title">路径编码与数据加载问题</div>
+    <div class="body-text">
+      图像路径包含中文或空格、图像文件损坏、格式不支持等问题，在批量处理时尤为常见。
+    </div>
+    <div class="section-title">路径编码问题</div>
+    <div class="code-block"># 错误现象：UnicodeDecodeError 或 文件找不到
+# 但文件确实存在
+
+# 解决方案
+# 1. 项目路径使用纯英文和短路径
+#    避免：/用户/文档/项目/YOLOv5-Lite/
+#    推荐：/home/lab/yolov5-lite/
+
+# 2. 图片文件名避免中文和特殊字符
+#    避免：测试图片_01.jpg
+#    推荐：test_01.jpg
+
+# 3. 使用 Path 对象处理路径（跨平台兼容）
+from pathlib import Path
+img_path = Path('data/images') / 'test_01.jpg'</div>
+    <div class="section-title">数据加载常见问题</div>
+    <table class="data-table" style="margin-top:0.8vh">
+      <tr>
+        <th>问题</th>
+        <th>原因</th>
+        <th>解决方案</th>
+      </tr>
+      <tr>
+        <td>图片加载为空</td>
+        <td>路径错误或文件损坏</td>
+        <td>用 <span class="code-inline">cv2.imread()</span> 单独测试</td>
+      </tr>
+      <tr>
+        <td>视频无法打开</td>
+        <td>编解码器不支持</td>
+        <td>安装 <span class="code-inline">ffmpeg</span> 或转换格式为 MP4</td>
+      </tr>
+      <tr>
+        <td>摄像头无画面</td>
+        <td>设备号错误或权限不足</td>
+        <td>尝试 <span class="code-inline">--source 1</span> 或检查权限</td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 32 · 章节封面：课堂实践 -->
+<!-- ================================================================ -->
+<section class="slide act-cover">
+  <div class="sidebar">
+    <div class="module-badge">Module 07</div>
+    <h3>本模块目标</h3>
+    <ul>
+      <li>能够独立完成图片/视频/摄像头检测演示</li>
+      <li>理解参数调整对检测结果的影响</li>
+      <li>掌握推理结果的分析与记录方法</li>
+    </ul>
+    <div class="page-num">32 / 34</div>
+  </div>
+  <div class="content">
+    <div class="act-number">Module 07</div>
+    <div class="act-title">课堂实践与拓展</div>
+    <div class="act-sub">实操任务 · 提交要求 · 课外拓展方向</div>
+    <div class="divider" style="width:30%;margin:2.5vh auto"></div>
+    <div class="body-text" style="opacity:0.6;max-width:70%">
+      通过三个递进式演示任务，巩固对推理流程的理解。提交物需包含运行记录、结果分析和参数影响说明。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 33 · 课堂演示与提交 -->
+<!-- ================================================================ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-badge">Module 07 · 课堂实践</div>
+    <h3>学习目标</h3>
+    <ul>
+      <li>能够独立完成图片/视频/摄像头检测演示</li>
+      <li>理解参数调整对检测结果的影响</li>
+      <li>掌握推理结果的分析与记录方法</li>
+    </ul>
+    <div class="page-num">33 / 34</div>
+  </div>
+  <div class="content">
+    <div class="module-tag">Module 07 · 课堂实践与拓展</div>
+    <div class="slide-title">课堂演示任务与提交要求</div>
+    <div class="section-title">演示一：图片检测</div>
+    <div class="body-text">
+      选取 3 张不同场景的图片（如室内、室外、人群），分别以 <span class="code-inline">--conf 0.1</span>、<span class="code-inline">0.25</span>、<span class="code-inline">0.6</span> 运行检测，对比结果差异。
+    </div>
+    <div class="section-title" style="margin-top:1.2vh">演示二：视频检测</div>
+    <div class="body-text">
+      准备一段短视频（建议 10-30 秒），运行逐帧检测，观察检测框的时序稳定性。
+    </div>
+    <div class="section-title" style="margin-top:1.2vh">演示三：摄像头实时检测</div>
+    <div class="body-text">
+      使用 <span class="code-inline">--source 0</span> 启动摄像头实时检测，观察 FPS 表现。若 GPU 可用，对比 CPU 与 GPU 的帧率差异。
+    </div>
+    <div class="info-card" style="margin-top:1.4vh">
+      <div class="card-title">提交物清单</div>
+      <div class="card-body">
+        1. 项目目录截图（包含所有关键子目录）<br>
+        2. 运行命令记录（使用 <span class="code-inline">script</span> 或 <span class="code-inline">history</span> 命令保存）<br>
+        3. 一张图片检测结果图（标注检测框）<br>
+        4. 一段 10 秒以内视频或摄像头检测截图<br>
+        5. 说明至少两个参数对检测结果的影响（附对比图）
+      </div>
+    </div>
+    <div class="tip-box" style="margin-top:1vh">
+      <div class="tip-label">课外拓展方向</div>
+      <div class="tip-body">
+        阅读 <span class="code-inline">detect.py</span> 的主函数，画出推理流程图。尝试将检测结果保存为 JSON 格式（包含类别、置信度、坐标）。思考：将推理脚本接入 Web 平台时，需要将模型加载、图像预处理、推理、后处理与结果序列化封装为独立函数。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 34 · 结束页 -->
+<!-- ================================================================ -->
+<section class="slide end-slide">
+  <div class="sidebar">
+    <div class="module-badge">总结</div>
+    <h3>课程总结</h3>
+    <ul>
+      <li>掌握了YOLOv5-Lite的完整推理流程</li>
+      <li>建立了项目源码结构的认知地图</li>
+      <li>具备独立环境搭建与错误排查能力</li>
+    </ul>
+    <div class="page-num">34 / 34</div>
+  </div>
+  <div class="content">
+    <div class="end-title">本讲总结</div>
+    <div class="divider" style="width:20%;margin:2.5vh auto"></div>
+    <div class="end-sub">
+      YOLOv5-Lite · 项目跑通、源码结构与推理流程<br>
+      第六讲 · 目标检测专题
+    </div>
+  </div>
+</section>
+
+</div><!-- /#deck -->
+
+<div id="nav"></div>
+
+<script>
+// =============== 导航系统 ===============
+const deck = document.getElementById('deck');
+const slides = deck.querySelectorAll('.slide');
+const nav = document.getElementById('nav');
+let idx = 0, total = slides.length, lock = false;
+
+deck.style.width = (total * 100) + 'vw';
+
+slides.forEach((s, i) => {
+  const b = document.createElement('button');
+  b.className = 'dot';
+  b.dataset.i = i;
+  b.setAttribute('aria-label', 'Page ' + (i + 1));
+  b.onclick = () => go(i);
+  nav.appendChild(b);
+});
+
+function go(n) {
+  if (lock) return;
+  idx = Math.max(0, Math.min(total - 1, n));
+  deck.style.transform = 'translateX(' + (-idx * 100) + 'vw)';
+  slides.forEach((s, i) => s.classList.toggle('active', i === idx));
+  nav.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+  lock = true;
+  setTimeout(() => lock = false, 600);
+}
+
+// 键盘导航
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === 'ArrowDown') { e.preventDefault(); go(idx + 1); }
+  if (e.key === 'ArrowLeft' || e.key === 'PageUp' || e.key === 'ArrowUp') { e.preventDefault(); go(idx - 1); }
+  if (e.key === 'Home') { e.preventDefault(); go(0); }
+  if (e.key === 'End') { e.preventDefault(); go(total - 1); }
+});
+
+// 滚轮导航
+let wheelAcc = 0, wheelTO = null;
+addEventListener('wheel', e => {
+  wheelAcc += e.deltaY + e.deltaX;
+  if (Math.abs(wheelAcc) > 50) { go(idx + (wheelAcc > 0 ? 1 : -1)); wheelAcc = 0; }
+  clearTimeout(wheelTO);
+  wheelTO = setTimeout(() => wheelAcc = 0, 150);
+}, { passive: true });
+
+// 触屏滑动
+let tx = 0, ty = 0;
+addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - tx;
+  const dy = e.changedTouches[0].clientY - ty;
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) go(idx + (dx < 0 ? 1 : -1));
+}, { passive: true });
+
+go(0);
+</script>
+
+</body>
+</html>

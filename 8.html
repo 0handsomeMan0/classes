@@ -1,0 +1,2745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YOLO训练、验证、调参与实验复现 · 计算机视觉检测实践</title>
+<style>
+/* ============================================================
+   THEME: 牛皮纸 · Kraft Paper (warm paper texture for teaching)
+   ============================================================ */
+:root {
+  --ink: #2a1e13;
+  --ink-rgb: 42,30,19;
+  --paper: #eedfc7;
+  --paper-rgb: 238,223,199;
+  --paper-tint: #e0d0b6;
+  --ink-tint: #3a2a1d;
+  --sidebar-width: 16vw;
+  --code-bg: #1f180f;
+  --code-fg: #e8ddd0;
+  --accent: #8b6b4a;
+
+  --font-serif: 'Noto Serif SC', Georgia, 'Times New Roman', serif;
+  --font-sans: 'Noto Sans SC', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --font-display: 'Playfair Display', Georgia, serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--ink);
+  color: var(--ink);
+  font-family: var(--font-serif);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Paper texture background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent, transparent 1px,
+      rgba(0,0,0,0.008) 1px, rgba(0,0,0,0.008) 2px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent, transparent 2px,
+      rgba(0,0,0,0.005) 2px, rgba(0,0,0,0.005) 4px
+    ),
+    radial-gradient(ellipse at 30% 40%, rgba(210,180,140,0.15) 0%, transparent 70%),
+    radial-gradient(ellipse at 70% 60%, rgba(200,170,130,0.1) 0%, transparent 60%),
+    var(--paper);
+  pointer-events: none;
+}
+
+/* Deck container */
+#deck {
+  position: fixed;
+  inset: 0;
+  width: 10000vw;
+  height: 100vh;
+  display: flex;
+  flex-wrap: nowrap;
+  transition: transform .7s cubic-bezier(.77,0,.175,1);
+  z-index: 10;
+  will-change: transform;
+}
+
+/* ============================================================
+   Slide structure: sidebar + content
+   ============================================================ */
+.slide {
+  width: 100vw;
+  height: 100vh;
+  flex: 0 0 100vw;
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  overflow: hidden;
+  font-family: var(--font-serif);
+  color: var(--ink);
+}
+
+/* Sidebar — module title + learning objectives */
+.slide-sidebar {
+  background: var(--paper-tint);
+  padding: 3vh 1vw 3vh 1.2vw;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(var(--ink-rgb), 0.12);
+  position: relative;
+  z-index: 2;
+}
+
+.sidebar-module {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: max(15px, 1.25vw);
+  line-height: 1.3;
+  color: var(--ink);
+  opacity: 0.9;
+  padding-bottom: 1.2vh;
+  border-bottom: 1.5px dashed rgba(var(--ink-rgb), 0.2);
+}
+
+.sidebar-module-label {
+  font-family: var(--font-mono);
+  font-size: max(9px, 0.65vw);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.5;
+  margin-bottom: 0.6vh;
+}
+
+.objectives-title {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: max(13px, 0.95vw);
+  margin: 1.6vh 0 1.2vh 0;
+  opacity: 0.75;
+}
+
+.objective-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+  flex: 1;
+}
+
+.objective-list li {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: max(13px, 1vw);
+  line-height: 1.4;
+  opacity: 0.82;
+  padding-left: 1.2em;
+  position: relative;
+}
+
+.objective-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 4px;
+  height: 4px;
+  background: var(--accent);
+  border-radius: 50%;
+  opacity: 0.6;
+}
+
+/* Main content area */
+.slide-content {
+  padding: 2.4vh 2.2vw 3vh 2.2vw;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  position: relative;
+  z-index: 2;
+}
+
+/* Chrome (top meta bar) */
+.chrome {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: max(10px, 0.65vw);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.5;
+  margin-bottom: 1vh;
+  padding-bottom: 0.6vh;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
+}
+
+.foot {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: max(10px, 0.65vw);
+  letter-spacing: 0.12em;
+  opacity: 0.45;
+  padding-top: 0.6vh;
+  border-top: 1px solid rgba(var(--ink-rgb), 0.08);
+}
+
+/* ============================================================
+   Typography — all serif for teaching readability
+   ============================================================ */
+.page-title {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: max(24px, 2.8vw);
+  line-height: 1.15;
+  letter-spacing: -0.005em;
+  margin-bottom: 1.2vh;
+  color: var(--ink);
+}
+
+.page-subtitle {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: max(17px, 1.5vw);
+  line-height: 1.35;
+  opacity: 0.75;
+  margin-bottom: 1.8vh;
+}
+
+.body-text {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: max(16px, 1.3vw);
+  line-height: 1.55;
+  opacity: 0.88;
+  margin-bottom: 0.8vh;
+}
+
+.body-text-sm {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: max(15px, 1.2vw);
+  line-height: 1.5;
+  opacity: 0.84;
+  margin-bottom: 0.6vh;
+}
+
+.lead-text {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: max(18px, 1.6vw);
+  line-height: 1.45;
+  opacity: 0.9;
+  margin-bottom: 1.2vh;
+}
+
+.label-mono {
+  font-family: var(--font-mono);
+  font-size: max(11px, 0.75vw);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  margin-bottom: 0.3vh;
+}
+
+/* ============================================================
+   Code blocks
+   ============================================================ */
+.code-block {
+  background: var(--code-bg);
+  color: var(--code-fg);
+  font-family: var(--font-mono);
+  font-size: max(13px, 0.85vw);
+  line-height: 1.5;
+  padding: 1.2vh 1.2vw;
+  border-radius: 4px;
+  margin: 0.8vh 0 1.2vh 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  position: relative;
+}
+
+.code-block .comment {
+  color: rgba(200,180,160,0.5);
+  font-style: italic;
+}
+
+.code-block .keyword { color: #e8b87a; }
+.code-block .string { color: #b5c9a0; }
+.code-block .number { color: #a0b9d8; }
+
+.code-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: max(9px, 0.6vw);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  opacity: 0.45;
+  margin-bottom: 0.3vh;
+}
+
+.inline-code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: rgba(var(--ink-rgb), 0.06);
+  padding: 0.1em 0.4em;
+  border-radius: 3px;
+  color: var(--ink-tint);
+}
+
+/* ============================================================
+   Parameter tables
+   ============================================================ */
+.param-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.8vh 0;
+  font-size: max(14px, 1vw);
+}
+
+.param-table th {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: max(11px, 0.72vw);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0.4vh 0.6vw;
+  border-bottom: 1.5px solid rgba(var(--ink-rgb), 0.2);
+  opacity: 0.65;
+}
+
+.param-table td {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  padding: 0.6vh 0.6vw;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.06);
+  line-height: 1.4;
+}
+
+.param-table td:first-child {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--ink-tint);
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Cards / boxes for highlights
+   ============================================================ */
+.info-box {
+  background: rgba(var(--ink-rgb), 0.04);
+  border-left: 3px solid var(--accent);
+  padding: 1.2vh 1vw;
+  margin: 0.8vh 0;
+}
+
+.info-box .title {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: max(14px, 1vw);
+  margin-bottom: 0.3vh;
+}
+
+.info-box .body {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: max(13px, 0.9vw);
+  line-height: 1.5;
+  opacity: 0.82;
+}
+
+.warn-box {
+  background: rgba(180,120,60,0.08);
+  border-left: 3px solid #b07838;
+  padding: 1.2vh 1vw;
+  margin: 0.8vh 0;
+}
+
+.warn-box .title {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: max(14px, 1vw);
+  margin-bottom: 0.3vh;
+}
+
+.warn-box .body {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: max(13px, 0.9vw);
+  line-height: 1.5;
+  opacity: 0.82;
+}
+
+/* ============================================================
+   Feature grid (for overview / comparison)
+   ============================================================ */
+.feature-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.8vh 1.2vw;
+  margin: 0.6vh 0;
+}
+
+.feature-grid.cols-3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.feature-item {
+  padding: 0.8vh 0.6vw;
+}
+
+.feature-item .name {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: max(12px, 0.78vw);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-bottom: 0.1vh;
+}
+
+.feature-item .value {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: max(15px, 1.1vw);
+  line-height: 1.3;
+}
+
+.feature-item .desc {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: max(13px, 0.9vw);
+  line-height: 1.4;
+  opacity: 0.78;
+  margin-top: 0.1vh;
+}
+
+/* ============================================================
+   Checklist items (for pre-training checklist)
+   ============================================================ */
+.checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5vh;
+  margin: 0.4vh 0;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5vw;
+  padding: 0.4vh 0;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.04);
+}
+
+.checklist-item .icon {
+  font-family: var(--font-mono);
+  font-size: max(11px, 0.75vw);
+  opacity: 0.45;
+  flex-shrink: 0;
+  margin-top: 0.1em;
+}
+
+.checklist-item .text {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: max(14px, 1vw);
+  line-height: 1.45;
+  opacity: 0.86;
+}
+
+.checklist-item .detail {
+  font-family: var(--font-mono);
+  font-size: max(11px, 0.75vw);
+  opacity: 0.58;
+  margin-top: 0.1vh;
+}
+
+/* ============================================================
+   Cover slide
+   ============================================================ */
+.slide-cover {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  grid-column: 1 / -1;
+  background: var(--ink-tint);
+  color: var(--paper);
+}
+
+.slide-cover .cover-number {
+  font-family: var(--font-mono);
+  font-size: max(11px, 0.65vw);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  opacity: 0.45;
+  margin-bottom: 4vh;
+}
+
+.slide-cover h1 {
+  font-family: var(--font-serif);
+  font-weight: 900;
+  font-size: max(38px, 5.2vw);
+  line-height: 1.1;
+  letter-spacing: -0.005em;
+  margin-bottom: 2vh;
+  color: var(--paper);
+}
+
+.slide-cover .subtitle {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: max(19px, 1.8vw);
+  opacity: 0.72;
+  margin-bottom: 3.6vh;
+}
+
+.slide-cover .meta {
+  font-family: var(--font-mono);
+  font-size: max(11px, 0.7vw);
+  letter-spacing: 0.2em;
+  opacity: 0.5;
+}
+
+/* ============================================================
+   Section divider
+   ============================================================ */
+.slide-divider {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  grid-column: 1 / -1;
+  background: var(--ink-tint);
+  color: var(--paper);
+  padding: 8vh 6vw;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4vw;
+}
+
+.slide-divider .left-col {
+  align-self: center;
+}
+
+.slide-divider .right-col {
+  border-left: 2px solid rgba(255,255,255,0.12);
+  padding-left: 3vw;
+  display: flex;
+  flex-direction: column;
+  gap: 1.6vh;
+}
+
+.slide-divider .section-num {
+  font-family: var(--font-mono);
+  font-size: max(10px, 0.6vw);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  opacity: 0.4;
+  margin-bottom: 2vh;
+}
+
+.slide-divider h2 {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: max(30px, 3.6vw);
+  line-height: 1.2;
+  color: var(--paper);
+  margin-bottom: 1.6vh;
+}
+
+.slide-divider .desc {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: max(16px, 1.3vw);
+  opacity: 0.65;
+  max-width: 90%;
+}
+
+.slide-divider .point {
+  display: flex;
+  align-items: flex-start;
+  gap: 1vw;
+}
+
+.slide-divider .point .dot {
+  font-family: var(--font-mono);
+  font-size: max(9px, 0.55vw);
+  opacity: 0.35;
+  margin-top: 0.3em;
+  flex-shrink: 0;
+}
+
+.slide-divider .point .text {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: max(14px, 1.1vw);
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
+/* ============================================================
+   Cover (light) — only for table of contents
+   ============================================================ */
+.slide-divider-light {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  grid-column: 1 / -1;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 0 6vw;
+}
+
+.slide-divider-light .section-num {
+  font-family: var(--font-mono);
+  font-size: max(10px, 0.6vw);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  opacity: 0.4;
+  margin-bottom: 2vh;
+}
+
+.slide-divider-light h2 {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: max(30px, 3.6vw);
+  line-height: 1.2;
+  margin-bottom: 1.6vh;
+}
+
+/* ============================================================
+   Multi-column content layouts
+   ============================================================ */
+.content-cols-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2vw;
+  flex: 1;
+}
+
+.content-cols-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1vw;
+  flex: 1;
+}
+
+.col-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4vh;
+}
+
+.col-section .col-heading {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: max(11px, 0.75vw);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  padding-bottom: 0.3vh;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.1);
+  margin-bottom: 0.3vh;
+}
+
+/* ============================================================
+   Task list (for classroom tasks)
+   ============================================================ */
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8vh;
+}
+
+.task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6vw;
+  padding: 0.4vh 0;
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.06);
+}
+
+.task-item .num {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: max(14px, 0.95vw);
+  opacity: 0.5;
+  min-width: 1.8em;
+  flex-shrink: 0;
+}
+
+.task-item .text {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: max(15px, 1.05vw);
+  line-height: 1.45;
+  opacity: 0.88;
+}
+
+/* ============================================================
+   TOC grid
+   ============================================================ */
+.toc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6vh 1.2vw;
+  flex: 1;
+  align-content: center;
+}
+
+.toc-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6vw;
+  padding: 0.8vh 0.6vw;
+  border-left: 2px solid var(--accent);
+}
+
+.toc-item .idx {
+  font-family: var(--font-mono);
+  font-size: max(12px, 0.75vw);
+  font-weight: 500;
+  opacity: 0.4;
+  min-width: 1.8em;
+}
+
+.toc-item .info .name {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: max(15px, 1.1vw);
+  line-height: 1.3;
+}
+
+.toc-item .info .desc {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: max(13px, 0.85vw);
+  opacity: 0.65;
+  margin-top: 0.1vh;
+}
+
+/* ============================================================
+   Navigation
+   ============================================================ */
+#nav {
+  position: fixed;
+  left: 50%;
+  bottom: 1.8vh;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.12);
+  backdrop-filter: blur(6px);
+}
+
+#nav .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(var(--ink-rgb), 0.25);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 0;
+  padding: 0;
+}
+
+#nav .dot:hover {
+  background: rgba(var(--ink-rgb), 0.45);
+  transform: scale(1.2);
+}
+
+#nav .dot.active {
+  background: rgba(var(--ink-rgb), 0.85);
+  width: 18px;
+  border-radius: 999px;
+}
+
+#hint {
+  position: fixed;
+  bottom: 1.8vh;
+  right: 2vw;
+  z-index: 30;
+  font-family: var(--font-mono);
+  font-size: max(8px, 0.5vw);
+  letter-spacing: 0.15em;
+  opacity: 0.3;
+  color: var(--ink);
+}
+
+/* ============================================================
+   Flow diagram (simple text-based)
+   ============================================================ */
+.flow-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3vw;
+  margin: 0.6vh 0;
+  flex-wrap: wrap;
+}
+
+.flow-step {
+  background: rgba(var(--ink-rgb), 0.06);
+  font-family: var(--font-mono);
+  font-size: max(11px, 0.7vw);
+  padding: 0.3vh 0.6vw;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.flow-arrow {
+  font-family: var(--font-mono);
+  font-size: max(10px, 0.6vw);
+  opacity: 0.4;
+}
+
+/* ============================================================
+   Link styling
+   ============================================================ */
+.resource-link {
+  font-family: var(--font-mono);
+  font-size: max(10px, 0.65vw);
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(var(--accent), 0.3);
+  word-break: break-all;
+}
+
+.resource-link:hover {
+  border-bottom-color: var(--accent);
+}
+
+/* ============================================================
+   Print & PDF
+   ============================================================ */
+@media print {
+  body::before { display: none; }
+  #deck { width: auto !important; display: block; transform: none !important; }
+  .slide { width: 100vw !important; height: 100vh !important; flex: none !important; page-break-after: always; }
+  #nav, #hint { display: none; }
+}
+
+/* Responsive fallback */
+@media (max-width: 1200px) {
+  :root { --sidebar-width: 22vw; }
+  .page-title { font-size: max(20px, 2.2vw); }
+  .body-text { font-size: max(14px, 1.1vw); }
+  .code-block { font-size: max(11px, 0.72vw); }
+}
+</style>
+<style>
+/* ===== inlined unified course styles for standalone distribution ===== */
+/* Course-wide visual normalization.
+   This file intentionally mirrors the warm academic style of 1.html while
+   preserving each deck's existing navigation/runtime structure. */
+:root{
+  --bg:#faf7f0!important;
+  --bg-soft:#f0ece0!important;
+  --surface:#ffffff!important;
+  --surface-2:#f7f1e3!important;
+  --border:rgba(90,60,30,.13)!important;
+  --border-strong:rgba(90,60,30,.28)!important;
+  --text-1:#2a1f12!important;
+  --text-2:#5a4a33!important;
+  --text-3:#8a7859!important;
+  --accent:#3b7a5a!important;
+  --accent-2:#c4812a!important;
+  --accent-3:#b8452e!important;
+  --paper:#faf7f0!important;
+  --paper-tint:#f0ece0!important;
+  --paper-rgb:250,247,240!important;
+  --ink:#2a1f12!important;
+  --ink-rgb:42,31,18!important;
+  --ink-tint:#5a4a33!important;
+  --code-bg:#2a1f12!important;
+  --radius:14px!important;
+  --radius-sm:12px!important;
+  --shadow:0 8px 24px rgba(90,60,30,.07)!important;
+  --font-sans:'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif!important;
+  --font-serif:'Playfair Display','Noto Serif SC',Georgia,serif!important;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace!important;
+}
+html,body,#deck,.deck{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+  font-family:var(--font-sans)!important;
+  letter-spacing:-.01em;
+}
+.slide,
+section[class*="slide"],
+.slide.light,
+.slide.dark,
+.slide-cover,
+.slide-divider{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+}
+.slide.full,
+.cover,
+.slide-cover{
+  background:var(--bg)!important;
+}
+.main,
+.content,
+.slide-content,
+.main-content,
+.right,
+.body,
+.stage{
+  color:var(--text-1)!important;
+  min-height:0!important;
+}
+h1,h2,h3,
+.h1,.h2,.h3,
+.slide-title,
+.cover-title,
+.end-title,
+.h-hero,
+.h-xl,
+.main h1,
+.main h2,
+.main h3{
+  font-family:var(--font-serif)!important;
+  color:var(--text-1)!important;
+  letter-spacing:-.02em!important;
+}
+h1,.h1,.cover-title,.slide-title,.h-hero{
+  font-weight:800!important;
+}
+h2,.h2,.h-xl{
+  font-weight:700!important;
+}
+p,li,td,th,.lede,.dim,.dim2,.fn-desc,.body-text,.txt,.label{
+  color:var(--text-2);
+}
+strong,b{color:var(--text-1)}
+.kicker,
+.eyebrow,
+.module-label,
+.sidebar-module-label,
+.module-code,
+.obj-label,
+.obj-title,
+.obj-header,
+.objectives-title,
+.lb-title,
+.sidebar-label{
+  color:var(--accent-2)!important;
+  font-family:var(--font-sans)!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  letter-spacing:.14em!important;
+  text-transform:uppercase!important;
+}
+.sidebar,
+aside.sidebar,
+.learning-sidebar,
+.slide-sidebar,
+.left-col{
+  background:transparent!important;
+  border-right:1px solid var(--border)!important;
+  border-left:0!important;
+  padding-right:24px!important;
+  color:var(--text-2)!important;
+  box-shadow:none!important;
+}
+.sidebar-title,
+.module-title,
+.sidebar-module,
+.lb-module,
+.brand,
+.sidebar .brand{
+  font-family:var(--font-serif)!important;
+  color:var(--accent)!important;
+  font-size:20px!important;
+  line-height:1.25!important;
+  font-weight:700!important;
+}
+.obj-list,
+.objectives,
+.objective-list,
+.learning-sidebar ul,
+.slide-sidebar ul{
+  list-style:none!important;
+  padding:0!important;
+  margin:0!important;
+  font-family:var(--font-sans)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+  color:var(--text-2)!important;
+}
+.obj-list li,
+.objectives li,
+.objective-list li,
+.learning-sidebar li,
+.slide-sidebar li{
+  position:relative!important;
+  padding:7px 0 7px 22px!important;
+  border-bottom:1px dashed var(--border)!important;
+  color:var(--text-2)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+}
+.obj-list li::before,
+.objectives li::before,
+.objective-list li::before,
+.learning-sidebar li::before,
+.slide-sidebar li::before{
+  content:"○"!important;
+  position:absolute!important;
+  left:0!important;
+  top:7px!important;
+  color:var(--accent)!important;
+  width:auto!important;
+  height:auto!important;
+  background:transparent!important;
+  border-radius:0!important;
+  opacity:1!important;
+}
+.obj-list li.current::before,
+.objectives li.current::before,
+.objective-list li.current::before,
+.obj-list li.highlight::before,
+.objectives li.highlight::before,
+.objective-list li.highlight::before{
+  content:"▸"!important;
+  color:var(--accent-2)!important;
+}
+.obj-list li.current,
+.objectives li.current,
+.objective-list li.current,
+.obj-list li.highlight,
+.objectives li.highlight,
+.objective-list li.highlight{
+  color:var(--text-1)!important;
+  font-weight:700!important;
+}
+.card,
+.concept-box,
+.col-item,
+.metric-card,
+.panel,
+.info-card,
+.tip-box,
+.callout-box,
+.comp-item,
+.diagram-box,
+.data-card,
+.feature-card,
+.task-card,
+.warning-card,
+.workflow-card{
+  background:var(--surface)!important;
+  border:1px solid var(--border)!important;
+  border-radius:var(--radius)!important;
+  box-shadow:var(--shadow)!important;
+  color:var(--text-1)!important;
+}
+.card-accent,
+.accent-card,
+.concept-box h4{
+  border-color:var(--border)!important;
+}
+.callout,
+.tip,
+.note-box{
+  background:var(--surface-2)!important;
+  border-left:4px solid var(--accent-2)!important;
+  border-radius:0 var(--radius) var(--radius) 0!important;
+  color:var(--text-2)!important;
+}
+.warn-box,
+.warning,
+.alert{
+  background:rgba(196,129,42,.08)!important;
+  border:1px solid rgba(196,129,42,.3)!important;
+  border-radius:var(--radius)!important;
+  color:var(--text-2)!important;
+}
+.course-bridge{
+  max-width:72ch;
+  margin-top:16px!important;
+  padding:10px 16px!important;
+  font-size:13px!important;
+  line-height:1.45!important;
+}
+.course-bridge b{
+  color:var(--accent-2)!important;
+}
+
+
+.slide > .sidebar + .main-content + .course-bridge{
+  left:calc(18vw + 3vw)!important;
+  max-width:min(760px,70vw)!important;
+}
+
+.slide > .course-bridge,
+.hero .course-bridge,
+.slide.full .course-bridge,
+section.full .course-bridge{
+  position:absolute!important;
+  left:6vw!important;
+  right:auto!important;
+  bottom:9vh!important;
+  max-width:min(760px,64vw)!important;
+  margin:0!important;
+  z-index:3!important;
+}
+.slide.compact .h2,
+section.compact .h2,
+.slide.compact h2,
+section.compact h2{
+  font-size:clamp(25px,2.15vw,34px)!important;
+  line-height:1.12!important;
+  margin-bottom:6px!important;
+}
+.slide.compact .lede,
+section.compact .lede,
+.slide.compact .fn-desc,
+section.compact .fn-desc,
+.slide.compact p,
+section.compact p{
+  font-size:clamp(13px,1.05vw,16px)!important;
+  line-height:1.45!important;
+}
+.slide.compact .card,
+section.compact .card,
+.slide.compact .concept-box,
+section.compact .concept-box,
+.slide.compact .col-item,
+section.compact .col-item{
+  padding:12px 15px!important;
+}
+.slide.compact .concept-box h4,
+section.compact .concept-box h4,
+.slide.compact .card h4,
+section.compact .card h4{
+  font-size:clamp(14px,1.1vw,17px)!important;
+  line-height:1.25!important;
+  margin-bottom:4px!important;
+}
+.slide.compact .grid,
+section.compact .grid{
+  gap:12px!important;
+}
+.slide.compact .mt-l,
+section.compact .mt-l{
+  margin-top:14px!important;
+}
+.slide.compact .mt-m,
+section.compact .mt-m{
+  margin-top:8px!important;
+}
+.problem-grid .concept-box{
+  min-height:118px;
+}
+.problem-grid .concept-box:last-child{
+  grid-column:1/-1;
+  min-height:96px;
+}
+.slide.code-heavy .code-block,
+section.code-heavy .code-block{
+  font-size:clamp(10px,.82vw,12px)!important;
+  line-height:1.28!important;
+  padding:10px 12px!important;
+}
+.slide.compact .data-table th,
+.slide.compact .data-table td,
+section.compact .data-table th,
+section.compact .data-table td{
+  padding:4px 7px!important;
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.3!important;
+}
+.slide.compact .code-block,
+section.compact .code-block{
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.35!important;
+  padding:10px 12px!important;
+}
+pre,
+code,
+.code,
+.code-block,
+.code-panel{
+  font-family:var(--font-mono)!important;
+}
+pre,
+.code,
+.code-block,
+.code-panel{
+  background:#2a1f12!important;
+  color:#f0ece0!important;
+  border:0!important;
+  border-radius:var(--radius)!important;
+  box-shadow:none!important;
+}
+code:not(pre code){
+  background:rgba(90,60,30,.08)!important;
+  color:var(--text-1)!important;
+}
+table,
+.data-table{
+  border-color:var(--border)!important;
+}
+th,
+.data-table th{
+  background:var(--surface-2)!important;
+  color:var(--text-1)!important;
+}
+td,
+.data-table td{
+  background:var(--surface)!important;
+  color:var(--text-2)!important;
+}
+.pill,
+.pill-academic,
+.tag,
+.badge{
+  background:var(--surface-2)!important;
+  color:var(--text-2)!important;
+  border:1px solid var(--border)!important;
+  border-radius:4px!important;
+  font-family:var(--font-mono)!important;
+}
+.pill-accent,
+.tag.accent,
+.badge.accent{
+  color:var(--accent)!important;
+  border-color:color-mix(in srgb,var(--accent) 28%,transparent)!important;
+}
+.deck-footer,
+.page-meta,
+.footer,
+.slide-meta{
+  color:var(--text-3)!important;
+}
+.progress-bar>span,
+.progress,
+.progress-dot.active,
+.dot.active{
+  background:var(--accent)!important;
+}
+svg text{font-family:var(--font-sans)!important}
+/* ===== end inlined unified course styles ===== */
+</style>
+</head>
+<body>
+
+<div id="hint">← → · PgUp/PgDn 翻页 · ESC 索引</div>
+
+<div id="deck">
+
+<!-- ============================================================
+     SLIDE 01 · Cover
+     ============================================================ -->
+<section class="slide">
+<div class="slide-cover">
+  <div class="cover-number">计算机视觉 · 目标检测系列</div>
+  <h1>YOLO 训练、验证、<br>调参与实验复现</h1>
+  <p class="subtitle">从训练前检查到实验复现的完整流程</p>
+  <p class="meta">课程材料 · 计算机视觉检测实践</p>
+</div>
+
+  <div class="callout course-bridge"><b>课程衔接。</b>承接数据集构建，本讲进入训练、验证、调参与实验复现，重点建立可记录、可比较、可复现的实验流程。</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 02 · Table of Contents
+     ============================================================ -->
+<section class="slide" style="grid-template-columns: 1fr;">
+<div class="slide-divider-light" style="padding: 4vh 6vw;">
+  <div class="section-num">Overview · 课程概览</div>
+  <h2 style="margin-bottom: 3vh;">教学目录</h2>
+  <div class="toc-grid">
+    <div class="toc-item"><div class="idx">01</div><div class="info"><div class="name">训练前检查清单</div><div class="desc">数据、类别、权重、配置的完备性验证</div></div></div>
+    <div class="toc-item"><div class="idx">02</div><div class="info"><div class="name">训练命令参数详解</div><div class="desc">完整命令结构与各参数的技术含义</div></div></div>
+    <div class="toc-item"><div class="idx">03</div><div class="info"><div class="name">迁移学习</div><div class="desc">预训练权重的使用策略与局限性分析</div></div></div>
+    <div class="toc-item"><div class="idx">04</div><div class="info"><div class="name">损失函数拆解</div><div class="desc">定位、置信度、分类三类损失的核心原理</div></div></div>
+    <div class="toc-item"><div class="idx">05</div><div class="info"><div class="name">数据增强方法</div><div class="desc">基础增强与高级策略的技术细节与约束</div></div></div>
+    <div class="toc-item"><div class="idx">06</div><div class="info"><div class="name">训练曲线解读</div><div class="desc">精度、召回率、mAP 等指标的现象分析</div></div></div>
+    <div class="toc-item"><div class="idx">07</div><div class="info"><div class="name">调参策略</div><div class="desc">输入尺寸、学习率、Anchor 等参数调节方法</div></div></div>
+    <div class="toc-item"><div class="idx">08</div><div class="info"><div class="name">错误分析与实验复现</div><div class="desc">漏检误检诊断与可复现实验管理规范</div></div></div>
+  </div>
+  <div style="margin-top: auto; font-family:var(--font-mono); font-size:max(9px,0.55vw); opacity:0.35; letter-spacing:0.15em;">2 / 37 · 课程结构 · 90 分钟（两节连堂）</div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 03 · Chapter 1: 训练前检查 — Section Cover
+     ============================================================ -->
+<section class="slide">
+<div class="slide-divider">
+  <div class="left-col">
+    <div class="section-num">Chapter 01 · Pre-flight Checklist</div>
+    <h2>训练前检查清单</h2>
+    <p class="desc">训练失败通常不是模型架构问题，而是准备工作存在漏洞。系统化的训练前检查可避免大多数常见错误。</p>
+  </div>
+  <div class="right-col">
+    <div class="point"><span class="dot">◆</span><span class="text">验证 data.yaml 路径、类别数量、标签格式的完备性</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">检查图片完整性：空图、损坏图、重复图逐一排查</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">确认预训练权重与模型结构严格匹配</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">训练集/验证集划分合理，分布一致</span></div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 04 · 训练前检查 (1)
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 01</div>
+  <div class="sidebar-module">训练前检查清单</div>
+  <div class="objectives-title">检查要点</div>
+  <ul class="objective-list">
+    <li>验证 data.yaml 路径与格式</li>
+    <li>确认类别数量一致性</li>
+    <li>检查图片与标签匹配关系</li>
+    <li>验证标签坐标归一化</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>训练前检查 · 数据验证</span><span>04 / 37</span></div>
+  <div class="page-title">数据配置与标签完整性验证</div>
+
+  <div class="body-text"><span class="inline-code">data.yaml</span> 是训练入口配置文件，其路径正确性是训练启动的第一道关口。建议使用绝对路径或相对于项目根目录的路径。</div>
+
+  <div class="info-box">
+    <div class="title">data.yaml 标准结构</div>
+    <div class="code-block">
+<span class="comment"># 数据集配置文件示例</span>
+train: /path/to/dataset/images/train
+val: /path/to/dataset/images/val
+<span class="comment"># test: (可选)测试集路径</span>
+
+nc: 4  <span class="comment"># 类别数量，必须与标签文件匹配</span>
+names: ['helmet', 'head', 'person', 'vest']  <span class="comment"># 类别名称列表</span>
+    </div>
+  </div>
+
+  <div class="body-text-sm">类别数量 <span class="inline-code">nc</span> 必须与模型配置文件中的 <span class="inline-code">nc</span> 严格一致，同时与标签文件中出现的类别索引范围匹配。类别索引从 0 开始，最大索引值应小于 <span class="inline-code">nc</span>。</div>
+
+  <div class="warn-box">
+    <div class="title">常见错误</div>
+    <div class="body">标签文件中出现 <span class="inline-code">class_id</span> 超出 <span class="inline-code">[0, nc-1]</span> 范围时，训练过程会静默跳过该标签，导致有效训练样本减少但不报错。建议在训练前使用脚本扫描标签文件，统计类别索引分布。</div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 05 · 训练前检查 (2)
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 01</div>
+  <div class="sidebar-module">训练前检查清单</div>
+  <div class="objectives-title">检查要点</div>
+  <ul class="objective-list">
+    <li>检查图片完整性</li>
+    <li>验证数据集划分合理性</li>
+    <li>确认预训练权重匹配</li>
+    <li>了解常见环境问题</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>训练前检查 · 数据与权重校验</span><span>05 / 37</span></div>
+  <div class="page-title">图片完整性、数据集划分与权重匹配</div>
+
+  <div class="body-text-sm">训练集中不应存在空图片、损坏图片或重复图片。空图片（全黑或全白）会导致梯度计算异常；损坏图片会导致解码失败；重复图片会造成训练集与验证集之间的数据泄露，使验证指标虚高。</div>
+
+  <div class="info-box">
+    <div class="title">图片完整性检查脚本</div>
+    <div class="code-block">
+<span class="comment">#!/bin/bash</span>
+<span class="comment"># 检查图片完整性</span>
+find /path/to/dataset -name "*.jpg" -o -name "*.png" | while read img; do
+  python3 -c "
+import cv2
+try:
+    img = cv2.imread('$img')
+    if img is None:
+        print(f'损坏: $img')
+    elif img.size == 0:
+        print(f'空图: $img')
+except Exception as e:
+    print(f'错误: $img - {e}')
+"
+done
+    </div>
+  </div>
+
+  <div class="content-cols-2" style="margin-top: 0.6vh;">
+    <div>
+      <div class="label-mono">数据集划分比例</div>
+      <div class="body-text-sm">训练集与验证集的典型比例为 8:2 或 9:1。验证集应覆盖各类别且分布与训练集接近。若验证集分布偏移严重，mAP 指标将失去参考价值。</div>
+    </div>
+    <div>
+      <div class="label-mono">预训练权重</div>
+      <div class="body-text-sm">选用预训练权重时，需确保模型结构与权重的 <span class="inline-code">.yaml</span> 配置文件一致。YOLOv5 的 <span class="inline-code">yolov5s.pt</span>、<span class="inline-code">yolov5m.pt</span>、<span class="inline-code">yolov5l.pt</span> 对应不同规模的网络结构，不可混用。</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 06 · Chapter 2: 训练命令参数 — Section Cover
+     ============================================================ -->
+<section class="slide">
+<div class="slide-divider">
+  <div class="left-col">
+    <div class="section-num">Chapter 02 · Training Command</div>
+    <h2>训练命令参数详解</h2>
+    <p class="desc">训练命令不是不可理解的咒语。每个参数都对应一个训练假设，理解其含义是实现有效训练的前提。</p>
+  </div>
+  <div class="right-col">
+    <div class="point"><span class="dot">◆</span><span class="text">--data / --weights / --img / --batch / --epochs / --device 六大核心参数</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">多 GPU 训练与断点续训（--resume）操作流程</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">参数选择对应训练假设：img 决定感受野，batch 影响梯度噪声</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">CPU 训练仅适合调试，速度约为 GPU 的 1/50–1/100</span></div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 07 · 训练命令详解
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 02</div>
+  <div class="sidebar-module">训练命令参数详解</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>掌握完整训练命令结构</li>
+    <li>理解每个参数的技术含义</li>
+    <li>学会根据场景调整参数</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>训练命令 · 标准训练命令结构与参数表</span><span>07 / 37</span></div>
+  <div class="page-title">YOLOv5 训练命令标准格式</div>
+
+  <div class="body-text-sm">以下命令展示一次完整的 YOLOv5 训练过程。以安全帽检测数据集为例，使用预训练权重进行迁移学习。</div>
+
+  <div class="code-block">
+python train.py \
+    --data data/helmet.yaml \
+    --weights yolov5s.pt \
+    --img 640 \
+    --batch 16 \
+    --epochs 100 \
+    --device 0 \
+    --project runs/train \
+    --name helmet-exp01
+  </div>
+
+  <div class="label-mono">参数对照表</div>
+  <table class="param-table">
+    <tr><th>参数</th><th>含义</th><th>说明</th></tr>
+    <tr><td>--data</td><td>数据配置文件路径</td><td>指向 YAML 格式的数据集描述文件</td></tr>
+    <tr><td>--weights</td><td>预训练权重路径</td><td>支持 .pt（PyTorch）格式或空权重 ''</td></tr>
+    <tr><td>--img</td><td>输入图像尺寸（像素）</td><td>训练时所有图像会 resize 到此尺寸；典型值 416/512/640</td></tr>
+    <tr><td>--batch</td><td>批大小（batch size）</td><td>单次迭代使用的图像数量，受 GPU 显存限制</td></tr>
+    <tr><td>--epochs</td><td>完整遍历训练集次数</td><td>一个 epoch = 全部训练数据前向+反向传播一次</td></tr>
+    <tr><td>--device</td><td>计算设备编号</td><td>0,1,2... 为 GPU 编号；'cpu' 使用 CPU 训练</td></tr>
+    <tr><td>--project</td><td>输出根目录</td><td>训练结果（权重、日志、曲线）的存储根路径</td></tr>
+    <tr><td>--name</td><td>实验子目录名称</td><td>与 --project 拼接为完整输出路径</td></tr>
+  </table>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 08 · 参数详解续
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 02</div>
+  <div class="sidebar-module">训练命令参数详解</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>理解设备选择策略</li>
+    <li>掌握 resume 恢复训练</li>
+    <li>了解高级参数选项</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>训练命令 · 设备选择与恢复训练</span><span>08 / 37</span></div>
+  <div class="page-title">多 GPU 训练与断点续训</div>
+
+  <div class="body-text-sm">当单卡显存不足时，可使用数据并行（DataParallel）或分布式数据并行（DistributedDataParallel）进行多 GPU 训练。</div>
+
+  <div class="content-cols-2">
+    <div>
+      <div class="code-block">
+<span class="comment"># 多 GPU 训练（DataParallel）</span>
+python train.py --device 0,1 --batch 32
+<span class="comment"># 指定 GPU 0 和 1，batch 自动分配到各卡</span>
+
+<span class="comment"># DDP 训练（推荐）</span>
+python -m torch.distributed.run \
+    --nproc_per_node 2 train.py \
+    --batch 32 --device 0,1
+      </div>
+    </div>
+    <div>
+      <div class="code-block">
+<span class="comment"># 从断点恢复训练</span>
+python train.py --resume \
+    runs/train/helmet-exp01/weights/last.pt
+
+<span class="comment"># 或自动恢复最近的检查点</span>
+python train.py --resume
+
+<span class="comment"># 恢复时会自动读取：</span>
+<span class="comment">#  - 优化器状态</span>
+<span class="comment">#  - 学习率调度器状态</span>
+<span class="comment">#  - 已完成的 epoch 数</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="body-text-sm" style="margin-top: 0.4vh;">CPU 训练（<span class="inline-code">--device cpu</span>）仅适用于小规模调试场景，速度约为 GPU 的 1/50–1/100。对于教学环境，建议使用显存 ≥ 8GB 的单卡（如 RTX 3070 以上），可支持 <span class="inline-code">--batch 16 --img 640</span>。</div>
+
+  <div class="info-box">
+    <div class="title">预训练权重下载地址</div>
+    <div class="body">
+      YOLOv5 官方权重：<a class="resource-link" href="https://github.com/ultralytics/yolov5/releases" target="_blank">github.com/ultralytics/yolov5/releases</a><br>
+      可使用 <span class="inline-code">torch.hub.load('ultralytics/yolov5', 'yolov5s')</span> 自动下载<br>
+      YOLOv8 官方权重：<a class="resource-link" href="https://docs.ultralytics.com/models/yolov8/" target="_blank">docs.ultralytics.com/models/yolov8/</a>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 09 · Chapter 3: 迁移学习 — Section Cover
+     ============================================================ -->
+<section class="slide">
+<div class="slide-divider">
+  <div class="left-col">
+    <div class="section-num">Chapter 03 · Transfer Learning</div>
+    <h2>迁移学习</h2>
+    <p class="desc">预训练模型已在大规模数据上学到通用视觉特征，迁移学习是将这些知识适配到特定任务的关键技术。</p>
+  </div>
+  <div class="right-col">
+    <div class="point"><span class="dot">◆</span><span class="text">加速收敛 5–10 倍，降低数据需求至数百张即可</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">冻结 backbone 策略：小数据集冻结，大数据全量微调</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">Domain Shift 风险：医学影像等域差异大时需更多微调数据</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">迁移学习初始学习率设为默认值的 0.1–0.5 倍</span></div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 10 · 迁移学习原理
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 03</div>
+  <div class="sidebar-module">迁移学习</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>理解迁移学习的原理</li>
+    <li>掌握预训练权重使用方法</li>
+    <li>了解冻结训练策略</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>迁移学习 · 原理与预训练权重策略</span><span>10 / 37</span></div>
+  <div class="page-title">迁移学习的核心机制</div>
+
+  <div class="body-text">预训练模型在 ImageNet（1,000 类、1,400 万张图像）或 COCO（80 类、33 万张图像）等大规模数据集上完成训练后，其 backbone 已习得通用的视觉特征提取能力——边缘检测、纹理识别、形状感知乃至部分语义结构。</div>
+
+  <div class="content-cols-2">
+    <div>
+      <div class="label-mono">迁移学习的优势</div>
+      <div class="body-text-sm">• 加速收敛：预训练权重的初始特征提取质量远高于随机初始化，通常可将训练收敛时间缩短 5–10 倍<br>• 降低数据需求：即使只有数百张标注图像，迁移学习仍能取得可用结果<br>• 提高初始效果：第一个 epoch 的 mAP 即可达到随机初始化数十个 epoch 后的水平<br>• 减少训练不稳定：预训练权重提供的良好初始状态降低了 Loss 发散风险</div>
+    </div>
+    <div>
+      <div class="label-mono">冻结训练策略</div>
+      <div class="body-text-sm">冻结 backbone（<span class="inline-code">freeze</span> 参数）可在训练初期保持预训练特征不变，仅训练检测头。适用于目标数据集与预训练数据分布差异较小的场景。<br><br>命令示例：</div>
+      <div class="code-block" style="font-size:max(11px,0.68vw);">
+<span class="comment"># 冻结 backbone 前 10 层</span>
+python train.py --weights yolov5s.pt \
+    --freeze 10
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 11 · 迁移学习的局限
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 03</div>
+  <div class="sidebar-module">迁移学习</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>识别迁移学习的适用边界</li>
+    <li>掌握微调策略的调整方法</li>
+    <li>了解领域差异的应对措施</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>迁移学习 · 局限性与微调策略</span><span>11 / 37</span></div>
+  <div class="page-title">迁移学习的局限性分析</div>
+
+  <div class="body-text-sm">预训练权重并非万能。当目标域与预训练域存在显著差异时，迁移学习的效果会大幅下降。以下情形需要特别注意：</div>
+
+  <div class="feature-grid">
+    <div class="feature-item">
+      <div class="name">Domain Shift</div>
+      <div class="desc">若目标数据集为医学影像（X 光片、CT），而预训练数据为自然图像（COCO），则 backbone 提取的底层特征（边缘、纹理）仍有一定价值，但高层语义特征需要大量微调数据来覆盖。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">类别差异</div>
+      <div class="desc">预训练模型的分类头包含的类别数（COCO 为 80 类）与目标任务不同时，模型会自动裁剪匹配的分类层。若目标类别不足 10 类且与预训练类别高度相关，可考虑全量微调。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">数据量阈值</div>
+      <div class="desc">当目标数据集小于 200 张图像时，应冻结 backbone 仅训练检测头；200–1,000 张时可逐步解冻；超过 1,000 张后可尝试全量微调。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">学习率调整</div>
+      <div class="desc">迁移学习场景下，初始学习率通常设为默认值的 0.1–0.5 倍，避免过大的梯度更新破坏预训练特征。后续可根据 Loss 下降趋势逐步恢复。</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 12 · Chapter 4: 损失函数 — Section Cover
+     ============================================================ -->
+<section class="slide">
+<div class="slide-divider">
+  <div class="left-col">
+    <div class="section-num">Chapter 04 · Loss Functions</div>
+    <h2>YOLO 损失函数拆解</h2>
+    <p class="desc">YOLO 训练包含三类核心损失：定位损失、目标置信度损失、分类损失。理解其构成是诊断训练问题的理论基础。</p>
+  </div>
+  <div class="right-col">
+    <div class="point"><span class="dot">◆</span><span class="text">定位损失：IoU → GIoU → DIoU → CIoU 的演进路径</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">置信度损失：决定模型"敢不敢报框"——obj loss 高说明背景与目标难区分</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">分类损失：BCE Loss 多标签分类——cls loss 不收敛说明类别定义模糊</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">关注 Loss 下降趋势而非绝对值，前 10 epoch 最具诊断价值</span></div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 13 · 定位损失
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 04</div>
+  <div class="sidebar-module">损失函数拆解</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>理解 IoU 系列损失原理</li>
+    <li>掌握 GIoU、DIoU、CIoU 差异</li>
+    <li>理解 loc loss 的监控意义</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>损失函数 · 定位损失 · Localization Loss</span><span>13 / 37</span></div>
+  <div class="page-title">IoU 系列定位损失</div>
+
+  <div class="body-text-sm">定位损失衡量预测边界框与真实标注框之间的位置差异。现代 YOLO 普遍采用 IoU（Intersection over Union）系列损失替代传统的 L1/L2 坐标差损失，因为 IoU 损失与最终的检测质量评价指标（mAP）更为契合。</div>
+
+  <div class="feature-grid cols-3">
+    <div class="feature-item">
+      <div class="name">GIoU</div>
+      <div class="value">Generalized IoU</div>
+      <div class="desc">在 IoU 基础上引入最小外接矩形惩罚项，解决 IoU 为 0 时梯度消失的问题。当预测框与真实框不重叠时，GIoU 仍能提供有意义的梯度方向。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">DIoU</div>
+      <div class="value">Distance IoU</div>
+      <div class="desc">在 GIoU 的基础上用中心点距离替代外接矩形惩罚，直接优化框的中心位置对齐。收敛速度优于 GIoU，尤其适用于中心偏移较大的情况。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">CIoU</div>
+      <div class="value">Complete IoU</div>
+      <div class="desc">在 DIoU 基础上增加长宽比一致性惩罚项，同时考虑重叠面积、中心点距离和长宽比三个几何要素。YOLOv5 默认使用 CIoU Loss。</div>
+    </div>
+  </div>
+
+  <div class="code-block" style="font-size:max(11px,0.68vw);">
+<span class="comment"># CIoU Loss 计算公式示意</span>
+L_CIoU = 1 - IoU + (ρ²(b, b_gt) / c²) + α·v
+
+<span class="comment"># ρ²  = 预测框与真实框中心点的欧式距离平方</span>
+<span class="comment"># c   = 最小外接矩形对角线长度</span>
+<span class="comment"># v   = 长宽比一致性度量</span>
+<span class="comment"># α   = 平衡系数</span>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 14 · 置信度损失与分类损失
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 04</div>
+  <div class="sidebar-module">损失函数拆解</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>理解置信度损失含义</li>
+    <li>理解分类损失含义</li>
+    <li>学会根据 Loss 判断训练状态</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>损失函数 · 置信度损失与分类损失</span><span>14 / 37</span></div>
+  <div class="page-title">目标置信度损失与分类损失</div>
+
+  <div class="content-cols-2">
+    <div>
+      <div class="label-mono">Objectness Loss</div>
+      <div class="body-text-sm">目标置信度损失（<span class="inline-code">obj loss</span>）衡量模型判断"某个位置是否存在目标"的能力。该损失直接影响模型"是否敢于输出预测框"的决策阈值。</div>
+      <div class="info-box" style="margin-top: 0.8vh;">
+        <div class="title">obj loss 异常的诊断</div>
+        <div class="body">
+          • obj loss 持续偏高 → 背景与目标难以区分，可能是标注框不精确或背景区域与目标外观相似<br>
+          • obj loss 波动剧烈 → 训练不稳定，batch size 过小或学习率过大
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="label-mono">Classification Loss</div>
+      <div class="body-text-sm">分类损失（<span class="inline-code">cls loss</span>）衡量模型对目标类别预测的准确性。YOLO 使用二元交叉熵损失（BCE Loss）进行多标签分类。</div>
+      <div class="warn-box" style="margin-top: 0.8vh;">
+        <div class="title">cls loss 异常诊断</div>
+        <div class="body">
+          • cls loss 收敛但精度低 → 类别间相似度高，需检查标注质量<br>
+          • cls loss 不收敛 → 类别定义模糊或标注中存在类别混淆
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="code-block" style="margin-top: 0.4vh;">
+<span class="comment"># 训练日志中的损失输出示例</span>
+     Epoch   GPU_mem      box_loss      obj_loss      cls_loss    Instances       Size
+      49/99       6.7G      0.03245       0.04521      0.01234          125       640: 100%|████| 50/50 [01:12&lt;00:00,  1.44s/it]
+      50/99       6.7G      0.03212       0.04498      0.01211          132       640: 100%|████| 50/50 [01:11&lt;00:00,  1.42s/it]
+
+<span class="comment"># box_loss = 定位损失（CIoU）</span>
+<span class="comment"># obj_loss = 目标置信度损失</span>
+<span class="comment"># cls_loss = 分类损失</span>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 15 · 损失曲线综合解读
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 04</div>
+  <div class="sidebar-module">损失函数拆解</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>学会综合解读三类损失曲线</li>
+    <li>能够根据曲线诊断训练问题</li>
+    <li>掌握 Loss 分析的决策逻辑</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>损失函数 · 综合诊断方法</span><span>15 / 37</span></div>
+  <div class="page-title">训练曲线综合诊断矩阵</div>
+
+  <table class="param-table">
+    <tr><th>现象</th><th>可能原因</th><th>建议措施</th></tr>
+    <tr><td>box_loss 下降快但 mAP 停滞</td><td>定位已充分优化，但检测策略（obj/cls）存在问题</td><td>检查数据增强配置或类别标注一致性</td></tr>
+    <tr><td>obj_loss 偏高且不下降</td><td>正负样本不均衡严重，背景样本占绝对主导</td><td>调整 focal loss 参数 γ，或增加正样本采样策略</td></tr>
+    <tr><td>cls_loss 持续震荡</td><td>类别间边界模糊，部分类别样本量严重不足</td><td>统计各类别样本数，对少样本类别进行过采样</td></tr>
+    <tr><td>三类 Loss 均下降但验证 mAP 波动</td><td>验证集规模过小或验证集标注存在噪声</td><td>检查验证集标注质量，增大验证集规模</td></tr>
+    <tr><td>训练 Loss 下降，验证 Loss 上升</td><td>过拟合</td><td>增加数据增强强度、降低 epoch 数、添加正则化</td></tr>
+  </table>
+
+  <div class="info-box" style="margin-top: 0.8vh;">
+    <div class="title">诊断基本原则</div>
+    <div class="body">训练日志中的 Loss 值是各尺度特征图上所有样本的平均值，绝对值的大小取决于图像尺寸、类别数和标注密度等因素。因此，相比 Loss 的绝对值，更应关注 Loss 曲线的下降趋势和相对变化幅度。Loss 曲线在前 10 个 epoch 的下降速度最具诊断价值。</div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 16 · Chapter 5: 数据增强 — Section Cover
+     ============================================================ -->
+<section class="slide">
+<div class="slide-divider">
+  <div class="left-col">
+    <div class="section-num">Chapter 05 · Data Augmentation</div>
+    <h2>数据增强方法</h2>
+    <p class="desc">数据增强不是随意将图像"变花"，而是通过受控的变换模拟真实世界的视觉变化，提升模型的泛化能力。</p>
+  </div>
+  <div class="right-col">
+    <div class="point"><span class="dot">◆</span><span class="text">基础增强：HFlip / Scale / Crop / Color Jitter 模拟真实光照与视角变化</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">高级增强：Mosaic 拼接 + MixUp 混合，显著提升小目标检测与鲁棒性</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">增强必须符合业务语义——文字不可翻转，工业零件不可随意旋转</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">修改增强参数后务必可视化一个 mini-batch 确认合规性</span></div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 17 · 基础增强方法
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 05</div>
+  <div class="sidebar-module">数据增强方法</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>掌握常见基础增强方法</li>
+    <li>理解各增强的参数配置</li>
+    <li>了解增强的物理意义</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>数据增强 · 基础增强方法</span><span>17 / 37</span></div>
+  <div class="page-title">基础数据增强技术</div>
+
+  <div class="feature-grid">
+    <div class="feature-item">
+      <div class="name">HFlip</div>
+      <div class="value">水平翻转</div>
+      <div class="desc">YOLOv5 默认启用，概率 0.5。适用于左右对称的场景（行人、车辆），不适用于文字识别等方向敏感任务。翻转时标签坐标自动镜像映射。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">Scale</div>
+      <div class="value">随机缩放 (0.5–1.5×)</div>
+      <div class="desc">模拟目标距离变化。缩放后的图像通过 letterbox 填充至固定尺寸，保持目标比例信息。缩放过大会引入过多空白填充区域。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">Crop / Translate</div>
+      <div class="value">随机裁剪与平移</div>
+      <div class="desc">模拟遮挡和局部视角变化。裁剪后的标签需要重新计算坐标并剔除超出边界的部分。平移幅度过大可能导致目标移出图像边界。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">Color Jitter</div>
+      <div class="value">颜色扰动 (HSV)</div>
+      <div class="desc">在 HSV 颜色空间中对色调（H: ±0.015）、饱和度（S: ±0.7）、明度（V: ±0.4）施加随机扰动，模拟光照条件变化。参数通过 <span class="inline-code">hsv_h/hsv_s/hsv_v</span> 配置。</div>
+    </div>
+  </div>
+
+  <div class="code-block" style="font-size:max(11px,0.68vw);">
+<span class="comment"># YOLOv5 数据增强参数配置（data/hyps/hyp.scratch-low.yaml）</span>
+hsv_h: 0.015     <span class="comment"># 色调扰动幅度</span>
+hsv_s: 0.7       <span class="comment"># 饱和度扰动幅度</span>
+hsv_v: 0.4       <span class="comment"># 明度扰动幅度</span>
+degrees: 0.0     <span class="comment"># 旋转角度（默认关闭，对检测任务影响较大）</span>
+translate: 0.1   <span class="comment"># 平移比例</span>
+scale: 0.5       <span class="comment"># 缩放比例</span>
+shear: 0.0       <span class="comment"># 剪切变换（默认关闭）</span>
+perspective: 0.0 <span class="comment"># 透视变换（默认关闭）</span>
+flipud: 0.0      <span class="comment"># 上下翻转概率（默认关闭）</span>
+fliplr: 0.5      <span class="comment"># 左右翻转概率</span>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 18 · 高级增强
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 05</div>
+  <div class="sidebar-module">数据增强方法</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>理解 Mosaic 增强机制</li>
+    <li>理解 MixUp 增强机制</li>
+    <li>掌握高级增强参数调节</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>数据增强 · Mosaic 与 MixUp</span><span>18 / 37</span></div>
+  <div class="page-title">高级数据增强技术</div>
+
+  <div class="content-cols-2">
+    <div>
+      <div class="label-mono">Mosaic 拼接增强</div>
+      <div class="body-text-sm">将 4 张训练图像随机裁剪后拼接为一张新图像。YOLOv5 默认在前 10 个 epoch 启用。拼接后的图像包含更多小目标样本和背景多样性，显著提升小目标检测能力。</div>
+      <div class="info-box" style="margin-top: 0.4vh;">
+        <div class="title">Mosaic 的副作用</div>
+        <div class="body">拼接边界上的目标会被截断，导致部分标注框严重不完整。后续 epoch 可关闭 Mosaic（<span class="inline-code">--nosave</span> 相关参数）以消除截断影响。</div>
+      </div>
+    </div>
+    <div>
+      <div class="label-mono">MixUp 混合增强</div>
+      <div class="body-text-sm">将两张图像按一定比例（通常 α=0.5）混合，标签也按相同比例融合。MixUp 迫使模型学习线性插值后的特征分布，提升鲁棒性和泛化能力。</div>
+      <div class="code-block" style="font-size:max(10px,0.62vw); margin-top: 0.4vh;">
+<span class="comment"># MixUp 原理示意</span>
+<span class="comment"># 混合图像 = λ × img_A + (1-λ) × img_B</span>
+<span class="comment"># 混合标签：同时包含 img_A 和 img_B 的目标</span>
+<span class="comment"># λ ~ Beta(α, α)，通常 α = 0.5</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="flow-row" style="margin-top: 0.4vh;">
+    <span class="flow-step">原始图像</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-step">Mosaic 拼接</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-step">随机缩放/翻转</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-step">颜色抖动</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-step">MixUp</span>
+    <span class="flow-arrow">→</span>
+    <span class="flow-step">输入模型</span>
+  </div>
+  <div style="font-family:var(--font-mono); font-size:max(9px,0.55vw); opacity:0.45; margin-top:0.2vh;">YOLOv5 默认数据增强流水线</div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 19 · 增强的业务约束
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 05</div>
+  <div class="sidebar-module">数据增强方法</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>理解增强的语义约束</li>
+    <li>掌握增强合规性判断</li>
+    <li>了解业务场景适配方法</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>数据增强 · 业务语义约束</span><span>19 / 37</span></div>
+  <div class="page-title">数据增强的业务语义合规性</div>
+
+  <div class="body-text-sm">并非所有增强方法适用于所有场景。增强操作必须与目标任务的真实物理世界变化一致，否则会引入训练噪声。</div>
+
+  <table class="param-table">
+    <tr><th>场景</th><th>适用的增强</th><th>禁用的增强</th><th>原因</th></tr>
+    <tr><td>文字检测 / OCR</td><td>缩放、颜色扰动</td><td>水平翻转、旋转</td><td>文字方向有严格语义含义</td></tr>
+    <tr><td>工业零件检测</td><td>颜色扰动、平移</td><td>旋转（非对称件）</td><td>零件的安装方向固定，旋转后不符合实际情况</td></tr>
+    <tr><td>人脸检测</td><td>翻转、缩放、颜色</td><td>大幅旋转（>30°）</td><td>自然场景中人脸通常为正立</td></tr>
+    <tr><td>车辆检测</td><td>翻转、缩放、裁剪</td><td>上下翻转</td><td>车辆不会出现在天花板上</td></tr>
+    <tr><td>卫星图像目标</td><td>旋转（任意角度）</td><td>—</td><td>卫星视角下的目标无固定朝向</td></tr>
+    <tr><td>医学影像</td><td>镜像、小幅旋转</td><td>颜色扰动（谨慎使用）</td><td>医学图像的颜色信息具有诊断意义</td></tr>
+  </table>
+
+  <div class="warn-box" style="margin-top: 0.6vh;">
+    <div class="title">增强调试建议</div>
+    <div class="body">在修改增强参数后，建议从训练集中抽取一个 mini-batch 的可视化结果，人工检查增强后的图像是否符合业务语义。YOLOv5 的训练日志会自动保存增强后的样本图像到 <span class="inline-code">runs/train/exp/train_batch*.jpg</span>。</div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 20 · Chapter 6: 训练曲线解读 — Section Cover
+     ============================================================ -->
+<section class="slide">
+<div class="slide-divider">
+  <div class="left-col">
+    <div class="section-num">Chapter 06 · Training Curves</div>
+    <h2>训练曲线解读</h2>
+    <p class="desc">训练完成后不能仅看 mAP 单一指标，系统性地解读训练曲线和验证指标才能定位模型的真实表现。</p>
+  </div>
+  <div class="right-col">
+    <div class="point"><span class="dot">◆</span><span class="text">Precision / Recall / mAP@0.5 / mAP@0.5:0.95 / F1-score 综合评估</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">过拟合判断：训练 Loss 降但验证 mAP 停滞/上升——早停机制</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">P 高 R 低→漏检多，R 高 P 低→误检多，mAP50-95 低→定位不准</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">小目标检测优化：增大输入尺寸 / 多尺度训练 / Mosaic 增强</span></div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 21 · 关键指标
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 06</div>
+  <div class="sidebar-module">训练曲线解读</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>理解各项评估指标定义</li>
+    <li>掌握 mAP 计算方式</li>
+    <li>学会使用验证集指标</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>训练曲线 · 评估指标体系</span><span>21 / 37</span></div>
+  <div class="page-title">目标检测评估指标体系</div>
+
+  <table class="param-table">
+    <tr><th>指标</th><th>含义</th><th>计算公式 / 说明</th></tr>
+    <tr><td>Precision</td><td>精确率（查准率）</td><td>TP / (TP + FP)；模型预测的所有正例中真正为正例的比例</td></tr>
+    <tr><td>Recall</td><td>召回率（查全率）</td><td>TP / (TP + FN)；所有真实正例中被模型成功检测到的比例</td></tr>
+    <tr><td>mAP@0.5</td><td>IoU 阈值 0.5 下的平均精度</td><td>在所有类别上计算 AP 后取均值，是较宽松的检测指标</td></tr>
+    <tr><td>mAP@0.5:0.95</td><td>IoU 阈值 0.50–0.95（步长 0.05）的平均值</td><td>更严格的检测指标，对定位精度要求更高。COCO 挑战赛的主要评价指标</td></tr>
+    <tr><td>F1-score</td><td>精确率与召回率的调和平均</td><td>2 × (P × R) / (P + R)；综合衡量检测性能</td></tr>
+    <tr><td>Confusion Matrix</td><td>混淆矩阵</td><td>行：真实类别，列：预测类别。对角线表示正确分类，非对角线为混淆情况</td></tr>
+  </table>
+
+  <div class="code-block" style="font-size:max(11px,0.68vw); margin-top: 0.6vh;">
+<span class="comment"># 验证集输出示例（YOLOv5 val.py）</span>
+                 Class     Images  Instances          P          R      mAP50   mAP50-95
+                   all         50        312      0.896      0.842      0.903      0.681
+                helmet         50        105      0.912      0.876      0.935      0.712
+                  head         50         87      0.867      0.805      0.878      0.634
+                person         50         72      0.934      0.889      0.942      0.723
+                  vest         50         48      0.871      0.798      0.857      0.656
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 22 · 现象分析
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 06</div>
+  <div class="sidebar-module">训练曲线解读</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>能够诊断过拟合现象</li>
+    <li>分析精度与召回率失衡</li>
+    <li>掌握小目标检测优化方向</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>训练曲线 · 现象诊断方法</span><span>22 / 37</span></div>
+  <div class="page-title">训练现象的系统性分析</div>
+
+  <table class="param-table">
+    <tr><th>现象</th><th>识别方法</th><th>根本原因</th><th>解决方案</th></tr>
+    <tr><td>过拟合</td><td>训练 Loss 持续下降，验证 Loss 停滞或上升；验证 mAP 在某个 epoch 后不再提升</td><td>模型容量过大 / 数据量不足 / 增强不够 / epoch 过多</td><td>降低 epoch 数，增加数据增强，添加 Dropout/L2 正则化，使用早停（patience=50）</td></tr>
+    <tr><td>P 高 R 低</td><td>Precision 接近 0.9+，Recall 不足 0.6</td><td>模型预测保守，倾向于仅在置信度高时才输出检测框</td><td>降低置信度阈值 conf_thres，增加正样本数量，检查标注是否存在漏标</td></tr>
+    <tr><td>P 低 R 高</td><td>Recall 较高但 Precision 偏低</td><td>模型预测激进，大量误检</td><td>补充负样本，提高置信度阈值，检查类别定义是否过于宽泛</td></tr>
+    <tr><td>mAP50 高 mAP50-95 低</td><td>两者差距超过 0.3</td><td>定位精度不足——模型能"找到"目标但框的位置不准</td><td>增加图像输入尺寸，检查标注框质量，调整 IoU 损失权重</td></tr>
+  </table>
+
+  <div class="info-box" style="margin-top: 0.6vh;">
+    <div class="title">早停机制（Early Stopping）</div>
+    <div class="body">YOLOv5 默认启用早停：若连续 <span class="inline-code">patience</span>（默认 100）个 epoch 验证 mAP 未提升，训练自动终止。此机制可有效防止过拟合，同时节省训练时间。建议将 <span class="inline-code">patience</span> 设为总 epoch 数的 20–30%。</div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 23 · 小目标检测策略
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 06</div>
+  <div class="sidebar-module">训练曲线解读</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>理解小目标检测困难原因</li>
+    <li>掌握小目标优化策略</li>
+    <li>了解多尺度训练方法</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>训练曲线 · 小目标检测优化</span><span>23 / 37</span></div>
+  <div class="page-title">小目标检测的挑战与优化策略</div>
+
+  <div class="body-text-sm">小目标（COCO 定义：面积 &lt; 32×32 像素）检测是目标检测领域长期存在的难题。其根本原因在于小目标在特征图上的响应信号微弱，且标注框的 IoU 计算对定位偏移极其敏感。</div>
+
+  <div class="feature-grid">
+    <div class="feature-item">
+      <div class="name">增大输入尺寸</div>
+      <div class="value">--img 1280</div>
+      <div class="desc">增加输入图像分辨率使小目标在特征图上占据更多像素，但显存消耗按平方增长（640→1280 约需 4 倍显存）。建议逐步递增。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">多尺度训练</div>
+      <div class="value">--multi-scale</div>
+      <div class="desc">每个 batch 随机选取不同的输入尺寸（0.5×–1.5× 基准尺寸），迫使模型适应不同尺度的目标，提升尺度不变性。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">Mosaic 增强</div>
+      <div class="value">默认启用</div>
+      <div class="desc">4 图拼接后的小目标比例和数量大幅增加，显著改善小目标的训练样本覆盖。若训练数据本身就包含大量小目标，可保持 Mosaic 在整个训练阶段开启。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">高分辨率特征图</div>
+      <div class="value">P2/P3 输出</div>
+      <div class="desc">选择大模型（如 YOLOv5l/x）或在配置文件中将检测头附加到更高分辨率的特征图（P2，即 4× 下采样）。需注意推理速度下降。</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 24 · Chapter 7: 调参策略 — Section Cover
+     ============================================================ -->
+<section class="slide">
+<div class="slide-divider">
+  <div class="left-col">
+    <div class="section-num">Chapter 07 · Hyperparameter Tuning</div>
+    <h2>调参策略</h2>
+    <p class="desc">输入尺寸、批大小、学习率、Anchor——每个超参数都存在独立的优化逻辑。系统性的调参策略比盲目搜索更高效。</p>
+  </div>
+  <div class="right-col">
+    <div class="point"><span class="dot">◆</span><span class="text">输入尺寸 trade-off：大尺寸利小目标但显存消耗平方增长</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">Batch size 平衡：过小梯度噪声大，过大泛化能力可能下降</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">学习率余弦退火调度 + warmup，迁移学习需降低初始 LR</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">Anchor k-means 自动聚类：BPR &lt; 0.98 时自动触发重计算</span></div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 25 · 输入尺寸与 Batch
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 07</div>
+  <div class="sidebar-module">调参策略</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>理解输入尺寸的 trade-off</li>
+    <li>理解 batch size 的影响</li>
+    <li>掌握显存管理方法</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>调参策略 · 输入尺寸与 Batch Size</span><span>25 / 37</span></div>
+  <div class="page-title">输入尺寸与批大小的平衡策略</div>
+
+  <div class="content-cols-2">
+    <div>
+      <div class="label-mono">输入尺寸（img_size）</div>
+      <div class="body-text-sm">
+        • 大尺寸（≥ 1280）有利于小目标检测，但推理速度和显存消耗均显著增加<br>
+        • 小尺寸（≤ 416）推理速度快，适合移动端部署，但小目标召回率明显下降<br>
+        • 常用策略：训练用 640，推理用 640 或 1280（TTA 测试时增强）<br>
+        • 尺寸应与数据集的目标尺度匹配——机场跑道上的飞机需要大尺寸，细胞检测也需要大尺寸
+      </div>
+      <div class="info-box" style="margin-top: 0.4vh;">
+        <div class="title">显存占用估算</div>
+        <div class="body">训练显存 ≈ batch × img² × 3.5 MB（float16）。以 RTX 3090 (24GB) 为例：batch=32, img=640 约占用 14GB；batch=64, img=640 约占用 28GB（超出显存限制）。</div>
+      </div>
+    </div>
+    <div>
+      <div class="label-mono">Batch Size</div>
+      <div class="body-text-sm">
+        • batch 过小（2–4）：梯度估计噪声大，训练波动明显，Batch Normalization 统计量不稳定<br>
+        • batch 过大（64+）：训练稳定但泛化能力可能下降（Sharp Minima 问题）<br>
+        • 教学场景推荐：batch=16（8GB 显存可运行）或 batch=32（16GB 显存）<br>
+        • batch size 增大时，可适当提高学习率（线性缩放法则 linear scaling rule）<br>
+        • 梯度累积（accumulate）可在显存受限时虚拟增大 batch
+      </div>
+      <div class="code-block" style="font-size:max(10px,0.62vw); margin-top: 0.4vh;">
+<span class="comment"># 梯度累积：batch=4 × accumulate=4 = 等效 batch 16</span>
+python train.py --batch 4
+<span class="comment"># YOLOv5 会自动设置 accumulate=4（显存不足时）</span>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 26 · Epoch 与学习率
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 07</div>
+  <div class="sidebar-module">调参策略</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>掌握 epoch 数量确定方法</li>
+    <li>理解学习率调度策略</li>
+    <li>学会观察 LR 变化曲线</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>调参策略 · Epoch 与学习率</span><span>26 / 37</span></div>
+  <div class="page-title">Epoch 数量确定与学习率调度</div>
+
+  <div class="content-cols-2">
+    <div>
+      <div class="label-mono">Epoch 数量的选择逻辑</div>
+      <div class="body-text-sm">epoch 数不是越多越好。最佳 epoch 是"验证集 mAP 停止提升的时刻"。YOLOv5 默认 300 epoch，但多数场景在 100–200 epoch 内即可收敛。</div>
+      <div class="info-box" style="margin-top: 0.4vh;">
+        <div class="title">判断收敛的实用方法</div>
+        <div class="body">观察验证 mAP 曲线的"肘点"——曲线斜率从陡峭变为平缓的位置。若在 50 epoch 后 mAP 提升幅度连续 10 epoch 小于 0.5%，即可认为已接近收敛，继续训练只会增加过拟合风险。</div>
+      </div>
+    </div>
+    <div>
+      <div class="label-mono">学习率调度策略</div>
+      <div class="body-text-sm">YOLOv5 使用余弦退火调度（Cosine Annealing），初始学习率 <span class="inline-code">lr0=0.01</span> 按余弦曲线逐渐衰减到最终学习率 <span class="inline-code">lrf=0.01×0.01=0.0001</span>。</div>
+      <table class="param-table">
+        <tr><th>现象</th><th>诊断</th><th>调整</th></tr>
+        <tr><td>Loss 震荡不降</td><td>lr0 过大</td><td>lr0 减半（0.005→0.0025）</td></tr>
+        <tr><td>Loss 下降缓慢</td><td>lr0 过小</td><td>lr0 加倍（0.01→0.02）</td></tr>
+        <tr><td>前期下降快后期停滞</td><td>余弦调度工作正常</td><td>观察 50 epoch 内的曲线</td></tr>
+        <tr><td>迁移学习效果差</td><td>学习率过高破坏预训练特征</td><td>初始 lr 设为 0.001–0.005</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="code-block" style="font-size:max(11px,0.68vw); margin-top: 0.2vh;">
+<span class="comment"># YOLOv5 学习率参数（data/hyps/hyp.scratch-low.yaml）</span>
+lr0: 0.01          <span class="comment"># 初始学习率（SGD）</span>
+lrf: 0.01          <span class="comment"># 最终学习率 = lr0 × lrf = 0.0001</span>
+momentum: 0.937    <span class="comment"># SGD momentum</span>
+weight_decay: 0.0005 <span class="comment"># L2 正则化系数</span>
+warmup_epochs: 3.0 <span class="comment"># warmup 阶段 epoch 数（学习率从 0 线性增长到 lr0）</span>
+warmup_momentum: 0.8 <span class="comment"># warmup 阶段的 momentum 值</span>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 27 · Anchor 聚类
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 07</div>
+  <div class="sidebar-module">调参策略</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>理解 Anchor 机制</li>
+    <li>掌握 Anchor 聚类方法</li>
+    <li>了解小目标 Anchor 策略</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>调参策略 · Anchor 聚类与优化</span><span>27 / 37</span></div>
+  <div class="page-title">Anchor 的自动聚类与手动优化</div>
+
+  <div class="body-text-sm">Anchor 是预定义的先验框尺寸，模型在此基础上预测偏移量。若默认 Anchor 与数据集目标尺寸差异较大，模型需要学习较大的偏移修正，增加了训练难度。</div>
+
+  <div class="content-cols-2">
+    <div>
+      <div class="label-mono">k-means Anchor 聚类</div>
+      <div class="body-text-sm">YOLOv5 内置 <span class="inline-code">utils/autoanchor.py</span> 可自动计算适配目标数据集的 Anchor 尺寸。训练启动时若发现默认 Anchor 与数据集的平均 Best Possible Recall (BPR) 低于 0.98，会自动触发重聚类。</div>
+      <div class="code-block" style="font-size:max(10px,0.62vw); margin-top: 0.4vh;">
+<span class="comment"># 手动运行 Anchor 聚类</span>
+python utils/autoanchor.py \
+    --data data/helmet.yaml \
+    --img 640
+
+<span class="comment"># 输出：新的 Anchor 尺寸（三尺度 × 每组 3 个）</span>
+<span class="comment"># Anchors: [[10,13, 16,30, 33,23],</span>
+<span class="comment">#          [30,61, 62,45, 59,119],</span>
+<span class="comment">#          [116,90, 156,198, 373,326]]</span>
+      </div>
+    </div>
+    <div>
+      <div class="label-mono">小目标场景的 Anchor 优化</div>
+      <div class="body-text-sm">当数据集中小目标（面积 &lt; 32×32 像素）占比较高时，默认 Anchor 最小尺寸（10×13）可能仍然过大。</div>
+      <div class="warn-box" style="margin-top: 0.4vh;">
+        <div class="title">优化方向</div>
+        <div class="body">
+          • 聚类时指定更多的小 Anchor（如 3×3、5×5、8×8）<br>
+          • 增加 Anchor 数量（每组从 3 个增至 4–5 个）<br>
+          • 调整模型配置文件中的 <span class="inline-code">anchors:</span> 字段<br>
+          • 增大输入图像尺寸，间接增大小目标的相对尺寸
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 28 · Chapter 8: 错误分析 — Section Cover
+     ============================================================ -->
+<section class="slide">
+<div class="slide-divider">
+  <div class="left-col">
+    <div class="section-num">Chapter 08 · Error Analysis</div>
+    <h2>错误分析方法</h2>
+    <p class="desc">训练完成后不能只看 mAP 数值，系统性地检查失败样例才能定位模型的真实缺陷和改进方向。</p>
+  </div>
+  <div class="right-col">
+    <div class="point"><span class="dot">◆</span><span class="text">漏检三原因：目标过小、遮挡严重、标注遗漏——对应不同解决方案</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">误检三原因：背景相似误判、负样本不足、置信度阈值过低</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">定位偏移：标注不一致 / 坐标还原错误 / 特征图分辨率不足</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">每类错误有独立的诊断路径和优化方向，混为一谈无法定位根因</span></div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 29 · 漏检与误检
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 08</div>
+  <div class="sidebar-module">错误分析方法</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>诊断漏检的根本原因</li>
+    <li>诊断误检的根本原因</li>
+    <li>掌握错误分析方法论</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>错误分析 · 漏检与误检诊断</span><span>29 / 37</span></div>
+  <div class="page-title">漏检（False Negative）与误检（False Positive）诊断</div>
+
+  <div class="content-cols-2">
+    <div>
+      <div class="label-mono">漏检原因分析</div>
+      <div class="body-text-sm">
+        <strong>目标过小：</strong>小目标在特征图上的响应信号弱于大目标，即使存在也难以被检测头捕获。解决方案：增大输入尺寸或使用更高分辨率特征图。<br><br>
+        <strong>遮挡严重：</strong>目标被其他物体/目标遮挡超过 50% 时，模型难以从部分可见区域正确识别。解决方案：在数据增强中加入随机遮挡或 CutOut。<br><br>
+        <strong>光照条件差：</strong>过暗、过曝或低对比度区域内的目标特征淹没在背景中。解决方案：增强颜色扰动和光照模拟。<br><br>
+        <strong>标注遗漏：</strong>训练集中存在未标注的目标（false negative in ground truth），模型在该区域被错误惩罚，学会忽略此类目标。
+      </div>
+    </div>
+    <div>
+      <div class="label-mono">误检原因分析</div>
+      <div class="body-text-sm">
+        <strong>背景相似：</strong>背景中的某些纹理、形状与目标高度相似（如圆形路牌与安全帽）。解决方案：补充含此类背景的负样本（背景图像且标注为空）。<br><br>
+        <strong>负样本不足：</strong>训练数据中所有图像都包含目标，模型从未见过"无目标的场景"，因此在推理时倾向于到处输出检测框。解决方案：在数据集中混入 10–20% 的不含目标的背景图像。<br><br>
+        <strong>阈值过低：</strong>推理时的置信度阈值 <span class="inline-code">conf_thres</span> 设置过低（&lt; 0.1），模型输出大量低置信度预测框。推荐阈值：0.25（常规场景）或 0.5（高精度场景）。<br><br>
+        <strong>类别定义模糊：</strong>不同类别之间的视觉边界不清晰（如"头"和"安全帽"在某些角度下难以区分）。
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 30 · 定位偏移
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 08</div>
+  <div class="sidebar-module">错误分析方法</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>分析定位偏移原因</li>
+    <li>掌握坐标还原错误的排查</li>
+    <li>了解标注一致性检查方法</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>错误分析 · 定位偏移</span><span>30 / 37</span></div>
+  <div class="page-title">定位偏移的原因与解决路径</div>
+
+  <div class="feature-grid">
+    <div class="feature-item">
+      <div class="name">标注框不一致</div>
+      <div class="value">标注质量评估</div>
+      <div class="desc">不同标注人员对"目标边界"的判定标准不一致。例如，安全帽的标注框是否包含帽檐、安全帽下露出的头发区域如何处理。建议在标注前制定明确的标注规范并抽检标注一致性。工具推荐：<span class="inline-code">labelImg</span>、<span class="inline-code">CVAT</span>（<a class="resource-link" href="https://github.com/opencv/cvat" target="_blank">github.com/opencv/cvat</a>）</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">Resize/Letterbox 坐标还原错误</div>
+      <div class="value">推理阶段坐标反算</div>
+      <div class="desc">模型输出的归一化坐标需经 letterbox 逆变换才能还原到原始图像坐标系。若还原逻辑未正确处理 padding 偏移量和缩放因子，会导致所有预测框在特定方向上等距偏移。务必在预处理和后处理函数中 <span class="inline-code">assert</span> 坐标一致性。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">目标边界模糊</div>
+      <div class="value">目标本身的几何模糊性</div>
+      <div class="desc">部分目标的物理边界天然不清晰（如飘动的头发、半透明的护目镜边缘）。此类目标的定位误差上限由标注不确定性决定，模型难以超越标注精度。此时应接受合理的定位误差范围。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">特征图分辨率不足</div>
+      <div class="value">下采样倍数过大</div>
+      <div class="desc">若目标的尺寸在特征图上仅占 1–2 个像素，其定位精度天然受限。可以通过增加 P2（4× 下采样）检测头或降低 backbone 的下采样倍数来改善。</div>
+    </div>
+  </div>
+
+  <div class="code-block" style="font-size:max(10px,0.62vw); margin-top: 0.4vh;">
+<span class="comment"># 坐标还原关键步骤（YOLOv5 推理流程）</span>
+<span class="comment"># 1. 原始图像 → letterbox 填充至 img_size（640×640）</span>
+<span class="comment"># 2. 模型输出归一化坐标 [0, 1]</span>
+<span class="comment"># 3. 坐标反向映射：去除 padding → 缩放至原始尺寸</span>
+<span class="comment"># 关键：padding 的计算 = (img_size - min(ratio) * original_size) / 2</span>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 31 · Chapter 9: 实验复现 — Section Cover
+     ============================================================ -->
+<section class="slide">
+<div class="slide-divider">
+  <div class="left-col">
+    <div class="section-num">Chapter 09 · Experiment Reproduction</div>
+    <h2>实验复现与版本管理</h2>
+    <p class="desc">可复现性是实验科学的基石。系统化的实验记录和版本管理是保证研究工作可以被验证和延续的前提。</p>
+  </div>
+  <div class="right-col">
+    <div class="point"><span class="dot">◆</span><span class="text">每次训练记录 9 项完整要素：代码版本、数据集、超参数、命令等</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">维护 experiment_log.md，这是实践报告的重要材料</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">代码 / 数据集 / 权重 三维度版本管理缺一不可</span></div>
+    <div class="point"><span class="dot">◆</span><span class="text">权重命名规范：{模型}-{数据集}-{实验}-{epoch}-{mAP}.pt</span></div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 32 · 实验记录规范
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 09</div>
+  <div class="sidebar-module">实验复现与版本管理</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>掌握实验记录的完整要素</li>
+    <li>学会使用 experiment_log.md</li>
+    <li>了解实验管理工具</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>实验复现 · 实验记录规范</span><span>32 / 37</span></div>
+  <div class="page-title">实验记录的完整要素</div>
+
+  <div class="body-text-sm">每次训练必须记录完整的实验环境信息，确保在任意时间点均可精确复现实验结果。</div>
+
+  <div class="code-block">
+<span class="comment"># experiment_log.md — 实验记录模板</span>
+## 实验编号: helmet-exp01
+
+<span class="comment"># 1. 环境信息</span>
+- 代码版本: yolov5 v6.0 (commit a1b2c3d)
+- 操作系统: Ubuntu 22.04 / CUDA 11.8 / PyTorch 2.0.1
+- GPU: NVIDIA RTX 3090 × 1 (24GB)
+
+<span class="comment"># 2. 数据集</span>
+- 数据集版本: helmet_dataset_v2 (2026-03-15)
+- 训练集: 2,400 张 / 验证集: 600 张
+- 类别: 4 (helmet, head, person, vest)
+
+<span class="comment"># 3. 训练配置</span>
+- 预训练权重: yolov5s.pt (COCO)
+- 超参数: hyp.scratch-low.yaml (默认)
+- 命令: python train.py --data data/helmet.yaml --weights yolov5s.pt --img 640 --batch 16 --epochs 100
+
+<span class="comment"># 4. 结果</span>
+- 最佳 epoch: 87/100
+- mAP@0.5: 0.903 / mAP@0.5:0.95: 0.681
+- 最佳权重: runs/train/helmet-exp01/weights/best.pt
+- 训练耗时: 2h 38min
+  </div>
+
+  <div class="info-box" style="margin-top: 0.6vh;">
+    <div class="title">建议保留的产物清单</div>
+    <div class="body">每次训练后保留：训练命令（含完整参数）、超参数配置文件副本、最佳权重和最后一个 epoch 权重、验证集指标截图、训练曲线图、3–5 张典型失败样例、混淆矩阵图、训练日志文本文件。</div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 33 · 版本管理
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">Chapter 09</div>
+  <div class="sidebar-module">实验复现与版本管理</div>
+  <div class="objectives-title">学习目标</div>
+  <ul class="objective-list">
+    <li>理解版本管理的三个维度</li>
+    <li>掌握数据集版本化方法</li>
+    <li>了解工具链选择</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>实验复现 · 三维度版本管理</span><span>33 / 37</span></div>
+  <div class="page-title">代码、数据集、权重的三维度版本管理</div>
+
+  <div class="feature-grid cols-3">
+    <div class="feature-item">
+      <div class="name">代码版本控制</div>
+      <div class="value">Git + 标签</div>
+      <div class="desc">每次实验使用 <span class="inline-code">git tag experiment-v1</span> 标记代码状态。实验记录中写明 tag 或 commit hash，确保在任何时间点可 checkout 到完全一致的代码环境。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">数据集版本化</div>
+      <div class="value">DVC / 手动编号</div>
+      <div class="desc">数据集使用 DVC（<a class="resource-link" href="https://dvc.org" target="_blank">dvc.org</a>）或简单文件夹编号管理（dataset_v1, dataset_v2）。每次标注修改后更新版本号并记录修改内容。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">权重文件管理</div>
+      <div class="value">命名 + 元数据</div>
+      <div class="desc">权重文件命名格式：<span class="inline-code">{模型}-{数据集}-{实验编号}-{epoch}-{mAP}.pt</span>，如 <span class="inline-code">yolov5s-helmet-v2-exp01-ep87-mAP0903.pt</span>，确保文件名包含核心性能信息。</div>
+    </div>
+  </div>
+
+  <div class="body-text-sm" style="margin-top: 0.6vh;">使用工具如 Weights & Biases（<a class="resource-link" href="https://wandb.ai" target="_blank">wandb.ai</a>）或 MLflow（<a class="resource-link" href="https://mlflow.org" target="_blank">mlflow.org</a>）可实现实验管理的自动化和可视化。YOLOv5 原生支持 wandb 日志记录（<span class="inline-code">python train.py --data data.yaml --weights ... --wandb_project my_project</span>）。</div>
+
+  <div class="code-block" style="font-size:max(10px,0.62vw); margin-top: 0.4vh;">
+<span class="comment"># 数据集版本管理示例（DVC）</span>
+dvc init                                    <span class="comment"># 初始化 DVC</span>
+dvc add dataset/helmet_v2                   <span class="comment"># 追踪数据集目录</span>
+git add dataset/helmet_v2.dvc .gitignore    <span class="comment"># 提交追踪文件</span>
+git tag data-helmet-v2                      <span class="comment"># 标记数据集版本</span>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 34 · 课堂任务
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">实践环节</div>
+  <div class="sidebar-module">课堂任务与实操</div>
+  <div class="objectives-title">任务要点</div>
+  <ul class="objective-list">
+    <li>完成一次完整基线训练</li>
+    <li>记录训练日志与指标</li>
+    <li>分析失败样例</li>
+    <li>提出改进方案</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>实践环节 · 课堂任务</span><span>34 / 37</span></div>
+  <div class="page-title">课堂实践任务列表</div>
+
+  <div class="body-text-sm">以下任务覆盖从训练到分析的全流程，建议在 90 分钟课程内按顺序完成。每项任务完成后在 <span class="inline-code">experiment_log.md</span> 中记录对应结果。</div>
+
+  <div class="task-list" style="margin-top: 1.2vh;">
+    <div class="task-item"><div class="num">01</div><div class="text">完成一次基线训练：使用 YOLOv5s 预训练权重，在提供的安全帽检测数据集上执行训练（--img 640 --batch 16 --epochs 50），保存完整训练命令到实验日志。</div></div>
+    <div class="task-item"><div class="num">02</div><div class="text">提交训练命令和日志：从训练输出目录 <span class="inline-code">runs/train/exp/</span> 中提取完整的训练日志文本，确认日志中包含三类损失（box/obj/cls）的逐 epoch 数值。</div></div>
+    <div class="task-item"><div class="num">03</div><div class="text">保存最佳权重：从 <span class="inline-code">runs/train/exp/weights/</span> 中复制最佳权重文件（best.pt），按命名规范重命名并记录其 mAP 指标。</div></div>
+    <div class="task-item"><div class="num">04</div><div class="text">输出验证集指标：运行 <span class="inline-code">val.py</span> 在验证集上评估最佳权重，记录各类别的 Precision、Recall、mAP@0.5、mAP@0.5:0.95。</div></div>
+    <div class="task-item"><div class="num">05</div><div class="text">选择 5 个失败样例：从验证集检测结果中挑选漏检和误检各 2–3 例，分析每例的失败原因（标注问题 / 遮挡 / 光照 / 尺寸因素）。</div></div>
+    <div class="task-item"><div class="num">06</div><div class="text">提出下一轮改进方案：基于失败样例分析和训练曲线诊断，提出 3 项具体的改进措施（如调整增强参数、修改 Anchor 或增大输入尺寸），并预估每项措施的预期效果。</div></div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 35 · 实操步骤
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">实践环节</div>
+  <div class="sidebar-module">课堂任务与实操</div>
+  <div class="objectives-title">实操要点</div>
+  <ul class="objective-list">
+    <li>掌握环境准备步骤</li>
+    <li>理解逐行命令含义</li>
+    <li>学会验证训练正确性</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>实践环节 · 环境准备与基线训练</span><span>35 / 37</span></div>
+  <div class="page-title">环境准备与基线训练逐步骤指南</div>
+
+  <div class="code-block">
+<span class="comment"># Step 1: 克隆 YOLOv5 仓库</span>
+git clone https://github.com/ultralytics/yolov5.git
+cd yolov5
+
+<span class="comment"># Step 2: 安装依赖</span>
+pip install -r requirements.txt
+<span class="comment"># 包含: torch, torchvision, opencv-python, matplotlib, pyyaml, tqdm, seaborn</span>
+<span class="comment"># 注意: 建议在虚拟环境中安装（conda / venv）</span>
+
+<span class="comment"># Step 3: 验证环境</span>
+python detect.py --source data/images/bus.jpg --weights yolov5s.pt
+<span class="comment"># 若正确运行，会在 runs/detect/exp/ 下生成带检测框的输出图像</span>
+
+<span class="comment"># Step 4: 准备数据集目录结构</span>
+datasets/
+  helmet/
+    images/
+      train/   <span class="comment"># 训练图像</span>
+      val/     <span class="comment"># 验证图像</span>
+    labels/
+      train/   <span class="comment"># YOLO 格式标签（每图一个 .txt 文件）</span>
+      val/     <span class="comment"># 验证标签</span>
+
+<span class="comment"># Step 5: 创建 data/helmet.yaml</span>
+<span class="comment"># 编辑数据配置文件（参见第 04 页的完整结构）</span>
+
+<span class="comment"># Step 6: 启动训练</span>
+python train.py --data data/helmet.yaml --weights yolov5s.pt --img 640 --batch 16 --epochs 100
+  </div>
+
+  <div class="info-box" style="margin-top: 0.4vh;">
+    <div class="title">验证训练是否正确启动</div>
+    <div class="body">训练启动后，观察以下信号确认一切正常：(1) 控制台输出各 epoch 的 Loss 值且 box_loss 在 0.06–0.10 之间（正常范围）；(2) GPU 利用率为 90–100%；(3) <span class="inline-code">runs/train/exp/</span> 目录下生成了 <span class="inline-code">train_batch0.jpg</span>（增强后的训练样本可视化）；(4) 可在 <span class="inline-code">http://localhost:6006</span> 通过 TensorBoard 查看实时训练曲线。</div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 36 · 课外拓展
+     ============================================================ -->
+<section class="slide">
+<div class="slide-sidebar">
+  <div class="sidebar-module-label">拓展延伸</div>
+  <div class="sidebar-module">课外探索方向</div>
+  <div class="objectives-title">探索方向</div>
+  <ul class="objective-list">
+    <li>对比不同输入尺寸影响</li>
+    <li>对比冻结与全量微调差异</li>
+    <li>思考调参的可解释性</li>
+  </ul>
+</div>
+<div class="slide-content">
+  <div class="chrome"><span>拓展延伸 · 课外探索方向</span><span>36 / 37</span></div>
+  <div class="page-title">进阶探索与思考方向</div>
+
+  <div class="feature-grid">
+    <div class="feature-item">
+      <div class="name">对比实验一</div>
+      <div class="value">不同输入尺寸的速度与精度对比</div>
+      <div class="desc">分别在 --img 416、640、1280 下进行训练（batch 根据显存调整），记录每组实验的：训练时间、推理 FPS、mAP@0.5、mAP@0.5:0.95。绘制"精度-速度"曲线，确定当前任务的最优输入尺寸。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">对比实验二</div>
+      <div class="value">冻结 backbone 与全量微调</div>
+      <div class="desc">第一组：<span class="inline-code">--freeze 10</span>（冻结 backbone 前 10 层），第二组：不冻结（全量微调）。对比两组在 50 epoch 内的收敛速度和最终 mAP。分析冻结策略在小数据集上的优势。</div>
+    </div>
+    <div class="feature-item">
+      <div class="name">方法论的反思</div>
+      <div class="value">调参应被组织为可记录、可复现、可比较的科学实验。</div>
+      <div class="desc">调参过程的可解释性是实验科学的核心问题。建议：(1) 每次只改变一个超参数（控制变量法）；(2) 记录每次调参的假设和预期效果；(3) 根据实验结果修正假设。若某次调参的结果与预期不符，则该"负结果"同样具有记录价值——它排除了一个无效方向。</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============================================================
+     SLIDE 37 · 结束页
+     ============================================================ -->
+<section class="slide">
+<div class="slide-cover">
+  <div class="cover-number">本讲总结</div>
+  <h1>YOLO 训练、验证、<br>调参与实验复现</h1>
+  <p class="subtitle" style="font-size: max(16px, 1.3vw);">从训练前检查到实验复现的完整流程</p>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1vw;max-width:78vw;margin:3vh auto 0;text-align:left">
+    <div class="card"><h3>训练前检查</h3><p>确认数据路径、类别数、权重文件、输入尺寸与增强参数。</p></div>
+    <div class="card"><h3>过程监控</h3><p>结合 loss 曲线、mAP、Precision、Recall 判断训练状态。</p></div>
+    <div class="card"><h3>问题诊断</h3><p>区分过拟合、欠拟合、标注错误、类别不均衡与阈值设置问题。</p></div>
+    <div class="card"><h3>实验复现</h3><p>记录命令、配置、数据版本、权重文件和关键指标。</p></div>
+  </div>
+  <div style="margin-top: 6vh; font-family: var(--font-mono); font-size: max(10px, 0.6vw); letter-spacing: 0.2em; opacity: 0.35;">总页数 37 · 对应 90 分钟课堂教学</div>
+</div>
+</section>
+
+</div><!-- /#deck -->
+
+<div id="nav"></div>
+
+<script>
+// =============== Navigation ===============
+const deck = document.getElementById('deck');
+const slides = deck.querySelectorAll('.slide');
+const nav = document.getElementById('nav');
+let idx = 0, total = slides.length, lock = false;
+
+deck.style.width = (total * 100) + 'vw';
+
+slides.forEach((s, i) => {
+  const b = document.createElement('button');
+  b.className = 'dot'; b.dataset.i = i; b.setAttribute('aria-label', 'Page ' + (i + 1));
+  b.onclick = () => go(i);
+  nav.appendChild(b);
+});
+
+// Restore position from localStorage
+const savedIdx = parseInt(localStorage.getItem('teaching-deck-pos'));
+if (!isNaN(savedIdx) && savedIdx >= 0 && savedIdx < total) idx = savedIdx;
+
+function go(n) {
+  if (lock) return;
+  idx = Math.max(0, Math.min(total - 1, n));
+  deck.style.transform = 'translateX(' + (-idx * 100) + 'vw)';
+  slides.forEach((s, i) => s.classList.toggle('active', i === idx));
+  nav.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+  localStorage.setItem('teaching-deck-pos', idx);
+  lock = true; setTimeout(() => lock = false, 500);
+}
+
+// ESC overview
+let overviewOn = false;
+const ov = document.createElement('div');
+ov.id = 'overview';
+ov.style.cssText = 'position:fixed;inset:0;z-index:100;background:rgba(42,30,19,0.92);backdrop-filter:blur(10px);display:none;overflow-y:auto;padding:4vh 4vw';
+document.body.appendChild(ov);
+
+function buildOverview() {
+  ov.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:2vh 1.6vw;max-width:90vw;margin:0 auto';
+  slides.forEach((s, i) => {
+    const card = document.createElement('div');
+    const isActive = i === idx;
+    card.style.cssText = 'cursor:pointer;border-radius:4px;overflow:hidden;border:1.5px solid ' + (isActive ? 'rgba(238,223,199,0.8)' : 'rgba(238,223,199,0.15)') + ';transition:border-color .2s';
+    card.onmouseenter = () => card.style.borderColor = 'rgba(238,223,199,0.6)';
+    card.onmouseleave = () => card.style.borderColor = isActive ? 'rgba(238,223,199,0.8)' : 'rgba(238,223,199,0.15)';
+    const clone = s.cloneNode(true);
+    clone.style.cssText = 'width:100vw;height:100vh;transform:scale(0.22);transform-origin:top left;position:absolute;top:0;left:0;pointer-events:none';
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'width:100%;aspect-ratio:16/9;overflow:hidden;position:relative;background:' + (s.classList.contains('slide-cover') || s.classList.contains('slide-divider') ? 'rgba(42,30,19,0.3)' : '#eedfc7');
+    wrap.appendChild(clone);
+    const label = document.createElement('div');
+    label.style.cssText = 'padding:4px 8px;font-family:IBM Plex Mono,monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:rgba(238,223,199,0.7)';
+    label.textContent = (i + 1) + ' / ' + total;
+    card.appendChild(wrap);
+    card.appendChild(label);
+    card.onclick = () => { toggleOverview(); go(i); };
+    grid.appendChild(card);
+  });
+  ov.appendChild(grid);
+}
+
+function toggleOverview() {
+  overviewOn = !overviewOn;
+  if (overviewOn) { buildOverview(); ov.style.display = 'block'; }
+  else { ov.style.display = 'none'; }
+}
+
+addEventListener('keydown', e => {
+  if (e.key === 'Escape') { e.preventDefault(); toggleOverview(); return; }
+  if (overviewOn) return;
+  if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === 'ArrowDown') go(idx + 1);
+  if (e.key === 'ArrowLeft'  || e.key === 'PageUp'   || e.key === 'ArrowUp')   go(idx - 1);
+  if (e.key === 'Home') go(0);
+  if (e.key === 'End') go(total - 1);
+});
+
+let wheelAcc = 0, wheelTO = null;
+addEventListener('wheel', e => {
+  wheelAcc += e.deltaY + e.deltaX;
+  if (Math.abs(wheelAcc) > 50) { go(idx + (wheelAcc > 0 ? 1 : -1)); wheelAcc = 0; }
+  clearTimeout(wheelTO); wheelTO = setTimeout(() => wheelAcc = 0, 150);
+}, { passive: true });
+
+let tx = 0, ty = 0;
+addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - tx;
+  const dy = e.changedTouches[0].clientY - ty;
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) go(idx + (dx < 0 ? 1 : -1));
+}, { passive: true });
+
+go(idx);
+</script>
+</body>
+</html>

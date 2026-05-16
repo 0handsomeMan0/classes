@@ -1,0 +1,2406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GroundingDINO 自然语言目标检测 · 开放词表与文本图像对齐</title>
+<style>
+/* ============ 主题色：牛皮纸暖色调 ============ */
+:root {
+  --ink: #2a1e13; --ink-rgb: 42,30,19;
+  --paper: #eedfc7; --paper-rgb: 238,223,199;
+  --paper-tint: #e0d0b6; --ink-tint: #3a2a1d;
+  --accent: #b85c2a; --accent-rgb: 184,92,42;
+  --accent2: #7a9e6b; --accent2-rgb: 122,158,107;
+  --accent3: #5a7a9e; --accent3-rgb: 90,122,158;
+  --sidebar-w: 18vw;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --serif: "Noto Serif SC", "Source Serif 4", Georgia, serif;
+  --sans: "Noto Sans SC", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  background: var(--paper); color: var(--ink);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+
+/* 纸张纹理 */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: 9999;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.012) 2px, rgba(0,0,0,0.012) 4px);
+}
+
+#deck { position: fixed; inset: 0; width: 10000vw; height: 100vh; display: flex; flex-wrap: nowrap; transition: transform 0.6s cubic-bezier(0.65,0,0.35,1); z-index: 10; will-change: transform; }
+.slide { width: 100vw; height: 100vh; flex: 0 0 100vw; display: flex; overflow: hidden; position: relative; }
+
+/* ============ 侧边栏 ============ */
+.sidebar {
+  width: var(--sidebar-w); min-width: var(--sidebar-w); height: 100vh;
+  background: var(--ink-tint); color: var(--paper);
+  padding: 3.5vh 1.5vw; display: flex; flex-direction: column; position: relative; overflow-y: auto; flex-shrink: 0;
+}
+.sidebar .module-nb { font-family: var(--mono); font-size: clamp(11px,0.7vw,13px); letter-spacing: 0.18em; opacity: 0.5; margin-bottom: 1vh; }
+.sidebar .module-title { font-family: var(--serif); font-weight: 700; font-size: clamp(15px,1.15vw,20px); line-height: 1.3; margin-bottom: 2vh; padding-bottom: 1.5vh; border-bottom: 1px solid rgba(238,223,199,0.18); }
+.sidebar .obj-label { font-family: var(--mono); font-size: clamp(9px,0.6vw,11px); letter-spacing: 0.15em; opacity: 0.35; margin-bottom: 1.2vh; }
+.sidebar .obj-list { list-style: none; display: flex; flex-direction: column; gap: 1vh; }
+.sidebar .obj-list li { font-family: var(--sans); font-size: clamp(12px,0.85vw,15px); line-height: 1.45; opacity: 0.8; padding-left: 1em; position: relative; }
+.sidebar .obj-list li::before { content: ""; position: absolute; left: 0; top: 0.55em; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); opacity: 0.6; }
+.sidebar .page-nb { margin-top: auto; font-family: var(--mono); font-size: clamp(10px,0.65vw,12px); letter-spacing: 0.15em; opacity: 0.3; padding-top: 1.5vh; border-top: 1px solid rgba(238,223,199,0.1); }
+
+/* ============ 内容区 ============ */
+.content {
+  flex: 1; height: 100vh;
+  padding: 2.5vh 2.8vw 2.5vh 2.8vw;
+  overflow-y: auto; display: flex; flex-direction: column; gap: 0.8vh;
+}
+.content::-webkit-scrollbar { width: 3px; }
+.content::-webkit-scrollbar-track { background: transparent; }
+.content::-webkit-scrollbar-thumb { background: rgba(var(--ink-rgb),0.12); border-radius: 2px; }
+
+/* 标题页 */
+.slide.title-slide .content { justify-content: center; align-items: center; text-align: center; gap: 1.5vh; }
+.slide.title-slide .content .main-title { font-family: var(--serif); font-weight: 900; font-size: clamp(36px,3.6vw,60px); line-height: 1.2; max-width: 85%; }
+.slide.title-slide .content .sub-title { font-family: var(--serif); font-weight: 400; font-size: clamp(20px,1.6vw,30px); opacity: 0.7; max-width: 75%; }
+.slide.title-slide .content .meta-info { font-family: var(--mono); font-size: clamp(13px,0.9vw,17px); opacity: 0.5; letter-spacing: 0.1em; margin-top: 2vh; }
+
+/* ============ 排版尺寸（整体放大） ============ */
+h1 { font-family: var(--serif); font-weight: 700; font-size: clamp(24px,2vw,36px); line-height: 1.25; margin-bottom: 0.4vh; }
+h2 { font-family: var(--serif); font-weight: 600; font-size: clamp(19px,1.5vw,28px); line-height: 1.3; margin-bottom: 0.3vh; }
+h3 { font-family: var(--serif); font-weight: 500; font-size: clamp(17px,1.25vw,24px); line-height: 1.35; margin-bottom: 0.2vh; }
+p, li { font-family: var(--sans); font-size: clamp(16px,1.15vw,22px); line-height: 1.65; opacity: 0.88; }
+p { margin-bottom: 0.4vh; }
+
+pre {
+  font-family: var(--mono);
+  font-size: clamp(13px,0.9vw,17px);
+  line-height: 1.5;
+  background: rgba(var(--ink-rgb),0.06);
+  border-left: 3px solid var(--accent);
+  padding: 0.8vh 1vw;
+  margin: 0.4vh 0;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 0 4px 4px 0;
+}
+code { font-family: var(--mono); font-size: 0.92em; background: rgba(var(--ink-rgb),0.07); padding: 0.1em 0.35em; border-radius: 3px; }
+pre code { background: none; padding: 0; border-radius: 0; }
+
+table { width: 100%; border-collapse: collapse; margin: 0.4vh 0; font-size: clamp(14px,0.95vw,18px); }
+th, td { padding: 0.5vh 0.6vw; text-align: left; border-bottom: 1px solid rgba(var(--ink-rgb),0.12); font-family: var(--sans); line-height: 1.45; }
+th { font-family: var(--serif); font-weight: 600; background: rgba(var(--ink-rgb),0.04); border-bottom: 2px solid rgba(var(--ink-rgb),0.2); }
+tr:last-child td { border-bottom: none; }
+
+ul, ol { padding-left: 1.4em; margin: 0.2vh 0; display: flex; flex-direction: column; gap: 0.15vh; }
+li { margin-bottom: 0; }
+
+/* ============ 信息卡片 ============ */
+.note-box {
+  background: rgba(var(--accent-rgb),0.08); border-left: 3px solid var(--accent);
+  padding: 0.8vh 1vw; margin: 0.3vh 0; border-radius: 0 4px 4px 0;
+}
+.note-box .label { font-family: var(--mono); font-size: clamp(10px,0.65vw,12px); letter-spacing: 0.12em; opacity: 0.55; margin-bottom: 0.15vh; }
+.note-box p, .note-box li { font-size: clamp(15px,1vw,20px); }
+
+.info-box {
+  background: rgba(var(--ink-rgb),0.04); border: 1px solid rgba(var(--ink-rgb),0.1);
+  padding: 0.8vh 1vw; margin: 0.3vh 0; border-radius: 4px;
+}
+.info-box .label { font-family: var(--mono); font-size: clamp(10px,0.65vw,12px); letter-spacing: 0.12em; opacity: 0.45; margin-bottom: 0.15vh; }
+
+.tip-box {
+  background: rgba(var(--accent2-rgb),0.1); border-left: 3px solid var(--accent2);
+  padding: 0.8vh 1vw; margin: 0.3vh 0; border-radius: 0 4px 4px 0;
+}
+.tip-box .label { font-family: var(--mono); font-size: clamp(10px,0.65vw,12px); letter-spacing: 0.12em; opacity: 0.55; margin-bottom: 0.15vh; color: var(--accent2); }
+
+.warn-box {
+  background: rgba(200,100,50,0.1); border-left: 3px solid #c86432;
+  padding: 0.8vh 1vw; margin: 0.3vh 0; border-radius: 0 4px 4px 0;
+}
+.warn-box .label { font-family: var(--mono); font-size: clamp(10px,0.65vw,12px); letter-spacing: 0.12em; opacity: 0.55; margin-bottom: 0.15vh; color: #c86432; }
+
+/* ============ 布局栅格 ============ */
+.cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2vw; margin: 0.2vh 0; }
+.cols-2-3 { display: grid; grid-template-columns: 2fr 1fr; gap: 1.2vw; margin: 0.2vh 0; }
+.cols-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1vw; margin: 0.2vh 0; }
+
+/* ============ CSS 架构图（纯CSS绘制的逻辑图） ============ */
+.arch-flow {
+  display: flex; flex-direction: column; gap: 3px;
+  width: 100%; margin: 0.3vh 0;
+}
+.arch-flow .row { display: flex; align-items: center; gap: 4px; }
+.arch-flow .block {
+  flex: 1; padding: 0.4vh 0.6vw; border: 1px solid rgba(var(--ink-rgb),0.2);
+  border-radius: 4px; text-align: center;
+  font-family: var(--mono); font-size: clamp(10px,0.7vw,13px);
+  line-height: 1.3; background: rgba(var(--ink-rgb),0.03);
+}
+.arch-flow .block.accent { border-color: var(--accent); background: rgba(var(--accent-rgb),0.08); }
+.arch-flow .block.accent2 { border-color: var(--accent2); background: rgba(var(--accent2-rgb),0.08); }
+.arch-flow .block.accent3 { border-color: var(--accent3); background: rgba(var(--accent3-rgb),0.08); }
+.arch-flow .arrow { font-family: var(--mono); font-size: clamp(10px,0.7vw,13px); opacity: 0.4; flex-shrink: 0; }
+.arch-flow .label { font-family: var(--mono); font-size: clamp(9px,0.55vw,11px); opacity: 0.45; text-align: center; }
+
+/* ============ 数据卡片 ============ */
+.card-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(0,1fr)); gap: 0.6vw; margin: 0.3vh 0; }
+.card {
+  border: 1px solid rgba(var(--ink-rgb),0.12); border-radius: 4px; padding: 0.8vh 0.8vw;
+  background: rgba(var(--ink-rgb),0.02);
+}
+.card h4 { font-family: var(--serif); font-weight: 600; font-size: clamp(15px,1vw,20px); margin-bottom: 0.2vh; }
+.card p { font-size: clamp(14px,0.9vw,18px); margin-bottom: 0; }
+.card .tag { display: inline-block; font-family: var(--mono); font-size: clamp(9px,0.55vw,11px); letter-spacing: 0.1em; padding: 0.1em 0.5em; border: 1px solid rgba(var(--ink-rgb),0.15); border-radius: 2px; opacity: 0.6; margin-bottom: 0.2vh; }
+
+/* ============ 步骤流程 ============ */
+.step-list { display: flex; flex-direction: column; gap: 0.4vh; margin: 0.2vh 0; }
+.step-item { display: flex; align-items: flex-start; gap: 0.6vw; }
+.step-num { display: inline-flex; align-items: center; justify-content: center; min-width: 1.6em; height: 1.6em; border-radius: 50%; background: var(--accent); color: var(--paper); font-family: var(--mono); font-size: clamp(11px,0.7vw,13px); font-weight: 600; flex-shrink: 0; }
+.step-body { flex: 1; }
+.step-body p { margin-bottom: 0; font-size: clamp(15px,1vw,20px); }
+
+/* ============ 比较表格(更紧凑) ============ */
+.compare-table {}
+.compare-table th { font-size: clamp(13px,0.85vw,17px); padding: 0.4vh 0.5vw; }
+.compare-table td { font-size: clamp(13px,0.85vw,17px); padding: 0.35vh 0.5vw; }
+
+/* ============ 代码注释行 ============ */
+.code-annotation { font-family: var(--mono); font-size: clamp(11px,0.7vw,14px); opacity: 0.5; padding: 0.1vh 0; }
+.code-annotation em { font-style: normal; color: var(--accent3); }
+
+/* ============ 分隔线 ============ */
+hr { border: none; border-top: 1px solid rgba(var(--ink-rgb),0.1); margin: 0.3vh 0; }
+
+/* ============ 导航 ============ */
+#nav { position: fixed; left: 50%; bottom: 1.8vh; transform: translateX(-50%); z-index: 30; display: flex; gap: 6px; padding: 5px 10px; border-radius: 999px; background: rgba(var(--ink-rgb),0.12); backdrop-filter: blur(8px); }
+#nav .dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(var(--ink-rgb),0.25); cursor: pointer; transition: all 0.3s ease; border: 0; padding: 0; }
+#nav .dot:hover { background: rgba(var(--ink-rgb),0.45); transform: scale(1.15); }
+#nav .dot.active { background: var(--accent); width: 18px; border-radius: 999px; }
+#hint { position: fixed; bottom: 2.5vh; right: 2vw; z-index: 30; font-family: var(--mono); font-size: clamp(9px,0.55vw,11px); letter-spacing: 0.15em; opacity: 0.25; }
+</style>
+<style>
+/* ===== inlined unified course styles for standalone distribution ===== */
+/* Course-wide visual normalization.
+   This file intentionally mirrors the warm academic style of 1.html while
+   preserving each deck's existing navigation/runtime structure. */
+:root{
+  --bg:#faf7f0!important;
+  --bg-soft:#f0ece0!important;
+  --surface:#ffffff!important;
+  --surface-2:#f7f1e3!important;
+  --border:rgba(90,60,30,.13)!important;
+  --border-strong:rgba(90,60,30,.28)!important;
+  --text-1:#2a1f12!important;
+  --text-2:#5a4a33!important;
+  --text-3:#8a7859!important;
+  --accent:#3b7a5a!important;
+  --accent-2:#c4812a!important;
+  --accent-3:#b8452e!important;
+  --paper:#faf7f0!important;
+  --paper-tint:#f0ece0!important;
+  --paper-rgb:250,247,240!important;
+  --ink:#2a1f12!important;
+  --ink-rgb:42,31,18!important;
+  --ink-tint:#5a4a33!important;
+  --code-bg:#2a1f12!important;
+  --radius:14px!important;
+  --radius-sm:12px!important;
+  --shadow:0 8px 24px rgba(90,60,30,.07)!important;
+  --font-sans:'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif!important;
+  --font-serif:'Playfair Display','Noto Serif SC',Georgia,serif!important;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace!important;
+}
+html,body,#deck,.deck{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+  font-family:var(--font-sans)!important;
+  letter-spacing:-.01em;
+}
+.slide,
+section[class*="slide"],
+.slide.light,
+.slide.dark,
+.slide-cover,
+.slide-divider{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+}
+.slide.full,
+.cover,
+.slide-cover{
+  background:var(--bg)!important;
+}
+.main,
+.content,
+.slide-content,
+.main-content,
+.right,
+.body,
+.stage{
+  color:var(--text-1)!important;
+  min-height:0!important;
+}
+h1,h2,h3,
+.h1,.h2,.h3,
+.slide-title,
+.cover-title,
+.end-title,
+.h-hero,
+.h-xl,
+.main h1,
+.main h2,
+.main h3{
+  font-family:var(--font-serif)!important;
+  color:var(--text-1)!important;
+  letter-spacing:-.02em!important;
+}
+h1,.h1,.cover-title,.slide-title,.h-hero{
+  font-weight:800!important;
+}
+h2,.h2,.h-xl{
+  font-weight:700!important;
+}
+p,li,td,th,.lede,.dim,.dim2,.fn-desc,.body-text,.txt,.label{
+  color:var(--text-2);
+}
+strong,b{color:var(--text-1)}
+.kicker,
+.eyebrow,
+.module-label,
+.sidebar-module-label,
+.module-code,
+.obj-label,
+.obj-title,
+.obj-header,
+.objectives-title,
+.lb-title,
+.sidebar-label{
+  color:var(--accent-2)!important;
+  font-family:var(--font-sans)!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  letter-spacing:.14em!important;
+  text-transform:uppercase!important;
+}
+.sidebar,
+aside.sidebar,
+.learning-sidebar,
+.slide-sidebar,
+.left-col{
+  background:transparent!important;
+  border-right:1px solid var(--border)!important;
+  border-left:0!important;
+  padding-right:24px!important;
+  color:var(--text-2)!important;
+  box-shadow:none!important;
+}
+.sidebar-title,
+.module-title,
+.sidebar-module,
+.lb-module,
+.brand,
+.sidebar .brand{
+  font-family:var(--font-serif)!important;
+  color:var(--accent)!important;
+  font-size:20px!important;
+  line-height:1.25!important;
+  font-weight:700!important;
+}
+.obj-list,
+.objectives,
+.objective-list,
+.learning-sidebar ul,
+.slide-sidebar ul{
+  list-style:none!important;
+  padding:0!important;
+  margin:0!important;
+  font-family:var(--font-sans)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+  color:var(--text-2)!important;
+}
+.obj-list li,
+.objectives li,
+.objective-list li,
+.learning-sidebar li,
+.slide-sidebar li{
+  position:relative!important;
+  padding:7px 0 7px 22px!important;
+  border-bottom:1px dashed var(--border)!important;
+  color:var(--text-2)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+}
+.obj-list li::before,
+.objectives li::before,
+.objective-list li::before,
+.learning-sidebar li::before,
+.slide-sidebar li::before{
+  content:"○"!important;
+  position:absolute!important;
+  left:0!important;
+  top:7px!important;
+  color:var(--accent)!important;
+  width:auto!important;
+  height:auto!important;
+  background:transparent!important;
+  border-radius:0!important;
+  opacity:1!important;
+}
+.obj-list li.current::before,
+.objectives li.current::before,
+.objective-list li.current::before,
+.obj-list li.highlight::before,
+.objectives li.highlight::before,
+.objective-list li.highlight::before{
+  content:"▸"!important;
+  color:var(--accent-2)!important;
+}
+.obj-list li.current,
+.objectives li.current,
+.objective-list li.current,
+.obj-list li.highlight,
+.objectives li.highlight,
+.objective-list li.highlight{
+  color:var(--text-1)!important;
+  font-weight:700!important;
+}
+.card,
+.concept-box,
+.col-item,
+.metric-card,
+.panel,
+.info-card,
+.tip-box,
+.callout-box,
+.comp-item,
+.diagram-box,
+.data-card,
+.feature-card,
+.task-card,
+.warning-card,
+.workflow-card{
+  background:var(--surface)!important;
+  border:1px solid var(--border)!important;
+  border-radius:var(--radius)!important;
+  box-shadow:var(--shadow)!important;
+  color:var(--text-1)!important;
+}
+.card-accent,
+.accent-card,
+.concept-box h4{
+  border-color:var(--border)!important;
+}
+.callout,
+.tip,
+.note-box{
+  background:var(--surface-2)!important;
+  border-left:4px solid var(--accent-2)!important;
+  border-radius:0 var(--radius) var(--radius) 0!important;
+  color:var(--text-2)!important;
+}
+.warn-box,
+.warning,
+.alert{
+  background:rgba(196,129,42,.08)!important;
+  border:1px solid rgba(196,129,42,.3)!important;
+  border-radius:var(--radius)!important;
+  color:var(--text-2)!important;
+}
+.course-bridge{
+  max-width:72ch;
+  margin-top:16px!important;
+  padding:10px 16px!important;
+  font-size:13px!important;
+  line-height:1.45!important;
+}
+.course-bridge b{
+  color:var(--accent-2)!important;
+}
+.title-slide .content .course-bridge{
+  width:min(720px,86%)!important;
+  align-self:center!important;
+  margin-top:1.4rem!important;
+  text-align:left!important;
+}
+
+
+
+.slide > .sidebar + .main-content + .course-bridge{
+  left:calc(18vw + 3vw)!important;
+  max-width:min(760px,70vw)!important;
+}
+
+.slide > .course-bridge,
+.hero .course-bridge,
+.slide.full .course-bridge,
+section.full .course-bridge{
+  position:absolute!important;
+  left:6vw!important;
+  right:auto!important;
+  bottom:9vh!important;
+  max-width:min(760px,64vw)!important;
+  margin:0!important;
+  z-index:3!important;
+}
+.slide.compact .h2,
+section.compact .h2,
+.slide.compact h2,
+section.compact h2{
+  font-size:clamp(25px,2.15vw,34px)!important;
+  line-height:1.12!important;
+  margin-bottom:6px!important;
+}
+.slide.compact .lede,
+section.compact .lede,
+.slide.compact .fn-desc,
+section.compact .fn-desc,
+.slide.compact p,
+section.compact p{
+  font-size:clamp(13px,1.05vw,16px)!important;
+  line-height:1.45!important;
+}
+.slide.compact .card,
+section.compact .card,
+.slide.compact .concept-box,
+section.compact .concept-box,
+.slide.compact .col-item,
+section.compact .col-item{
+  padding:12px 15px!important;
+}
+.slide.compact .concept-box h4,
+section.compact .concept-box h4,
+.slide.compact .card h4,
+section.compact .card h4{
+  font-size:clamp(14px,1.1vw,17px)!important;
+  line-height:1.25!important;
+  margin-bottom:4px!important;
+}
+.slide.compact .grid,
+section.compact .grid{
+  gap:12px!important;
+}
+.slide.compact .mt-l,
+section.compact .mt-l{
+  margin-top:14px!important;
+}
+.slide.compact .mt-m,
+section.compact .mt-m{
+  margin-top:8px!important;
+}
+.problem-grid .concept-box{
+  min-height:118px;
+}
+.problem-grid .concept-box:last-child{
+  grid-column:1/-1;
+  min-height:96px;
+}
+.slide.code-heavy .code-block,
+section.code-heavy .code-block{
+  font-size:clamp(10px,.82vw,12px)!important;
+  line-height:1.28!important;
+  padding:10px 12px!important;
+}
+.slide.compact .data-table th,
+.slide.compact .data-table td,
+section.compact .data-table th,
+section.compact .data-table td{
+  padding:4px 7px!important;
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.3!important;
+}
+.slide.compact .code-block,
+section.compact .code-block{
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.35!important;
+  padding:10px 12px!important;
+}
+pre,
+code,
+.code,
+.code-block,
+.code-panel{
+  font-family:var(--font-mono)!important;
+}
+pre,
+.code,
+.code-block,
+.code-panel{
+  background:#2a1f12!important;
+  color:#f0ece0!important;
+  border:0!important;
+  border-radius:var(--radius)!important;
+  box-shadow:none!important;
+}
+code:not(pre code){
+  background:rgba(90,60,30,.08)!important;
+  color:var(--text-1)!important;
+}
+table,
+.data-table{
+  border-color:var(--border)!important;
+}
+th,
+.data-table th{
+  background:var(--surface-2)!important;
+  color:var(--text-1)!important;
+}
+td,
+.data-table td{
+  background:var(--surface)!important;
+  color:var(--text-2)!important;
+}
+.pill,
+.pill-academic,
+.tag,
+.badge{
+  background:var(--surface-2)!important;
+  color:var(--text-2)!important;
+  border:1px solid var(--border)!important;
+  border-radius:4px!important;
+  font-family:var(--font-mono)!important;
+}
+.pill-accent,
+.tag.accent,
+.badge.accent{
+  color:var(--accent)!important;
+  border-color:color-mix(in srgb,var(--accent) 28%,transparent)!important;
+}
+.deck-footer,
+.page-meta,
+.footer,
+.slide-meta{
+  color:var(--text-3)!important;
+}
+.progress-bar>span,
+.progress,
+.progress-dot.active,
+.dot.active{
+  background:var(--accent)!important;
+}
+svg text{font-family:var(--font-sans)!important}
+/* ===== end inlined unified course styles ===== */
+</style>
+</head>
+<body>
+
+<div id="hint">← → 翻页 · ESC 索引</div>
+<div id="deck">
+
+<!-- ============ SLIDE 1: 封面 ============ -->
+<section class="slide title-slide">
+  <div class="sidebar">
+    <div class="module-nb">COURSE · 2026</div>
+    <div class="module-title">计算机视觉前沿<br>开放词表目标检测</div>
+    <div class="obj-label">本讲概要</div>
+    <ul class="obj-list">
+      <li>理解开放词表检测的基本概念</li>
+      <li>掌握 GroundingDINO 的原理</li>
+      <li>完成环境搭建与代码实践</li>
+    </ul>
+<div class="page-nb">01 / 30</div>
+  </div>
+  <div class="content">
+    <div class="main-title">GroundingDINO：<br>自然语言目标检测</div>
+    <div class="sub-title">开放词表检测与文本-图像跨模态对齐</div>
+    <div class="meta-info">第 12 讲 · 90 分钟（两节连堂）</div>
+  
+  <div class="callout course-bridge"><b>课程衔接。</b>承接少样本检测，本讲进一步进入开放词表检测：通过 GroundingDINO 理解文本提示、视觉语言对齐与无固定类别检测的能力边界。</div>
+  </div>
+</section>
+
+<!-- ============ MODULE 1: 固定类别 → 开放词表 ============ -->
+
+<!-- SLIDE 2 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 01</div>
+    <div class="module-title">从固定类别<br>到开放词表</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解固定类别检测的根本局限</li>
+      <li>掌握开放词表检测的核心思想</li>
+      <li>了解适用场景与典型应用</li>
+    </ul>
+<div class="page-nb">02 / 30</div>
+  </div>
+  <div class="content">
+    <h1>固定类别检测 vs 开放词表检测</h1>
+
+    <div class="cols-2">
+      <div>
+        <h2>传统固定类别检测</h2>
+        <p>YOLO、Faster R-CNN、SSD 等模型在训练时定义一组固定的类别集合。模型输出类别索引直接映射到训练集标签，<strong>只能检测训练阶段见过的类别</strong>。</p>
+        <pre><code>输入: 图像
+输出: [class_id, bbox, score]
+class_id ∈ {0, 1, ..., C-1}
+C = 训练集类别总数（固定不可扩展）</code></pre>
+        <div class="warn-box">
+          <div class="label">LIMITATION</div>
+          <p>若模型仅在 COCO（80 类）上训练，部署时遇到 traffic cone、fire extinguisher 等新类别，<strong>无法可靠检测</strong>，可能误判为最接近的已知类别或完全漏检。</p>
+        </div>
+      </div>
+      <div>
+        <h2>开放词表检测</h2>
+        <p>模型根据<strong>任意文本描述</strong>（自然语言提示词）在图像中定位目标，不局限于训练时见过的类别名称。将"分类问题"转化为"匹配问题"。</p>
+        <pre><code>输入: 图像 + 文本提示词
+     "helmet . person . safety vest ."
+输出: [text_match, bbox, score]
+text_match ∈ 任意文本描述（动态指定）</code></pre>
+        <div class="note-box">
+          <div class="label">CORE IDEA</div>
+          <p>模型不再学习"什么是 helmet"，而是学习如何将文本 "helmet" 与图像中对应的<strong>视觉区域进行语义对齐</strong>。对齐能力通过大规模图文预训练获得。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="label">适用场景</div>
+      <p>类别体系动态变化（零售商品上新、安防监控）、标注成本高（工业缺陷检测、遥感图像）、数据探索与快速原型验证。</p>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 3 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 01</div>
+    <div class="module-title">从固定类别<br>到开放词表</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解固定类别检测的根本局限</li>
+      <li>掌握开放词表检测的核心思想</li>
+      <li>了解适用场景与典型应用</li>
+    </ul>
+<div class="page-nb">03 / 30</div>
+  </div>
+  <div class="content">
+    <h1>开放词表检测的代表方法</h1>
+
+    <table class="compare-table">
+      <tr><th style="width:18%">方法类别</th><th style="width:28%">核心思路</th><th style="width:28%">代表工作</th><th style="width:26%">特点</th></tr>
+      <tr>
+        <td>视觉-语言预训练</td>
+        <td>利用 CLIP 等图文预训练模型将检测头与文本编码器结合</td>
+        <td>GroundingDINO, GLIP</td>
+        <td>零样本能力强，泛化性好</td>
+      </tr>
+      <tr>
+        <td>知识蒸馏</td>
+        <td>用图文预训练模型蒸馏视觉概念到检测器</td>
+        <td>ViLD, RegionCLIP</td>
+        <td>推理速度快，但泛化受限</td>
+      </tr>
+      <tr>
+        <td>生成式方法</td>
+        <td>将检测任务建模为语言生成任务</td>
+        <td>OV-DETR</td>
+        <td>端到端，结构简洁</td>
+      </tr>
+    </table>
+
+    <div class="card-row" style="grid-template-columns:1fr 1fr;">
+      <div class="card">
+        <div class="tag">COURSE FOCUS</div>
+        <h4>GroundingDINO</h4>
+        <p>最成熟、社区最活跃的方案。将 DINO（基于 DETR 的端到端检测器）与 grounded pre-training 结合。论文发表于 <strong>ECCV 2024</strong>。官方仓库：<code>github.com/IDEA-Research/GroundingDINO</code></p>
+      </div>
+      <div class="card">
+        <div class="tag">RELATIONSHIP</div>
+        <h4>与传统检测的关系</h4>
+        <p>固定类别检测适合类别稳定、速度优先的生产环境。开放词表检测适合类别灵活、快速迭代的探索阶段。<strong>两者互补而非替代</strong>。</p>
+      </div>
+    </div>
+
+    <h2 style="margin-top:0.3vh">关键认知</h2>
+    <div class="cols-3" style="font-size:clamp(14px,0.9vw,18px)">
+      <div>开放词表检测<strong>不是无监督</strong>——依赖大规模预训练数据</div>
+      <div>常见物体效果好，<strong>专业/罕见物体</strong>可能不稳定</div>
+      <div>文本描述<strong>越精确</strong>，检测结果越可靠</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 4 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 01</div>
+    <div class="module-title">从固定类别<br>到开放词表</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解固定类别检测的根本局限</li>
+      <li>掌握开放词表检测的核心思想</li>
+      <li>了解适用场景与典型应用</li>
+    </ul>
+<div class="page-nb">04 / 30</div>
+  </div>
+  <div class="content">
+    <h1>开放词表方法的详细技术路线对比</h1>
+
+    <div class="cols-2">
+      <div>
+        <h2>视觉-语言预训练方法</h2>
+        <p>GroundingDINO 和 GLIP 属于此类。核心思路：在检测模型的架构中引入<strong>文本编码分支</strong>，通过大量图文对数据训练，使模型学会将视觉特征与文本语义关联。</p>
+        <pre><code>训练数据需求:
+  - 检测标注数据 (图像+框+标签)
+  - 图文对数据 (图像+自然语言描述)
+
+训练目标:
+  - 检测损失: 框回归 + 分类
+  - 对比损失: 图文对匹配</code></pre>
+        <div class="tip-box">
+          <div class="label">ADVANTAGE</div>
+          <p>零样本能力强，检测精度在所有开放词表方法中最优。推理时直接使用文本提示词，无需任何微调。</p>
+        </div>
+      </div>
+      <div>
+        <h2>其他方法对比</h2>
+        <table style="font-size:clamp(12px,0.8vw,16px)">
+          <tr><th>方法</th><th>训练复杂度</th><th>推理速度</th><th>泛化性</th></tr>
+          <tr><td>GroundingDINO</td><td>高（混合训练）</td><td>中等</td><td>最优</td></tr>
+          <tr><td>GLIP</td><td>高</td><td>中等</td><td>优秀</td></tr>
+          <tr><td>ViLD</td><td>中（蒸馏）</td><td>快</td><td>受限</td></tr>
+          <tr><td>RegionCLIP</td><td>中</td><td>快</td><td>中等</td></tr>
+          <tr><td>OV-DETR</td><td>低</td><td>中等</td><td>中等</td></tr>
+        </table>
+        <div class="warn-box">
+          <div class="label">CHOICE GUIDANCE</div>
+          <p>若推理速度是硬性约束，ViLD 或 RegionCLIP 可能更合适（基于蒸馏的方法推理时只需图像编码器）。若追求最优零样本效果，GroundingDINO 是首选。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="label">PERFORMANCE DATA</div>
+      <p>在 LVIS 零样本检测基准上，GroundingDINO-T 达到 31.1 AP，GroundingDINO-B 达到 34.2 AP，显著领先于 ViLD（16.1 AP）和 RegionCLIP（18.5 AP）。但 GroundingDINO 推理速度约 5-10 FPS（T4 GPU），远低于 YOLO 的 200+ FPS。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 2: GroundingDINO 基本思想 ============ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 02</div>
+    <div class="module-title">GroundingDINO<br>基本思想</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解 GroundingDINO 的设计动机</li>
+      <li>掌握模型整体架构</li>
+      <li>理解 DINO 与文本融合方式</li>
+    </ul>
+<div class="page-nb">05 / 30</div>
+  </div>
+  <div class="content">
+    <h1>GroundingDINO 的设计动机与架构</h1>
+
+    <div class="cols-2">
+      <div>
+        <h2>名称含义</h2>
+        <p><strong>Grounding</strong>（接地/定位）+ <strong>DINO</strong>（端到端目标检测器）。设计哲学：<strong>融合而非替换</strong>——保留 DINO 成熟架构，增加文本编码和跨模态融合模块。</p>
+        <h2>为什么选择 DINO</h2>
+        <p>DINO（DETR with Improved Denoising Anchor Boxes）是 DETR 系列最优变体。基于 query 的架构<strong>天然适合与文本特征交互</strong>——文本编码特征可作为额外 query 注入解码器。无需锚框设计、NMS 后处理等手工组件。</p>
+      </div>
+      <div>
+        <h2>为什么需要 Grounding</h2>
+        <p>DINO 本身仍是固定类别检测器。Grounding 机制引入<strong>文本编码分支</strong>，将自然语言提示词编码为语义特征，通过跨模态注意力让文本特征与图像特征交互，实现根据文本描述的开放词表定位。</p>
+      </div>
+    </div>
+
+    <h2>四模块架构</h2>
+    <div class="arch-flow">
+      <div class="row">
+        <div class="block accent2">图像编码器<br><span style="font-size:clamp(9px,0.55vw,11px);opacity:0.6">Swin Transformer</span></div>
+        <span class="arrow">→</span>
+        <div class="block accent3">文本编码器<br><span style="font-size:clamp(9px,0.55vw,11px);opacity:0.6">BERT</span></div>
+        <span class="arrow">↓</span>
+        <div class="block accent">跨模态融合<br><span style="font-size:clamp(9px,0.55vw,11px);opacity:0.6">Cross-Modal Attention</span></div>
+        <span class="arrow">→</span>
+        <div class="block">DINO Decoder<br><span style="font-size:clamp(9px,0.55vw,11px);opacity:0.6">Detection Head</span></div>
+      </div>
+      <div class="label">输入图像 + "helmet . person ." → [bbox, score, text_match]</div>
+    </div>
+
+    <div class="cols-3" style="gap:0.6vw">
+      <div class="card"><h4>图像编码</h4><p>Swin Transformer 提取<strong>多尺度视觉特征</strong>，覆盖细粒度到全局的不同感受野。</p></div>
+      <div class="card"><h4>文本编码</h4><p>BERT 对提示词编码，与图像编码器<strong>联合优化</strong>，映射到共享表示空间。</p></div>
+      <div class="card"><h4>检测输出</h4><p>每检测框关联<strong>文本相似度分数</strong>，表示该区域与提示词的匹配程度。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 5 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 02</div>
+    <div class="module-title">GroundingDINO<br>基本思想</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解 GroundingDINO 的设计动机</li>
+      <li>掌握模型整体架构</li>
+      <li>理解 DINO 与文本融合方式</li>
+    </ul>
+<div class="page-nb">06 / 30</div>
+  </div>
+  <div class="content">
+    <h1>特征处理流程详解</h1>
+
+    <div class="cols-2">
+      <div>
+        <div class="arch-flow" style="gap:2px">
+          <div class="row"><div class="block" style="flex:1">输入图像 [3,640,640]</div><span class="arrow">→</span></div>
+          <div class="row"><div class="block">Swin-T Stage 1: Patch Embed [96,160,160]</div><span class="arrow">→</span></div>
+          <div class="row"><div class="block">Stage 2: Swin×2 [192,80,80]</div><span class="arrow">→</span></div>
+          <div class="row"><div class="block">Stage 3: Swin×6 [384,40,40]</div><span class="arrow">→</span></div>
+          <div class="row"><div class="block">Stage 4: Swin×2 [768,20,20]</div><span class="arrow">→</span></div>
+          <div class="row"><div class="block accent2">多尺度特征融合 (FPN)</div><span class="arrow">→</span></div>
+          <div class="row"><div class="block accent2">投影层 768→256</div></div>
+          <div class="label">Swin-Tiny 骨干网络输出: 256维特征矩阵</div>
+        </div>
+        <div class="tip-box">
+          <div class="label">MULTI-SCALE</div>
+          <p>多尺度特征使模型同时检测<strong>大目标</strong>（Stage 4 低分辨率高语义）和<strong>小目标</strong>（Stage 2 高分辨率低语义）。FPN 风格融合进一步增强了各尺度特征的表达能力。</p>
+        </div>
+      </div>
+      <div>
+        <div class="arch-flow" style="gap:2px">
+          <div class="row"><div class="block" style="flex:1">输入: "a yellow helmet ."</div><span class="arrow">→</span></div>
+          <div class="row"><div class="block accent3">WordPiece Tokenization</div><span class="arrow">→</span></div>
+          <div class="row"><div class="block accent3">BERT Embedding [768] + POS</div><span class="arrow">→</span></div>
+          <div class="row"><div class="block accent3">BERT Encoder ×12 层</div><span class="arrow">→</span></div>
+          <div class="row"><div class="block">Projection 768→256</div></div>
+          <div class="label">输出: [N_tokens, 256] 语义特征矩阵</div>
+        </div>
+        <div class="note-box">
+          <div class="label">TEXT ENCODER</div>
+          <p>文本编码器在训练过程中会<strong>微调</strong>（而非冻结），使其适应检测任务，更关注与目标检测相关的语义信息（物体类别、属性描述），而非通用语言理解。</p>
+        </div>
+        <h2>GroundingDINO vs DINO</h2>
+        <table style="font-size:clamp(12px,0.8vw,16px)">
+          <tr><th>维度</th><th>DINO</th><th>GroundingDINO</th></tr>
+          <tr><td>类别定义</td><td>固定</td><td>开放词表</td></tr>
+          <tr><td>文本输入</td><td>无</td><td>自然语言提示词</td></tr>
+          <tr><td>分类方式</td><td>线性分类头</td><td>文本相似度匹配</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 6 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 02</div>
+    <div class="module-title">GroundingDINO<br>基本思想</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解 GroundingDINO 的设计动机</li>
+      <li>掌握模型整体架构</li>
+      <li>理解 DINO 与文本融合方式</li>
+    </ul>
+<div class="page-nb">07 / 30</div>
+  </div>
+  <div class="content">
+    <h1>DINO Decoder 详解：端到端检测的核心</h1>
+
+    <div class="cols-2">
+      <div>
+        <h2>Decoder 结构</h2>
+        <p>DINO Decoder 是 GroundingDINO 的检测头，基于 Transformer Decoder 架构。核心组件：</p>
+        <ul>
+          <li><strong>Object Queries</strong>：一组可学习的查询向量（通常 300 或 900 个），每个 query 负责预测一个目标</li>
+          <li><strong>Cross-Attention</strong>：queries 与编码器输出的多模态特征进行交叉注意力计算</li>
+          <li><strong>Self-Attention</strong>：queries 之间互相通信，消除重复预测</li>
+          <li><strong>FFN</strong>：将 queries 解码为框坐标和类别分数</li>
+        </ul>
+        <div class="tip-box">
+          <div class="label">KEY DIFFERENCE</div>
+          <p>GroundingDINO 的 queries 不仅与图像特征交互，还与<strong>文本特征</strong>进行交叉注意力。这使得每个 query 能够"关注"与特定文本描述相关的图像区域。</p>
+        </div>
+      </div>
+      <div>
+        <h2>去噪训练策略</h2>
+        <p>DINO 引入的去噪训练（Denoising Training）是提升收敛速度和检测精度的关键：</p>
+        <pre><code>训练时:
+  1. 对真实框添加随机噪声
+     (位置偏移 + 尺寸缩放)
+  2. 将带噪框作为额外 queries
+  3. 模型学习"去噪"——还原真实框
+
+推理时:
+  不使用去噪 queries
+  仅使用标准 object queries</code></pre>
+        <div class="info-box">
+          <div class="label">BENEFIT</div>
+          <p>去噪训练使模型在训练早期就学会基本的定位能力，加速收敛。GroundingDINO 继承了这一策略，同时将去噪 queries 也暴露给文本特征，使模型同时学习"去噪定位"和"文本匹配"。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="note-box">
+      <div class="label">TECHNICAL DETAIL</div>
+      <p>GroundingDINO 使用 6 层 Decoder，每层包含：Self-Attention → Image Cross-Attention → Text Cross-Attention → FFN。文本交叉注意力是新增的，使 queries 能根据文本语义调整关注区域。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 3: 跨模态对齐 ============ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 03</div>
+    <div class="module-title">文本-图像<br>跨模态对齐</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解跨模态对齐的基本原理</li>
+      <li>掌握文本与图像编码过程</li>
+      <li>理解跨模态注意力机制</li>
+    </ul>
+<div class="page-nb">08 / 30</div>
+  </div>
+  <div class="content">
+    <h1>跨模态对齐的基本原理</h1>
+
+    <p>跨模态对齐（Cross-Modal Alignment）的核心目标：将图像和文本映射到<strong>同一共享表示空间</strong>，使语义相似的图像区域与文本描述在该空间中距离相近。</p>
+
+    <div class="cols-3" style="gap:0.8vw">
+      <div class="card">
+        <h4>共享表示空间</h4>
+        <p>图像特征和文本特征通过投影层映射到<strong>相同维度</strong>（256维）。"黄色头盔"的图像区域特征与文本 "yellow helmet" 的特征向量应具有高余弦相似度。</p>
+      </div>
+      <div class="card">
+        <h4>对比学习目标</h4>
+        <p>训练时<strong>最大化</strong>匹配的图像-文本对的相似度，<strong>最小化</strong>不匹配对的相似度。驱动模型学习语义级别的跨模态对应关系。</p>
+      </div>
+      <div class="card">
+        <h4>细粒度对齐</h4>
+        <p>不同于 CLIP 的整体对齐，GroundingDINO 需要<strong>区域-短语级</strong>对齐。文本中的"a yellow helmet"需与图像中对应区域关联。</p>
+      </div>
+    </div>
+
+    <div class="note-box">
+      <div class="label">SIMPLIFIED UNDERSTANDING</div>
+      <p>图像编码器将图像分割为若干"区域特征"，文本编码器将提示词分割为若干"词特征"，跨模态模块让两者进行匹配：每个区域特征找到与之语义最匹配的词特征，匹配度高的区域即为检测目标。</p>
+    </div>
+
+    <div class="arch-flow" style="gap:2px">
+      <div class="row" style="justify-content:center">
+        <div class="block accent2" style="flex:0 0 auto;padding:0.3vh 0.8vw">图像区域特征 [N_patches × 256]</div>
+        <span class="arrow" style="font-size:clamp(12px,0.9vw,16px)">↔ 跨模态注意力 ↔</span>
+        <div class="block accent3" style="flex:0 0 auto;padding:0.3vh 0.8vw">文本 Token 特征 [N_tokens × 256]</div>
+      </div>
+      <div class="label">经过多层交互，两种模态在共享表示空间中对齐</div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 7 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 03</div>
+    <div class="module-title">文本-图像<br>跨模态对齐</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解跨模态对齐的基本原理</li>
+      <li>掌握文本与图像编码过程</li>
+      <li>理解跨模态注意力机制</li>
+    </ul>
+<div class="page-nb">09 / 30</div>
+  </div>
+  <div class="content">
+    <h1>文本编码与图像编码参数对比</h1>
+    <div class="cols-2">
+      <div>
+        <h2>BERT 文本编码器</h2>
+        <table style="font-size:clamp(12px,0.8vw,16px)">
+          <tr><th>参数</th><th>值</th></tr>
+          <tr><td>架构</td><td>BERT-base (12 层 Transformer)</td></tr>
+          <tr><td>隐藏维度</td><td>768</td></tr>
+          <tr><td>注意力头数</td><td>12</td></tr>
+          <tr><td>参数量</td><td>~110M</td></tr>
+          <tr><td>最大输入长度</td><td>512 tokens</td></tr>
+          <tr><td>微调策略</td><td>全参数微调（非冻结）</td></tr>
+        </table>
+        <div class="tip-box">
+          <div class="label">NOTE</div>
+          <p>文本编码器微调是关键。冻结 BERT 会导致开放词表泛化能力显著下降。全参数微调使编码器更关注物体类别和属性，而非通用语义。</p>
+        </div>
+      </div>
+      <div>
+        <h2>Swin Transformer 图像编码器</h2>
+        <table style="font-size:clamp(12px,0.8vw,16px)">
+          <tr><th>参数</th><th>Swin-T</th><th>Swin-B</th></tr>
+          <tr><td>窗口大小</td><td>7×7</td><td>7×7</td></tr>
+          <tr><td>Stage 通道数</td><td>[96,192,384,768]</td><td>[128,256,512,1024]</td></tr>
+          <tr><td>Block 数</td><td>[2,2,6,2]</td><td>[2,2,18,2]</td></tr>
+          <tr><td>参数量</td><td>~28M</td><td>~88M</td></tr>
+          <tr><td>输入分辨率</td><td>640×640</td><td>640×640</td></tr>
+          <tr><td>输出特征维度</td><td>256（投影后）</td><td>256（投影后）</td></tr>
+        </table>
+        <div class="warn-box">
+          <div class="label">MEMORY USAGE</div>
+          <p>GroundingDINO-B 需要约 6-8GB 显存（batch=1, 640×640）。GroundingDINO-T 约 3-4GB。若显存不足，可降低输入分辨率至 480×480。</p>
+        </div>
+      </div>
+    </div>
+    <h2>特征投影与共享表示空间</h2>
+    <p>图像和文本特征通过独立的线性投影层映射到 256 维共享空间。投影后的特征在同一空间中进行相似度计算，这是跨模态对齐的基础。投影层参数在训练过程中与骨干网络一起优化。</p>
+  </div>
+</section>
+
+<!-- SLIDE 8 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 03</div>
+    <div class="module-title">文本-图像<br>跨模态对齐</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解跨模态对齐的基本原理</li>
+      <li>掌握文本与图像编码过程</li>
+      <li>理解跨模态注意力机制</li>
+    </ul>
+<div class="page-nb">10 / 30</div>
+  </div>
+  <div class="content">
+    <h1>跨模态注意力机制详解</h1>
+
+    <div class="cols-2">
+      <div>
+        <h2>图像 → 文本注意力</h2>
+        <p>图像特征作为 <strong>Query</strong>，文本特征作为 <strong>Key/Value</strong>。每个图像区域计算与所有文本 token 的注意力权重，"关注"与自身语义相关的文本描述。</p>
+        <pre><code>Q_img · K_text^T → attention weights
+→ weighted sum of V_text
+→ 图像特征融合了文本信息</code></pre>
+        <div class="tip-box">
+          <div class="label">EXAMPLE</div>
+          <p>图像中头盔区域的 query 会与文本中 "helmet" token 产生<strong>高注意力权重</strong>，从文本中获取"这是一个 helmet"的语义确认。</p>
+        </div>
+      </div>
+      <div>
+        <h2>文本 → 图像注意力</h2>
+        <p>文本特征作为 <strong>Query</strong>，图像特征作为 <strong>Key/Value</strong>。每个文本 token 定位文本描述在图像中的对应区域。</p>
+        <pre><code>Q_text · K_img^T → attention weights
+→ weighted sum of V_img
+→ 文本特征融合了视觉信息</code></pre>
+        <div class="tip-box">
+          <div class="label">EXAMPLE</div>
+          <p>"yellow" token 关注图像中<strong>黄色区域</strong>的视觉特征，获取颜色属性的视觉证据。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="note-box">
+      <div class="label">TECHNICAL INSIGHT</div>
+      <p>GroundingDINO 使用<strong>6 层</strong>跨模态编码器，每层同时执行图像→文本和文本→图像注意力。经过多层交互，两种模态的特征充分对齐。<strong>混合训练策略</strong>是关键：检测数据（图像+框+标签）学习检测能力 + 图文对数据（图像+描述）学习跨模态对齐。</p>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 9 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 03</div>
+    <div class="module-title">文本-图像<br>跨模态对齐</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解跨模态对齐的基本原理</li>
+      <li>掌握文本与图像编码过程</li>
+      <li>理解跨模态注意力机制</li>
+    </ul>
+<div class="page-nb">11 / 30</div>
+  </div>
+  <div class="content">
+    <h1>对齐效果分析与影响因素</h1>
+
+    <table>
+      <tr><th style="width:18%">因素</th><th style="width:41%">对齐良好时</th><th style="width:41%">对齐不足时</th></tr>
+      <tr><td>文本描述粒度</td><td>"a yellow safety helmet" → 精确定位</td><td>"helmet" 可能漏检或误检</td></tr>
+      <tr><td>视觉显著性</td><td>主体目标（工人、车辆）对齐稳定</td><td>小目标、遮挡目标对齐不稳定</td></tr>
+      <tr><td>语义清晰度</td><td>"person wearing helmet" → 明确关系</td><td>"person helmet" → 独立目标</td></tr>
+      <tr><td>预训练数据覆盖</td><td>常见物体（人、车、动物）可靠</td><td>罕见物体（专业设备）不稳定</td></tr>
+    </table>
+
+    <h2>提示词对比实验</h2>
+    <div class="cols-2">
+      <pre><code>提示词 A: "helmet"
+→ 匹配所有与"helmet"相似的区域
+  包括安全帽、自行车头盔、圆形头戴物
+
+提示词 B: "yellow safety helmet"
+→ 同时匹配 yellow + safety helmet
+  定位更精确，但要求所有属性满足</code></pre>
+      <div>
+        <div class="info-box">
+          <div class="label">PRINCIPLE</div>
+          <p>提示词越具体，精度越高但召回率可能下降。从宽泛提示词开始，逐步增加限定词，观察检测效果变化。</p>
+        </div>
+        <div class="warn-box">
+          <div class="label">CAUTION</div>
+          <p>过长的提示词会稀释关键语义的注意力权重。否定表达（"no helmet"）效果不稳定。建议使用<strong>英文单数名词</strong>，多类别用句点 <code>.</code> 分隔。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 03</div>
+    <div class="module-title">文本-图像<br>跨模态对齐</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解跨模态对齐的基本原理</li>
+      <li>掌握文本与图像编码过程</li>
+      <li>理解跨模态注意力机制</li>
+    </ul>
+<div class="page-nb">12 / 30</div>
+  </div>
+  <div class="content">
+    <h1>对比学习目标详解</h1>
+
+    <div class="cols-2">
+      <div>
+        <h2>对比损失函数</h2>
+        <p>GroundingDINO 使用对比学习（Contrastive Learning）来训练跨模态对齐。核心思想：拉近匹配的图像-文本对，推远不匹配对。</p>
+        <pre><code>L_contrastive = -log(
+  exp(sim(I,T+)/τ) /
+  Σ exp(sim(I,T_i)/τ)
+)
+
+sim(I,T) = cos(I_feat, T_feat)
+τ = temperature (可学习参数)</code></pre>
+        <div class="tip-box">
+          <div class="label">INTUITION</div>
+          <p>对于一张"戴头盔的工人"图像，模型应使图像特征与文本 "a worker wearing a helmet" 的特征相似度高，与 "a dog" 的特征相似度低。</p>
+        </div>
+      </div>
+      <div>
+        <h2>训练数据组织</h2>
+        <table style="font-size:clamp(12px,0.8vw,16px)">
+          <tr><th>数据类型</th><th>来源</th><th>用途</th></tr>
+          <tr><td>检测数据</td><td>COCO, Objects365</td><td>学习框回归和分类</td></tr>
+          <tr><td>图文对数据</td><td>CC12M, LAION-400M</td><td>学习跨模态对齐</td></tr>
+          <tr><td>短语标注数据</td><td>Flickr30K Entities</td><td>学习区域-短语匹配</td></tr>
+        </table>
+        <div class="note-box">
+          <div class="label">MIXED TRAINING</div>
+          <p>GroundingDINO 在训练时混合使用三种数据。检测数据提供框监督信号，图文对数据提供语义对齐信号，短语数据提供细粒度匹配信号。这种<strong>多任务学习</strong>策略是模型同时具备检测精度和开放词表泛化能力的关键。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="label">LOSS COMPOSITION</div>
+      <p>总损失 = L_giou (框回归) + L_L1 (框坐标) + L_contrastive (图文对比) + L_ce (分类)。各损失权重通过超参数调节，默认 L_contrastive 权重为 1.0。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 4: 阈值与提示词工程 ============ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 04</div>
+    <div class="module-title">阈值与<br>提示词工程</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解 box/text threshold 的作用</li>
+      <li>掌握提示词设计原则</li>
+      <li>学会通过阈值调节检测结果</li>
+    </ul>
+<div class="page-nb">13 / 30</div>
+  </div>
+  <div class="content">
+    <h1>GroundingDINO 的双阈值机制</h1>
+
+    <div class="cols-2">
+      <div>
+        <h2>Box Threshold（检测框阈值）</h2>
+        <p>控制检测框的置信度门槛。每个预测框输出置信度分数（0~1），只有 ≥ 阈值的框被保留。</p>
+        <pre><code>box_threshold = 0.3:
+  保留 ≥ 0.3 的框 → 高召回率，有误检
+
+box_threshold = 0.7:
+  仅保留 ≥ 0.7 的框 → 高精度，可能漏检</code></pre>
+        <div class="tip-box">
+          <div class="label">DEFAULT</div>
+          <p>官方推荐：<code>box_threshold = 0.3</code>，<code>text_threshold = 0.25</code>。精度优先场景 box ≥ 0.5，召回率优先场景 box ≤ 0.3。</p>
+        </div>
+      </div>
+      <div>
+        <h2>Text Threshold（文本阈值）</h2>
+        <p>控制文本 token 与图像区域匹配置信度。只有匹配分数 ≥ 阈值的 token-区域对被视为有效。</p>
+        <pre><code>text_threshold = 0.25:
+  宽松匹配 → 适合探索性检测
+
+text_threshold = 0.5:
+  严格匹配 → 适合精确检测</code></pre>
+        <div class="info-box">
+          <div class="label">HOW THEY INTERACT</div>
+          <p>两阈值是<strong>串联</strong>关系：框先通过 box_threshold 筛选，再计算框内区域与文本 token 的匹配度，通过 text_threshold 二次筛选。同时调高两个阈值会显著减少检测结果。</p>
+        </div>
+      </div>
+    </div>
+
+    <h2>阈值调节实验 (提示词固定: "helmet . person ." )</h2>
+    <table style="font-size:clamp(13px,0.85vw,17px)">
+      <tr><th>box_thr</th><th>text_thr</th><th>检测框数</th><th>误检情况</th><th>漏检情况</th></tr>
+      <tr><td>0.2</td><td>0.2</td><td>47</td><td>大量（背景纹理、阴影）</td><td>几乎无</td></tr>
+      <tr><td>0.3</td><td>0.25</td><td>23</td><td>少量</td><td>少数遮挡目标</td></tr>
+      <tr><td>0.5</td><td>0.3</td><td>12</td><td>极少</td><td>小目标/低对比度漏检</td></tr>
+      <tr><td>0.7</td><td>0.5</td><td>5</td><td>几乎无</td><td>大量（仅最显著目标）</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- SLIDE 10 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 04</div>
+    <div class="module-title">阈值与<br>提示词工程</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解 box/text threshold 的作用</li>
+      <li>掌握提示词设计原则</li>
+      <li>学会通过阈值调节检测结果</li>
+    </ul>
+<div class="page-nb">14 / 30</div>
+  </div>
+  <div class="content">
+    <h1>提示词设计原则与实验数据</h1>
+
+    <div class="cols-2">
+      <div>
+        <h2>核心设计原则</h2>
+        <ul>
+          <li>使用<strong>具体名词</strong>："hard hat" 优于 "head protection"</li>
+          <li>多类别用<strong>句点分隔</strong>：<code>"helmet . person ."</code> 而非逗号</li>
+          <li>可补充<strong>属性描述</strong>（颜色、形状），提高精度</li>
+          <li>使用<strong>英文单数名词</strong>，避免否定表达和过长句子</li>
+        </ul>
+        <div class="warn-box">
+          <div class="label">COMMON MISTAKE</div>
+          <p>中文提示词效果可能不稳定。建议优先使用英文。若必须用中文，需降低 text_threshold 并手动验证结果。</p>
+        </div>
+      </div>
+      <div>
+        <h2>对比实验数据</h2>
+        <p style="margin-bottom:0.2vh">测试图像：施工现场（工人、安全帽、锥桶）。固定参数：box=0.3, text=0.25。</p>
+        <table style="font-size:clamp(12px,0.78vw,16px)">
+          <tr><th>提示词</th><th>检测</th><th>误检</th><th>漏检</th></tr>
+          <tr><td><code>"helmet"</code></td><td>8</td><td>3</td><td>1</td></tr>
+          <tr><td><code>"safety helmet"</code></td><td>6</td><td>1</td><td>1</td></tr>
+          <tr><td><code>"yellow safety helmet"</code></td><td>4</td><td>0</td><td>2</td></tr>
+          <tr><td><code>"person"</code></td><td>7</td><td>1</td><td>0</td></tr>
+          <tr><td><code>"person wearing helmet"</code></td><td>5</td><td>0</td><td>1</td></tr>
+          <tr><td><code>"head without helmet"</code></td><td>2</td><td>1</td><td>3</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="tip-box">
+      <div class="label">EXPERIMENT CONCLUSION</div>
+      <p>提示词越具体，精度越高但<strong>召回率下降</strong>。实际应用中从宽泛提示词开始，逐步增加限定词，观察检测效果变化。否定表达效果不稳定，不建议用于生产环境。</p>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 11 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 04</div>
+    <div class="module-title">阈值与<br>提示词工程</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解 box/text threshold 的作用</li>
+      <li>掌握提示词设计原则</li>
+      <li>学会通过阈值调节检测结果</li>
+    </ul>
+<div class="page-nb">15 / 30</div>
+  </div>
+  <div class="content">
+    <h1>阈值调节策略与最佳实践</h1>
+
+    <div class="cols-2">
+      <div>
+        <h2>分阶段调节策略</h2>
+        <div class="step-list" style="gap:0.3vh">
+          <div class="step-item">
+            <div class="step-num">1</div>
+            <div class="step-body"><p><strong>探索阶段</strong>：设低阈值（box=0.2, text=0.2），观察模型能检测到哪些目标，了解模型的能力边界</p></div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">2</div>
+            <div class="step-body"><p><strong>优化阶段</strong>：逐步提高阈值，观察误检和漏检的变化，找到精度-召回率的平衡点</p></div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">3</div>
+            <div class="step-body"><p><strong>验证阶段</strong>：在验证集上评估不同阈值组合的 mAP，选择最优组合</p></div>
+          </div>
+        </div>
+        <div class="tip-box">
+          <div class="label">RECOMMENDED WORKFLOW</div>
+          <p>先固定 text_threshold=0.25，调节 box_threshold 从 0.2 到 0.7（步长 0.1），记录每个阈值下的检测框数量和误检率。然后固定最优 box_threshold，调节 text_threshold。</p>
+        </div>
+      </div>
+      <div>
+        <h2>场景化推荐值</h2>
+        <table style="font-size:clamp(12px,0.8vw,16px)">
+          <tr><th>应用场景</th><th>box_thr</th><th>text_thr</th><th>策略</th></tr>
+          <tr><td>数据探索/内容检索</td><td>0.2~0.25</td><td>0.2</td><td>最大化召回率</td></tr>
+          <tr><td>自动标注辅助</td><td>0.5~0.6</td><td>0.3~0.35</td><td>减少误检，人工审核</td></tr>
+          <tr><td>安全监控</td><td>0.25~0.3</td><td>0.25</td><td>平衡精度和召回</td></tr>
+          <tr><td>精确检测/生产环境</td><td>0.6~0.7</td><td>0.4~0.5</td><td>高精度优先</td></tr>
+          <tr><td>多类别同时检测</td><td>0.3~0.35</td><td>0.25</td><td>各类别均衡</td></tr>
+        </table>
+        <div class="warn-box">
+          <div class="label">IMPORTANT</div>
+          <p>阈值设置与<strong>提示词粒度</strong>相关：提示词越具体，可适当降低阈值；提示词越宽泛，需提高阈值过滤误检。每次更换提示词后应重新评估阈值。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="label">AUTOMATED THRESHOLD TUNING</div>
+      <p>对于有验证集的场景，可编写脚本自动搜索最优阈值组合：遍历 box_threshold ∈ [0.2, 0.7] 和 text_threshold ∈ [0.2, 0.5]，计算每个组合的 mAP，选择最优值。搜索步长建议 0.05。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 5: 模型比较 ============ -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 05</div>
+    <div class="module-title">模型<br>比较分析</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解 YOLO/FsDet/GroundingDINO 的核心差异</li>
+      <li>掌握各模型的适用场景</li>
+      <li>学会根据任务需求选择模型</li>
+    </ul>
+<div class="page-nb">16 / 30</div>
+  </div>
+  <div class="content">
+    <h1>YOLO vs FsDet vs GroundingDINO 系统比较</h1>
+
+    <table>
+      <tr><th>比较维度</th><th>YOLO</th><th>FsDet</th><th>GroundingDINO</th></tr>
+      <tr><td>类别定义</td><td>固定（训练集预定义）</td><td>基类+少量新类样本</td><td>文本提示词动态指定</td></tr>
+      <tr><td>训练数据需求</td><td>大量标注</td><td>基类大量+新类少量</td><td>预训练数据，可零样本</td></tr>
+      <tr><td>推理速度</td><td>极快（毫秒级 GPU）</td><td>中等</td><td>较慢（百毫秒级 GPU）</td></tr>
+      <tr><td>新类别扩展方式</td><td>重新训练</td><td>少量样本微调</td><td>修改提示词即可</td></tr>
+      <tr><td>部署难度</td><td>低（工具链成熟）</td><td>中（训练复杂）</td><td>中（依赖预训练模型）</td></tr>
+      <tr><td>专业类别效果</td><td>好（有训练数据）</td><td>依赖样本质量</td><td>可能不稳定</td></tr>
+    </table>
+
+    <div class="card-row" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="card">
+        <div class="tag">实时部署首选</div>
+        <h4>YOLO 系列</h4>
+        <p>推理速度极快（YOLOv8s T4 上 200+ FPS），工具链成熟，社区资源丰富。适合<strong>实时检测</strong>和资源受限场景。</p>
+      </div>
+      <div class="card">
+        <div class="tag">样本效率优先</div>
+        <h4>FsDet</h4>
+        <p>样本效率高，仅需少量新类别样本即可泛化。适合<strong>标注数据稀缺</strong>但需要扩展类别的场景。结果波动大，对样本质量敏感。</p>
+      </div>
+      <div class="card">
+        <div class="tag">灵活性优先</div>
+        <h4>GroundingDINO</h4>
+        <p>零样本检测任意文本描述的目标。适合<strong>数据探索</strong>、类别不确定的场景。灵活性以推理速度和专业精度为代价。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 12 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 05</div>
+    <div class="module-title">模型<br>比较分析</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解 YOLO/FsDet/GroundingDINO 的核心差异</li>
+      <li>掌握各模型的适用场景</li>
+      <li>学会根据任务需求选择模型</li>
+    </ul>
+<div class="page-nb">17 / 30</div>
+  </div>
+  <div class="content">
+    <h1>YOLO 系列详解：固定类别检测的标杆</h1>
+    <div class="cols-2">
+      <div>
+        <h2>YOLO 发展脉络</h2>
+        <table style="font-size:clamp(12px,0.8vw,16px)">
+          <tr><th>版本</th><th>核心改进</th><th>COCO mAP</th></tr>
+          <tr><td>YOLOv3 (2018)</td><td>多尺度预测 + Darknet-53</td><td>33.0</td></tr>
+          <tr><td>YOLOv5 (2020)</td><td>PyTorch + 自动锚框</td><td>37.4</td></tr>
+          <tr><td>YOLOv8 (2023)</td><td>Anchor-Free + C2f</td><td>44.9</td></tr>
+          <tr><td>YOLOv10 (2024)</td><td>NMS-Free + 双标签</td><td>46.7</td></tr>
+        </table>
+        <div class="tip-box">
+          <div class="label">ADVANTAGE</div>
+          <p>YOLOv8s T4 GPU 上 200+ FPS，44.9 mAP。Ultralytics 提供完整训练/导出/部署工具链。安装：<code>pip install ultralytics</code>。</p>
+        </div>
+      </div>
+      <div>
+        <h2>YOLO 局限与应用边界</h2>
+        <ul>
+          <li><strong>类别固定</strong>：扩展需重新训练，标注成本高</li>
+          <li><strong>长尾问题</strong>：罕见类别因样本不足效果差</li>
+        </ul>
+        <div class="warn-box">
+          <div class="label">SCENARIO</div>
+          <p>若生产线需检测 10 种固定缺陷，YOLO 最优。但每周新增 2 种缺陷类型时，每次重新标注训练的成本累积，GroundingDINO 的零样本能力更具优势。</p>
+        </div>
+        <h2>FsDet：少样本检测方案</h2>
+        <p>FsDet 通过<strong>元学习</strong>和<strong>微调</strong>策略，使用基类大量数据 + 新类少量样本实现类别扩展。</p>
+        <div class="info-box"><div class="label">LIMITATION</div><p>训练复杂（两阶段），结果波动大，对样本质量敏感。</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 13 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 05</div>
+    <div class="module-title">模型<br>比较分析</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>理解 YOLO/FsDet/GroundingDINO 的核心差异</li>
+      <li>掌握各模型的适用场景</li>
+      <li>学会根据任务需求选择模型</li>
+    </ul>
+<div class="page-nb">18 / 30</div>
+  </div>
+  <div class="content">
+    <h1>场景化选型与组合策略</h1>
+
+    <table>
+      <tr><th>场景</th><th>推荐方案</th><th>理由</th></tr>
+      <tr><td>生产线实时缺陷检测（类别固定）</td><td>YOLO</td><td>速度快，类别稳定，部署成熟</td></tr>
+      <tr><td>新品类上线前快速验证</td><td>GroundingDINO</td><td>零样本，无需标注数据</td></tr>
+      <tr><td>安防监控（类别动态变化）</td><td>GroundingDINO</td><td>提示词灵活调整</td></tr>
+      <tr><td>罕见物种检测（样本极少）</td><td>FsDet</td><td>样本效率高</td></tr>
+      <tr><td>移动端/嵌入式部署</td><td>YOLO-NAS / YOLOv8</td><td>模型轻量，推理快</td></tr>
+      <tr><td>自动标注辅助</td><td>GroundingDINO + SAM</td><td>开放词表检测+分割</td></tr>
+      <tr><td>新数据集分析</td><td>GroundingDINO</td><td>快速检索目标，评估数据内容</td></tr>
+    </table>
+
+    <div class="note-box">
+      <div class="label">STRATEGIC COMBINATION</div>
+      <p>实际项目中三者可<strong>组合使用</strong>：GroundingDINO 用于数据探索和快速原型验证 → YOLO 用于确定类别后的高效部署 → FsDet 用于需要扩展少量新类别的场景。理解各模型的定位是构建灵活高效检测系统的关键。</p>
+    </div>
+
+    <div class="info-box">
+      <div class="label">课程定位</div>
+      <p>YOLO — 主线模型（固定类别，快速部署）；FsDet — 扩展体验（少样本微调）；GroundingDINO — 开放词表扩展（零样本，灵活提示）。本讲聚焦 GroundingDINO。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 6: 环境搭建与代码实战 ============ -->
+
+<!-- SLIDE 13 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 06</div>
+    <div class="module-title">环境搭建<br>与代码实战</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>完成 GroundingDINO 环境搭建</li>
+      <li>掌握模型加载与推理流程</li>
+      <li>能够运行完整的检测演示</li>
+    </ul>
+<div class="page-nb">19 / 30</div>
+  </div>
+  <div class="content">
+    <h1>环境搭建：系统要求与完整安装步骤</h1>
+
+    <div class="cols-2">
+      <div>
+        <h2>硬件与软件要求</h2>
+        <table style="font-size:clamp(13px,0.85vw,17px)">
+          <tr><th>组件</th><th>最低要求</th></tr>
+          <tr><td>GPU</td><td>NVIDIA CUDA 11.6+（推荐 8GB+ 显存）</td></tr>
+          <tr><td>CPU</td><td>x86_64, 4 核以上</td></tr>
+          <tr><td>内存</td><td>16GB+</td></tr>
+          <tr><td>磁盘</td><td>10GB+（含预训练模型 ~700MB）</td></tr>
+          <tr><td>Python</td><td>3.8 ~ 3.10</td></tr>
+        </table>
+      </div>
+      <div>
+        <h2>安装命令（完整流程）</h2>
+        <pre><code># 1. 克隆仓库
+git clone https://github.com/IDEA-Research/GroundingDINO.git
+cd GroundingDINO
+
+# 2. 创建环境
+conda create -n groundingdino python=3.10
+conda activate groundingdino
+
+# 3. 安装 PyTorch (CUDA 11.8)
+pip install torch==2.0.1 torchvision==0.15.2 \
+  --index-url https://download.pytorch.org/whl/cu118
+
+# 4. 安装依赖
+pip install -r requirements.txt
+pip install -e .
+
+# 5. 验证
+python -c "import torch; print(torch.cuda.is_available())"
+python -c "import groundingdino; print('OK')"</code></pre>
+      </div>
+    </div>
+
+    <div class="cols-2">
+      <div class="tip-box">
+        <div class="label">requirements.txt 主要内容</div>
+        <pre style="margin:0;font-size:clamp(12px,0.75vw,15px)">torch>=1.13.0 torchvision>=0.14.0
+transformers>=4.25.1 opencv-python>=4.7.0
+matplotlib>=3.5.0 numpy>=1.21.0
+pillow>=9.0.0 timm==0.4.12</pre>
+      </div>
+      <div class="warn-box">
+        <div class="label">TROUBLESHOOTING</div>
+        <p>若 <code>pip install -e .</code> 编译失败，检查 <code>CUDA_HOME</code> 环境变量：<code>echo $CUDA_HOME</code>。若未设置：<code>export CUDA_HOME=/usr/local/cuda-11.8</code>。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 14 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 06</div>
+    <div class="module-title">环境搭建<br>与代码实战</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>完成 GroundingDINO 环境搭建</li>
+      <li>掌握模型加载与推理流程</li>
+      <li>能够运行完整的检测演示</li>
+    </ul>
+<div class="page-nb">20 / 30</div>
+  </div>
+  <div class="content">
+    <h1>常见安装问题排查</h1>
+    <div class="cols-2">
+      <div>
+        <h2>编译失败类问题</h2>
+        <table style="font-size:clamp(12px,0.8vw,16px)">
+          <tr><th>错误现象</th><th>原因</th><th>解决方案</th></tr>
+          <tr><td><code>CUDA_ERROR_NO_DEVICE</code></td><td>CUDA 驱动未安装或版本不匹配</td><td>运行 <code>nvidia-smi</code> 确认驱动版本；安装匹配的 CUDA Toolkit</td></tr>
+          <tr><td><code>fatal error: cuda.h: No such file</code></td><td><code>CUDA_HOME</code> 未设置</td><td><code>export CUDA_HOME=/usr/local/cuda-11.8</code></td></tr>
+          <tr><td><code>undefined symbol</code></td><td>PyTorch 和 CUDA 版本不匹配</td><td>重新安装匹配版本的 PyTorch</td></tr>
+          <tr><td><code>gcc: internal compiler error</code></td><td>GCC 版本过高</td><td><code>conda install gxx_linux-64=9</code></td></tr>
+        </table>
+        <div class="tip-box">
+          <div class="label">RECOMMENDED</div>
+          <p>推荐使用 Docker 镜像以避免环境依赖问题：<code>docker pull pytorch/pytorch:2.0.1-cuda11.8-cudnn8-devel</code></p>
+        </div>
+      </div>
+      <div>
+        <h2>运行时类问题</h2>
+        <table style="font-size:clamp(12px,0.8vw,16px)">
+          <tr><th>错误现象</th><th>原因</th><th>解决方案</th></tr>
+          <tr><td><code>OutOfMemoryError</code></td><td>显存不足</td><td>减小 batch size；使用 GroundingDINO-T；降低输入分辨率</td></tr>
+          <tr><td><code>KeyError: 'model'</code></td><td>权重文件损坏或下载不完整</td><td>重新下载；校验文件大小（~690MB）</td></tr>
+          <tr><td><code>ImportError: groundingdino</code></td><td>未执行 <code>pip install -e .</code></td><td>在仓库根目录运行 <code>pip install -e .</code></td></tr>
+          <tr><td>CPU 推理极慢</td><td>未使用 GPU / CPU fallback</td><td>确认 <code>torch.cuda.is_available()</code> 返回 True</td></tr>
+        </table>
+        <div class="warn-box">
+          <div class="label">CUDA INSTALLATION CHECK</div>
+          <pre style="margin:0;font-size:clamp(11px,0.68vw,14px)"># 完整诊断命令
+python -c "
+import torch, sys
+print(f'PyTorch: {torch.__version__}')
+print(f'CUDA available: {torch.cuda.is_available()}')
+print(f'CUDA version: {torch.version.cuda}')
+if torch.cuda.is_available():
+    print(f'Device: {torch.cuda.get_device_name(0)}')
+    print(f'Memory: {torch.cuda.get_device_properties(0).total_mem/1e9:.1f} GB')
+"</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 06</div>
+    <div class="module-title">环境搭建<br>与代码实战</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>完成 GroundingDINO 环境搭建</li>
+      <li>掌握模型加载与推理流程</li>
+      <li>能够运行完整的检测演示</li>
+    </ul>
+<div class="page-nb">21 / 30</div>
+  </div>
+  <div class="content">
+    <h1>下载预训练模型与加载代码</h1>
+
+    <div class="cols-2">
+      <div>
+        <h2>模型变体选择</h2>
+        <table style="font-size:clamp(12px,0.78vw,16px)">
+          <tr><th>变体</th><th>骨干</th><th>参数量</th><th>适用场景</th></tr>
+          <tr><td>GroundingDINO-T</td><td>Swin-Tiny</td><td>~172M</td><td>通用，速度优先</td></tr>
+          <tr><td>GroundingDINO-B</td><td>Swin-Base</td><td>~345M</td><td>高精度检测</td></tr>
+        </table>
+        <pre><code># 下载 T 模型（约 700MB）
+mkdir -p weights
+wget -q https://github.com/IDEA-Research/\
+  GroundingDINO/releases/download/v0.1.0-alpha/\
+  groundingdino_swint_ogc.pth \
+  -O weights/groundingdino_swint_ogc.pth
+
+# 国内镜像（Hugging Face）
+pip install huggingface-hub
+huggingface-cli download \
+  ShilongLiu/GroundingDINO \
+  groundingdino_swint_ogc.pth \
+  --local-dir weights/</code></pre>
+      </div>
+      <div>
+        <h2>模型加载代码</h2>
+        <p>保存为 <code>run_groundingdino.py</code></p>
+        <pre><code>import torch, cv2, numpy as np
+from groundingdino.models import build_model
+from groundingdino.util.slconfig import SLConfig
+from groundingdino.util.utils import clean_state_dict
+from groundingdino.util.inference import (
+    load_image, predict, annotate)
+
+CONFIG_PATH = "groundingdino/config/\
+    GroundingDINO_SwinT_OGC.py"
+WEIGHT_PATH = "weights/groundingdino_swint_ogc.pth"
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+args = SLConfig.fromfile(CONFIG_PATH)
+args.device = DEVICE
+model = build_model(args)
+checkpoint = torch.load(WEIGHT_PATH,
+    map_location=DEVICE)
+model.load_state_dict(clean_state_dict(
+    checkpoint["model"]), strict=False)
+model.eval().to(DEVICE)
+print("Model loaded on", DEVICE)</code></pre>
+        <div class="code-annotation"><em># clean_state_dict 去除 checkpoint 中的冗余键（如 optimizer state）</em></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 15 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 06</div>
+    <div class="module-title">环境搭建<br>与代码实战</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>完成 GroundingDINO 环境搭建</li>
+      <li>掌握模型加载与推理流程</li>
+      <li>能够运行完整的检测演示</li>
+    </ul>
+<div class="page-nb">22 / 30</div>
+  </div>
+  <div class="content">
+    <h1>完整推理代码：检测 + 可视化 + 命令行</h1>
+
+    <div class="cols-2">
+      <div>
+        <h2>执行检测</h2>
+        <pre><code>TEXT_PROMPT = "helmet . person . safety vest ."
+BOX_THRESHOLD = 0.3
+TEXT_THRESHOLD = 0.25
+
+image_tensor, image_raw = load_image(
+    "test_image.jpg")
+boxes, logits, phrases = predict(
+    model=model,
+    image=image_tensor,
+    caption=TEXT_PROMPT,
+    box_threshold=BOX_THRESHOLD,
+    text_threshold=TEXT_THRESHOLD,
+    device=DEVICE)
+
+print(f"检测到 {len(boxes)} 个目标:")
+for box, logit, phrase in zip(
+        boxes, logits, phrases):
+    print(f"  {phrase}: {logit:.3f} "
+          f"[{box[0]:.2f},{box[1]:.2f},"
+          f"{box[2]:.2f},{box[3]:.2f}]")</code></pre>
+        <div class="code-annotation"><em># boxes 格式: [cx, cy, w, h] 归一化坐标 (0~1)，需×图像宽高得到像素坐标</em></div>
+      </div>
+      <div>
+        <h2>结果可视化</h2>
+        <pre><code>img = np.array(image_raw)
+h, w, _ = img.shape
+colors = [(255,0,0),(0,255,0),(0,0,255),
+          (255,255,0),(255,0,255)]
+for i, (box, logit, phrase) in enumerate(
+        zip(boxes, logits, phrases)):
+    cx, cy, bw, bh = box
+    x1 = int((cx - bw/2) * w)
+    y1 = int((cy - bh/2) * h)
+    x2 = int((cx + bw/2) * w)
+    y2 = int((cy + bh/2) * h)
+    color = colors[i % len(colors)]
+    cv2.rectangle(img, (x1,y1),
+                  (x2,y2), color, 2)
+    label = f"{phrase} ({logit:.2f})"
+    cv2.putText(img, label, (x1+4,y1-4),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6, (255,255,255), 2)
+cv2.imwrite("result.jpg",
+    cv2.cvtColor(img, cv2.COLOR_RGB2BGR))</code></pre>
+
+        <h2>官方命令行脚本</h2>
+        <pre><code>python groundingdino/demo/inference_on_a_image.py \
+  --config_path ... \
+  --weight_path ... \
+  --image_path test_image.jpg \
+  --text_prompt "helmet . person ." \
+  --box_threshold 0.3 --text_threshold 0.25 \
+  --output_dir outputs/</code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 16 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 06</div>
+    <div class="module-title">环境搭建<br>与代码实战</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>完成 GroundingDINO 环境搭建</li>
+      <li>掌握模型加载与推理流程</li>
+      <li>能够运行完整的检测演示</li>
+    </ul>
+<div class="page-nb">23 / 30</div>
+  </div>
+  <div class="content">
+    <h1>实操任务：课堂练习</h1>
+
+    <div class="step-list">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <p>使用官方示例图像 <code>.asset/000000000785.jpg</code> 运行 GroundingDINO-T 推理，提示词设为 <code>"dog . frisbee ."</code></p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <p>分别设置 <code>box_threshold</code> 为 0.2、0.5、0.8，比较检测结果差异，观察检测框数量和误检率变化</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <p>设计 5 组不同粒度的提示词（通用→具体），在相同图像上测试，记录检测精度和召回率</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <p>使用批量处理模式处理多张图像，将结果保存至 <code>outputs/</code> 目录并对比</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-row" style="grid-template-columns:1fr 1fr">
+      <div class="card">
+        <div class="tag">EXPECTED OUTPUT</div>
+        <h4>实验产出</h4>
+        <p>每组提交：5 张测试图像的检测结果图 + 完整的实验记录表 + 不少于 300 字的分</p>
+      </div>
+      <div class="card">
+        <div class="tag">HINT</div>
+        <h4>实验记录表模板</h4>
+        <pre style="margin:0;font-size:clamp(11px,0.68vw,14px)">Prompt          box  text  det  FP  FN
+"helmet"        0.3  0.25  --   --  --
+"safety helmet" 0.3  0.25  --   --  --
+"helmet"        0.5  0.25  --   --  --</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 7: 应用扩展 ============ -->
+
+<!-- SLIDE 17 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 07</div>
+    <div class="module-title">应用<br>扩展</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>了解典型应用场景</li>
+      <li>掌握 GroundingDINO + SAM 联合使用</li>
+      <li>理解自动标注辅助流程</li>
+    </ul>
+<div class="page-nb">24 / 30</div>
+  </div>
+  <div class="content">
+    <h1>自动标注辅助与数据探索</h1>
+
+    <div class="cols-2">
+      <div>
+        <h2>自动标注流程</h2>
+        <div class="step-list" style="gap:0.2vh">
+          <div class="step-item">
+            <div class="step-num">1</div>
+            <div class="step-body"><p>定义标注类别：<code>categories = ["helmet", "person", "traffic cone", ...]</code></p></div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">2</div>
+            <div class="step-body"><p>生成提示词：<code>" . ".join(categories)</code></p></div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">3</div>
+            <div class="step-body"><p>批量推理 + 保存 COCO 格式标注</p></div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">4</div>
+            <div class="step-body"><p>使用 LabelStudio / CVAT 人工校正</p></div>
+          </div>
+        </div>
+        <div class="tip-box">
+          <div class="label">ADVANTAGE</div>
+          <p>减少人工标注量 50%~80%，支持类别动态扩展。建议设置较高的 box_threshold (≥0.5) 以减少误检。专业类别需人工重点审核。</p>
+        </div>
+      </div>
+      <div>
+        <h2>数据探索代码</h2>
+        <pre><code>def search_in_dataset(model, image_dir,
+                      prompt, threshold=0.3,
+                      min_boxes=1):
+    results = []
+    for img_path in sorted(
+        glob.glob(f"{image_dir}/*.jpg")
+    ):
+        boxes, logits, phrases, _ = detect(
+            model, img_path, prompt,
+            threshold, 0.25, DEVICE)
+        if len(boxes) >= min_boxes:
+            results.append({
+                "path": img_path,
+                "n_boxes": len(boxes),
+                "max_score": logits.max().item()
+            })
+    return results
+
+found = search_in_dataset(
+    model, "unlabeled_images/",
+    "car . traffic light .")
+print(f"找到 {len(found)} 张图像")</code></pre>
+        <div class="info-box">
+          <div class="label">EFFICIENCY</div>
+          <p>对大规模数据集（数万张+），先用 GroundingDINO 初步筛选，再对子集详细标注，比直接标注全部节省 <strong>90% 以上</strong>人力成本。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 18 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 07</div>
+    <div class="module-title">应用<br>扩展</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>了解典型应用场景</li>
+      <li>掌握 GroundingDINO + SAM 联合使用</li>
+      <li>理解自动标注辅助流程</li>
+    </ul>
+<div class="page-nb">25 / 30</div>
+  </div>
+  <div class="content">
+    <h1>GroundingDINO + SAM：开放世界分割</h1>
+
+    <div class="cols-2">
+      <div>
+        <h2>联合推理流程</h2>
+        <div class="arch-flow" style="gap:2px">
+          <div class="row"><div class="block accent2" style="flex:1">输入: 图像 + "a yellow helmet"</div></div>
+          <div class="row"><div class="block" style="flex:0.4">GroundingDINO</div><span class="arrow">→</span><div class="block" style="flex:0.4;background:rgba(var(--accent-rgb),0.08);border-color:var(--accent)">[bbox]</div></div>
+          <div class="row"><div class="block" style="flex:0.4">SAM</div><span class="arrow">→</span><div class="block" style="flex:0.4;background:rgba(var(--accent2-rgb),0.08);border-color:var(--accent2)">[mask]</div></div>
+          <div class="label">输出: "a yellow helmet" → 像素级分割掩码</div>
+        </div>
+
+        <h2>安装与代码</h2>
+        <pre><code>pip install git+https://github.com/\
+  facebookresearch/sam2.git
+
+from sam2.build_sam import build_sam2
+from sam2.predictor import SamPredictor
+
+# 1. GroundingDINO
+boxes, _, phrases, _ = detect(
+    model, "image.jpg",
+    "helmet", 0.3, 0.25, DEVICE)
+
+# 2. SAM 分割
+predictor = SamPredictor(
+    build_sam2(config, ckpt_path))
+predictor.set_image(image)
+for box in boxes:
+    box_xyxy = cxcywh_to_xyxy(box, w, h)
+    masks, _, _ = predictor.predict(
+        box=box_xyxy[None, :],
+        multimask_output=False)</code></pre>
+      </div>
+      <div>
+        <h2>社区工具：Grounded-SAM</h2>
+        <p>社区已封装完整工具：<code>github.com/IDEA-Research/Grounded-Segment-Anything</code>，提供<strong>一键式</strong>文本引导分割，支持图像和视频输入。</p>
+
+        <div class="card-row" style="grid-template-columns:1fr">
+          <div class="card">
+            <div class="tag">TYPICAL WORKFLOW</div>
+            <h4>推荐标注流程</h4>
+            <div class="step-list" style="gap:0.15vh">
+              <div class="step-item">
+                <div class="step-num" style="min-width:1.3em;height:1.3em;font-size:clamp(10px,0.6vw,12px)">1</div>
+                <div class="step-body"><p>GroundingDINO 生成候选框</p></div>
+              </div>
+              <div class="step-item">
+                <div class="step-num" style="min-width:1.3em;height:1.3em;font-size:clamp(10px,0.6vw,12px)">2</div>
+                <div class="step-body"><p>人工审核修正候选框</p></div>
+              </div>
+              <div class="step-item">
+                <div class="step-num" style="min-width:1.3em;height:1.3em;font-size:clamp(10px,0.6vw,12px)">3</div>
+                <div class="step-body"><p>导出 COCO/YOLO 格式</p></div>
+              </div>
+              <div class="step-item">
+                <div class="step-num" style="min-width:1.3em;height:1.3em;font-size:clamp(10px,0.6vw,12px)">4</div>
+                <div class="step-body"><p>训练自定义检测模型</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="note-box">
+          <div class="label">RECOMMENDED READING</div>
+          <p>CLIP (Radford et al. 2021) — 对比语言-图像预训练<br>DINO (Zhang et al. 2022) — DETR with Improved Denoising Anchor Boxes<br>DETR (Carion et al. 2020) — 端到端目标检测<br>SAM (Kirillov et al. 2023) — Segment Anything Model</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODULE 8: 拓展与延伸 ============ -->
+
+<!-- SLIDE 19 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 08</div>
+    <div class="module-title">课外拓展<br>与延伸</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>了解拓展实验方向</li>
+      <li>掌握延伸阅读资料</li>
+      <li>理解开放词表检测的发展方向</li>
+    </ul>
+<div class="page-nb">26 / 30</div>
+  </div>
+  <div class="content">
+    <h1>拓展实验：与 YOLO 自训练模型的比较</h1>
+
+    <div class="cols-2">
+      <div>
+        <h2>实验设计</h2>
+        <ol>
+          <li>使用 YOLOv8 在相同数据集上训练固定类别检测模型</li>
+          <li>在相同测试图像上运行 YOLO 推理</li>
+          <li>对比 GroundingDINO 和 YOLO 的精度、召回率、推理速度</li>
+          <li>分析两种方法的优势和局限</li>
+        </ol>
+        <pre><code># YOLOv8 训练
+yolo train model=yolov8s.pt \
+  data=custom_dataset.yaml \
+  epochs=100 imgsz=640
+
+# YOLOv8 推理
+yolo predict \
+  model=runs/train/exp/weights/best.pt \
+  source=test_images/</code></pre>
+      </div>
+      <div>
+        <h2>分析维度表</h2>
+        <table>
+          <tr><th>维度</th><th>GroundingDINO</th><th>YOLOv8</th></tr>
+          <tr><td>mAP@0.5</td><td>-</td><td>-</td></tr>
+          <tr><td>推理速度</td><td>-</td><td>-</td></tr>
+          <tr><td>新类别泛化</td><td>零样本</td><td>需重新训练</td></tr>
+          <tr><td>部署难度</td><td>中</td><td>低</td></tr>
+        </table>
+
+        <h2>思考题</h2>
+        <ul>
+          <li>开放词表检测与项目自训练 YOLO 的替代关系及不适用场景。</li>
+          <li>GroundingDINO 在专业领域的检测精度提升路径。</li>
+          <li>开放词表检测的潜在突破方向。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <div class="label">DISCUSSION</div>
+      <p>从推理速度、专业类别精度、部署成本、实时性要求等角度综合分析开放词表检测与固定类别检测的适用边界。</p>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 20 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 07</div>
+    <div class="module-title">应用<br>扩展</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>了解典型应用场景</li>
+      <li>掌握 GroundingDINO + SAM 联合使用</li>
+      <li>理解自动标注辅助流程</li>
+    </ul>
+<div class="page-nb">27 / 30</div>
+  </div>
+  <div class="content">
+    <h1>视频目标检测：GroundingDINO + 跟踪</h1>
+    <div class="cols-2">
+      <div>
+        <h2>视频检测流程</h2>
+        <p>在视频中应用 GroundingDINO 需要考虑帧间一致性和性能优化：</p>
+        <div class="step-list" style="gap:0.3vh">
+          <div class="step-item"><div class="step-num">1</div><div class="step-body"><p>对<strong>关键帧</strong>（如每 10 帧）运行 GroundingDINO 全量检测</p></div></div>
+          <div class="step-item"><div class="step-num">2</div><div class="step-body"><p>对中间帧使用<strong>跟踪算法</strong>（ByteTrack, SORT）保持目标 ID</p></div></div>
+          <div class="step-item"><div class="step-num">3</div><div class="step-body"><p>间隔 N 帧后重新检测，更新跟踪状态</p></div></div>
+        </div>
+        <pre><code>cap = cv2.VideoCapture("video.mp4")
+tracker = ByteTrack()
+frame_id = 0
+re_detect_interval = 10
+while True:
+    ret, frame = cap.read()
+    if not ret: break
+    if frame_id % re_detect_interval == 0:
+        boxes, _, phrases, _ = detect(
+            model, frame, "person .",
+            0.3, 0.25, DEVICE)
+        tracks = tracker.update(boxes)
+    else:
+        tracks = tracker.update(None)
+    frame_id += 1</code></pre>
+      </div>
+      <div>
+        <h2>性能优化策略</h2>
+        <table style="font-size:clamp(12px,0.8vw,16px)">
+          <tr><th>策略</th><th>效果</th><th>适用场景</th></tr>
+          <tr><td>隔帧检测 + 跟踪</td><td>速度提升 5-10x</td><td>实时视频监控</td></tr>
+          <tr><td>降低输入分辨率</td><td>速度提升 2-3x</td><td>移动目标检测</td></tr>
+          <tr><td>使用 GroundingDINO-T</td><td>速度提升 2x</td><td>通用场景</td></tr>
+          <tr><td>Triton Inference Server</td><td>速度提升 3-5x</td><td>服务端部署</td></tr>
+        </table>
+        <div class="warn-box">
+          <div class="label">PERFORMANCE NOTE</div>
+          <p>GroundingDINO-T 在单张 T4 GPU 上对 640×640 图像的推理时间约 100-200ms（5-10 FPS）。用于视频时，隔帧检测 + 跟踪可将等效帧率提升至 30+ FPS。</p>
+        </div>
+        <div class="tip-box">
+          <div class="label">IMPLEMENTATION</div>
+          <p>推荐使用 <code>BoxMOT</code> 库（<code>pip install boxmot</code>）集成多种跟踪算法，支持 ByteTrack、BoT-SORT、DeepOCSORT 等。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 21 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 07</div>
+    <div class="module-title">应用<br>扩展</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>了解典型应用场景</li>
+      <li>掌握 GroundingDINO + SAM 联合使用</li>
+      <li>理解自动标注辅助流程</li>
+    </ul>
+<div class="page-nb">28 / 30</div>
+  </div>
+  <div class="content">
+    <h1>工程化部署要点</h1>
+    <div class="cols-2">
+      <div>
+        <h2>模型导出与优化</h2>
+        <pre><code># ONNX 导出
+pip install onnx onnxruntime-gpu
+torch.onnx.export(model,
+    (dummy_image, dummy_text),
+    "groundingdino.onnx",
+    opset_version=17,
+    input_names=["image","text"],
+    output_names=["boxes","scores"],
+    dynamic_axes={
+        "text": {0:"batch",1:"seq_len"},
+        "boxes": {0:"num_detections"},
+    })
+
+# TensorRT 加速
+trtexec --onnx=groundingdino.onnx \
+  --saveEngine=groundingdino.trt \
+  --fp16 --workspace=4096</code></pre>
+        <div class="tip-box">
+          <div class="label">OPTIMIZATION</div>
+          <p>TensorRT FP16 推理可提升速度 2-3x，降低显存占用。对延迟敏感的场景建议使用 TensorRT 部署。</p>
+        </div>
+      </div>
+      <div>
+        <h2>服务化部署方案</h2>
+        <table style="font-size:clamp(12px,0.8vw,16px)">
+          <tr><th>方案</th><th>延迟</th><th>吞吐</th><th>适用</th></tr>
+          <tr><td>Flask 单进程</td><td>~200ms</td><td>5 QPS</td><td>原型验证</td></tr>
+          <tr><td>FastAPI + 异步</td><td>~200ms</td><td>~50 QPS</td><td>小型服务</td></tr>
+          <tr><td>Triton + TensorRT</td><td>~80ms</td><td>~200 QPS</td><td>生产部署</td></tr>
+        </table>
+        <pre><code>from fastapi import FastAPI, File
+from pydantic import BaseModel
+app = FastAPI()
+class DetectionRequest(BaseModel):
+    prompt: str
+    box_threshold: float = 0.3
+    text_threshold: float = 0.25
+@app.post("/detect")
+async def detect_endpoint(
+    request: DetectionRequest,
+    image: bytes = File(...)
+):
+    return {"boxes": boxes,
+            "scores": scores,
+            "phrases": phrases}</code></pre>
+        <div class="warn-box">
+          <div class="label">PRODUCTION CAUTION</div>
+          <p>生产环境需处理：请求排队、超时控制、模型热更新、GPU 显存管理。建议使用消息队列（RabbitMQ/Kafka）解耦检测请求和结果消费。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 22 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">MODULE 08</div>
+    <div class="module-title">课外拓展<br>与延伸</div>
+    <div class="obj-label">学习目标</div>
+    <ul class="obj-list">
+      <li>了解拓展实验方向</li>
+      <li>掌握延伸阅读资料</li>
+      <li>理解开放词表检测的发展方向</li>
+    </ul>
+<div class="page-nb">29 / 30</div>
+  </div>
+  <div class="content">
+    <h1>延伸阅读与实践拓展</h1>
+
+    <div class="card-row" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="card">
+        <div class="tag">FOUNDATION</div>
+        <h4>CLIP (2021)</h4>
+        <p><em>Learning Transferable Visual Models From Natural Language Supervision</em><br>对比语言-图像预训练，开放词表检测的基础模型。</p>
+      </div>
+      <div class="card">
+        <div class="tag">DETECTOR</div>
+        <h4>DINO (2022)</h4>
+        <p><em>DINO: DETR with Improved DeNoising Anchor Boxes for End-to-End Object Detection</em><br>GroundingDINO 的检测基础。</p>
+      </div>
+      <div class="card">
+        <div class="tag">SEGMENTATION</div>
+        <h4>SAM (2023)</h4>
+        <p><em>Segment Anything</em><br>与 GroundingDINO 结合实现开放世界分割。</p>
+      </div>
+    </div>
+
+    <h2>实践拓展方向</h2>
+    <div class="cols-3" style="gap:0.8vw">
+      <div class="info-box" style="margin:0">
+        <div class="label">实践 1</div>
+        <p>尝试 GroundingDINO + SAM 的开放世界分割流程（Grounded-SAM 项目）</p>
+      </div>
+      <div class="info-box" style="margin:0">
+        <div class="label">实践 2</div>
+        <p>在自定义数据集上评估 GroundingDINO 的零样本检测效果</p>
+      </div>
+      <div class="info-box" style="margin:0">
+        <div class="label">实践 3</div>
+        <p>比较不同文本编码器对检测效果的影响，探索中文提示词优化</p>
+      </div>
+    </div>
+
+    <hr>
+
+<div style="text-align:center;font-family:var(--serif);font-weight:500;font-size:clamp(16px,1.2vw,24px);opacity:0.6;padding:1vh 0">
+  本讲总结
+</div>
+  </div>
+</section>
+
+<!-- SLIDE 30 -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-nb">COURSE · 2026</div>
+    <div class="module-title">课程总结<br>与知识体系</div>
+    <div class="obj-label">本讲回顾</div>
+    <ul class="obj-list">
+      <li>回顾开放词表检测的核心概念</li>
+      <li>梳理 GroundingDINO 技术要点</li>
+      <li>明确后续学习方向</li>
+    </ul>
+    <div class="page-nb">30 / 30</div>
+  </div>
+  <div class="content">
+    <h1>课程知识体系总览</h1>
+
+    <div class="card-row" style="grid-template-columns:1fr 1fr 1fr">
+      <div class="card">
+        <div class="tag">MODULE 01</div>
+        <h4>从固定类别到开放词表</h4>
+        <p>固定类别检测的局限 → 开放词表检测的核心思想（分类→匹配）→ 代表方法对比 → 适用场景分析</p>
+      </div>
+      <div class="card">
+        <div class="tag">MODULE 02-03</div>
+        <h4>GroundingDINO 原理</h4>
+        <p>设计动机（融合而非替换）→ 四模块架构（Swin+BERT+Cross-Attention+DINO Decoder）→ 跨模态对齐机制 → 对比学习目标</p>
+      </div>
+      <div class="card">
+        <div class="tag">MODULE 04-05</div>
+        <h4>工程实践与比较</h4>
+        <p>双阈值机制（box+text threshold）→ 提示词工程 → YOLO/FsDet/GroundingDINO 比较 → 场景化选型策略</p>
+      </div>
+    </div>
+
+    <div class="card-row" style="grid-template-columns:1fr 1fr">
+      <div class="card">
+        <div class="tag">MODULE 06</div>
+        <h4>环境搭建与代码实战</h4>
+        <p>系统要求 → 安装步骤（Conda+PyTorch+GroundingDINO）→ 预训练模型下载 → 推理代码（加载+检测+可视化）→ 命令行脚本 → 常见问题排查 → 课堂实操任务</p>
+      </div>
+      <div class="card">
+        <div class="tag">MODULE 07-08</div>
+        <h4>应用扩展与延伸</h4>
+        <p>自动标注辅助 → GroundingDINO+SAM 开放世界分割 → 视频检测+跟踪 → 工程化部署（ONNX/TensorRT/FastAPI）→ 延伸阅读（CLIP/DINO/SAM）→ 实践拓展方向</p>
+      </div>
+    </div>
+
+    <div class="note-box">
+      <div class="label">KEY TAKEAWAY</div>
+      <p>开放词表目标检测的核心价值在于<strong>灵活性</strong>：通过自然语言提示词动态指定检测目标，无需重新训练。GroundingDINO 是目前最成熟的实现方案，在数据探索、自动标注、动态类别检测等场景中具有不可替代的优势。理解其原理和工程实践，有助于构建灵活高效的计算机视觉系统。</p>
+    </div>
+  </div>
+</section>
+
+</div><!-- /#deck -->
+
+<div id="nav"></div>
+
+<script>
+const deck = document.getElementById('deck');
+const slides = deck.querySelectorAll('.slide');
+const nav = document.getElementById('nav');
+let idx = 0, total = slides.length, lock = false;
+
+deck.style.width = (total * 100) + 'vw';
+
+slides.forEach((s, i) => {
+  const b = document.createElement('button');
+  b.className = 'dot'; b.dataset.i = i; b.setAttribute('aria-label', 'Page ' + (i + 1));
+  b.onclick = () => go(i);
+  nav.appendChild(b);
+});
+
+function go(n) {
+  if (lock) return;
+  idx = Math.max(0, Math.min(total - 1, n));
+  deck.style.transform = `translateX(${-idx * 100}vw)`;
+  slides.forEach((s, i) => s.classList.toggle('active', i === idx));
+  nav.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+  lock = true; setTimeout(() => lock = false, 500);
+}
+
+let overviewOn = false;
+const ov = document.createElement('div');
+ov.id = 'overview';
+ov.style.cssText = 'position:fixed;inset:0;z-index:100;background:rgba(42,30,19,.92);backdrop-filter:blur(12px);display:none;overflow-y:auto;padding:4vh 4vw';
+document.body.appendChild(ov);
+
+function buildOverview() {
+  ov.innerHTML = '';
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:2vh 1.6vw;max-width:90vw;margin:0 auto';
+  slides.forEach((s, i) => {
+    const card = document.createElement('div');
+    card.style.cssText = 'cursor:pointer;border-radius:6px;overflow:hidden;border:2px solid ' + (i === idx ? 'rgba(238,223,199,.8)' : 'rgba(238,223,199,.15)') + ';transition:border-color .2s';
+    card.onmouseenter = () => card.style.borderColor = 'rgba(238,223,199,.6)';
+    card.onmouseleave = () => card.style.borderColor = i === idx ? 'rgba(238,223,199,.8)' : 'rgba(238,223,199,.15)';
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'width:100%;aspect-ratio:16/9;overflow:hidden;position:relative;pointer-events:none;background:var(--paper)';
+    const clone = s.cloneNode(true);
+    clone.style.cssText = 'width:100vw;height:100vh;transform:scale(' + (1 / 4.5) + ');transform-origin:top left;position:absolute;top:0;left:0;pointer-events:none';
+    wrap.appendChild(clone);
+    const label = document.createElement('div');
+    label.style.cssText = 'padding:6px 10px;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--paper);opacity:.7';
+    label.textContent = (i + 1) + ' / ' + total;
+    card.appendChild(wrap);
+    card.appendChild(label);
+    card.onclick = () => { toggleOverview(); go(i); };
+    grid.appendChild(card);
+  });
+  ov.appendChild(grid);
+}
+
+function toggleOverview() {
+  overviewOn = !overviewOn;
+  if (overviewOn) { buildOverview(); ov.style.display = 'block'; }
+  else { ov.style.display = 'none'; }
+}
+
+addEventListener('keydown', e => {
+  if (e.key === 'Escape') { e.preventDefault(); toggleOverview(); return; }
+  if (overviewOn) return;
+  if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ' || e.key === 'ArrowDown') go(idx + 1);
+  if (e.key === 'ArrowLeft' || e.key === 'PageUp' || e.key === 'ArrowUp') go(idx - 1);
+  if (e.key === 'Home') go(0);
+  if (e.key === 'End') go(total - 1);
+});
+
+let wheelTO = null, wheelAcc = 0;
+addEventListener('wheel', e => {
+  wheelAcc += e.deltaY + e.deltaX;
+  if (Math.abs(wheelAcc) > 50) { go(idx + (wheelAcc > 0 ? 1 : -1)); wheelAcc = 0; }
+  clearTimeout(wheelTO); wheelTO = setTimeout(() => wheelAcc = 0, 150);
+}, { passive: true });
+
+let tx = 0, ty = 0;
+addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+addEventListener('touchend', e => {
+  const dx = (e.changedTouches[0].clientX - tx);
+  const dy = (e.changedTouches[0].clientY - ty);
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) go(idx + (dx < 0 ? 1 : -1));
+}, { passive: true });
+
+go(0);
+</script>
+</body>
+</html>

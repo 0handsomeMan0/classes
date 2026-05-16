@@ -1,0 +1,2584 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI辅助编程：需求拆解、提示词工程与代码审查 · 课堂教学</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#2a1e13;color:#eedfc7;font-family:"Noto Sans SC",sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+
+/* ============== Kraft Paper Theme ============== */
+:root{
+  --ink:#2a1e13; --ink-rgb:42,30,19;
+  --paper:#eedfc7; --paper-rgb:238,223,199;
+  --paper-tint:#e0d0b6; --ink-tint:#3a2a1d;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --serif-zh:"Noto Serif SC",serif;
+  --sans-zh:"Noto Sans SC",sans-serif;
+}
+
+/* ============== Deck ============== */
+#deck{position:fixed;inset:0;width:10000vw;height:100vh;display:flex;flex-wrap:nowrap;transition:transform .85s cubic-bezier(.77,0,.175,1);z-index:10;will-change:transform}
+.slide{width:100vw;height:100vh;flex:0 0 100vw;position:relative;display:flex;flex-direction:column;overflow:hidden}
+.slide.light{color:var(--ink);background:var(--paper)}
+.slide.dark{color:var(--paper);background:var(--ink)}
+.slide.dark .learning-sidebar{background:rgba(255,255,255,.04);border-right:1px solid rgba(238,223,199,.12)}
+.slide.light .learning-sidebar{background:rgba(42,30,19,.035);border-right:1px solid rgba(42,30,19,.1)}
+
+/* ============== Chrome ============== */
+.chrome{display:flex;justify-content:space-between;align-items:center;padding:.5vh 1.2vw 0 1.2vw;font-family:var(--mono);font-size:max(13px,.8vw);letter-spacing:.15em;text-transform:uppercase;opacity:.55;flex-shrink:0}
+
+/* ============== Learning Sidebar ============== */
+.slide-inner{display:grid;grid-template-columns:17% 81%;gap:2%;flex:1;padding:.6vh 1.2vw 0 1.2vw;min-height:0}
+.learning-sidebar{padding:1.2vh .8vw;border-radius:6px;overflow-y:auto}
+.learning-sidebar .lb-title{font-family:var(--serif-zh);font-weight:700;font-size:max(18px,1.1vw);margin-bottom:.8vh;opacity:.85;letter-spacing:.04em}
+.learning-sidebar ul{list-style:none;padding:0;display:flex;flex-direction:column;gap:.4vh}
+.learning-sidebar li{font-family:var(--sans-zh);font-size:max(16px,1vw);line-height:1.35;padding-left:.6em;border-left:2px solid;opacity:.75;font-weight:400}
+.learning-sidebar li strong{font-family:var(--serif-zh);font-weight:600;opacity:.95}
+.slide.light .learning-sidebar li{border-color:rgba(42,30,19,.25)}
+.slide.dark .learning-sidebar li{border-color:rgba(238,223,199,.25)}
+
+/* ============== Main Content ============== */
+.main-content{display:flex;flex-direction:column;padding:.3vh .8vw .4vh 0;overflow-y:auto;gap:.4vh}
+.main-content .kicker{font-family:var(--mono);font-size:max(13px,.82vw);letter-spacing:.22em;text-transform:uppercase;opacity:.55;margin-bottom:.1vh}
+.main-content h2{font-family:var(--serif-zh);font-weight:700;font-size:max(34px,3vw);line-height:1.1;margin-bottom:.3vh;letter-spacing:-.005em}
+.main-content h3{font-family:var(--serif-zh);font-weight:600;font-size:max(26px,2.2vw);line-height:1.15;margin-bottom:.2vh;margin-top:.3vh}
+.main-content p{font-family:var(--sans-zh);font-weight:400;font-size:max(22px,1.5vw);line-height:1.5;opacity:.82;margin-bottom:.2vh}
+.main-content .serif-text{font-family:var(--serif-zh);font-weight:400;font-size:max(22px,1.5vw);line-height:1.45;opacity:.88;margin-bottom:.2vh}
+.main-content ul,.main-content ol{padding-left:1.2em;display:flex;flex-direction:column;gap:.15vh;margin-bottom:.2vh}
+.main-content li{font-family:var(--sans-zh);font-weight:400;font-size:max(20px,1.35vw);line-height:1.45;opacity:.82}
+.main-content li strong{font-family:var(--serif-zh);font-weight:600;opacity:.96}
+
+/* ============== Code Block ============== */
+.code-block{margin:.2vh 0 .3vh 0;border-radius:5px;overflow:hidden;font-size:max(15px,1vw);line-height:1.35}
+.code-block .code-header{display:flex;justify-content:space-between;align-items:center;padding:2px 10px;font-family:var(--mono);font-size:max(11px,.7vw);letter-spacing:.12em;text-transform:uppercase;opacity:.6}
+.slide.light .code-block{background:rgba(42,30,19,.06);border:1px solid rgba(42,30,19,.12)}
+.slide.dark .code-block{background:rgba(238,223,199,.06);border:1px solid rgba(238,223,199,.12)}
+.slide.light .code-header{background:rgba(42,30,19,.08)}
+.slide.dark .code-header{background:rgba(238,223,199,.08)}
+.code-block pre{padding:4px 10px;margin:0;overflow-x:auto;font-family:var(--mono);font-size:max(15px,1vw);line-height:1.4;tab-size:2}
+.code-block code{font-family:var(--mono);background:none;padding:0}
+
+/* ============== Inline Code ============== */
+.inline-code{font-family:var(--mono);font-size:.92em;padding:1px 6px;border-radius:3px;font-weight:500}
+.slide.light .inline-code{background:rgba(42,30,19,.08);color:var(--ink)}
+.slide.dark .inline-code{background:rgba(238,223,199,.08);color:var(--paper)}
+
+/* ============== Info Box ============== */
+.info-box{margin:.2vh 0;padding:.6vh .8vw;border-radius:5px;border-left:3px solid}
+.slide.light .info-box{background:rgba(42,30,19,.04);border-color:rgba(42,30,19,.25)}
+.slide.dark .info-box{background:rgba(238,223,199,.04);border-color:rgba(238,223,199,.25)}
+.info-box .ib-title{font-family:var(--serif-zh);font-weight:600;font-size:max(18px,1.1vw);margin-bottom:.15vh}
+.info-box p{font-size:max(18px,1.1vw)!important;margin-bottom:0!important}
+
+/* ============== Table ============== */
+.teach-table{width:100%;border-collapse:collapse;margin:.2vh 0;font-size:max(18px,1.1vw)}
+.teach-table th,.teach-table td{padding:.25vh .5vw;text-align:left;font-family:var(--sans-zh);line-height:1.3}
+.slide.light .teach-table th{border-bottom:2px solid rgba(42,30,19,.25);background:rgba(42,30,19,.04)}
+.slide.light .teach-table td{border-bottom:1px solid rgba(42,30,19,.1)}
+.slide.dark .teach-table th{border-bottom:2px solid rgba(238,223,199,.25);background:rgba(238,223,199,.04)}
+.slide.dark .teach-table td{border-bottom:1px solid rgba(238,223,199,.1)}
+.teach-table th{font-family:var(--serif-zh);font-weight:600}
+.teach-table td{font-weight:400;opacity:.82}
+
+/* ============== Grid layouts ============== */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1vw;margin:.15vh 0}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.8vw;margin:.15vh 0}
+.grid-2-60{display:grid;grid-template-columns:6fr 4fr;gap:1vw;margin:.15vh 0}
+.grid-2-70{display:grid;grid-template-columns:7fr 3fr;gap:1vw;margin:.15vh 0}
+.grid-2-40{display:grid;grid-template-columns:4fr 6fr;gap:1vw;margin:.15vh 0}
+
+/* ============== Card ============== */
+.card{padding:.5vh .6vw;border-radius:5px}
+.slide.light .card{background:rgba(42,30,19,.04)}
+.slide.dark .card{background:rgba(238,223,199,.04)}
+.card .card-title{font-family:var(--serif-zh);font-weight:600;font-size:max(19px,1.2vw);margin-bottom:.15vh}
+.card ul{gap:.1vh!important}
+.card li{font-size:max(17px,1.05vw)!important}
+.card p{font-size:max(17px,1.05vw)!important}
+
+/* ============== Tag ============== */
+.tag{display:inline-block;font-family:var(--mono);font-size:max(13px,.78vw);letter-spacing:.15em;text-transform:uppercase;padding:3px 10px;border:1px solid currentColor;opacity:.75;border-radius:3px;margin-right:.3vw;margin-bottom:.15vh}
+.slide.light .tag{border-color:rgba(42,30,19,.35)}
+.slide.dark .tag{border-color:rgba(238,223,199,.35)}
+
+/* ============== Step/Flow ============== */
+.flow-row{display:flex;align-items:center;gap:.4vw;margin:.15vh 0;flex-wrap:wrap}
+.flow-step{display:flex;align-items:center;gap:.2vw;padding:.25vh .5vw;border-radius:4px;font-family:var(--sans-zh);font-size:max(17px,1.05vw)}
+.slide.light .flow-step{background:rgba(42,30,19,.06)}
+.slide.dark .flow-step{background:rgba(238,223,199,.06)}
+.flow-step .fn{font-family:var(--serif-zh);font-weight:700;font-size:.85em;opacity:.6}
+.flow-arrow{font-family:var(--serif-zh);font-size:max(20px,1.2vw);opacity:.35}
+
+/* ============== Two-col comparison ============== */
+.comp-col{padding:.5vh .6vw;border-radius:5px}
+.slide.light .comp-col{background:rgba(42,30,19,.03)}
+.slide.dark .comp-col{background:rgba(238,223,199,.03)}
+.comp-col .comp-title{font-family:var(--serif-zh);font-weight:700;font-size:max(18px,1.1vw);margin-bottom:.2vh}
+.comp-col ul{gap:.1vh!important}
+.comp-col li{font-size:max(16px,1vw)!important}
+
+/* ============== Checklist icon ============== */
+.check-item{display:flex;align-items:flex-start;gap:.4vw;font-family:var(--sans-zh);font-size:max(18px,1.1vw);line-height:1.35;margin-bottom:.15vh;opacity:.85}
+.check-item .ci-icon{flex-shrink:0;width:1.1em;height:1.1em;margin-top:.1em;stroke:currentColor;fill:none;stroke-width:1.8}
+
+/* ============== Section Pill ============== */
+.section-pill{display:flex;flex-wrap:wrap;gap:.4vw;margin:.15vh 0}
+.section-pill .sp-item{padding:.2vh .5vw;border-radius:4px;font-family:var(--sans-zh);font-size:max(16px,1vw)}
+.slide.light .section-pill .sp-item{background:rgba(42,30,19,.06)}
+.slide.dark .section-pill .sp-item{background:rgba(238,223,199,.06)}
+.section-pill .sp-num{font-family:var(--serif-zh);font-weight:700;opacity:.55;margin-right:.3em}
+
+/* ============== Annotation Row (fills bottom space) ============== */
+.annot-row{display:flex;gap:.6vw;margin-top:auto;padding:.3vh 0 0 0;flex-wrap:wrap}
+.annot-item{flex:1;padding:.4vh .6vw;border-radius:4px;font-size:max(16px,1vw);line-height:1.35;min-width:0}
+.slide.light .annot-item{background:rgba(42,30,19,.045);border:1px solid rgba(42,30,19,.08)}
+.slide.dark .annot-item{background:rgba(238,223,199,.045);border:1px solid rgba(238,223,199,.08)}
+.annot-item .annot-label{font-family:var(--mono);font-size:max(11px,.68vw);letter-spacing:.15em;text-transform:uppercase;opacity:.5;margin-bottom:.1vh}
+.annot-item p{font-size:max(16px,1vw)!important;margin-bottom:0!important;opacity:.75!important}
+
+/* ============== Diagram Box ============== */
+.diagram-box{margin:.15vh 0;padding:.4vh .6vw;border-radius:4px;font-family:var(--mono);font-size:max(14px,.9vw);line-height:1.45;overflow-x:auto;white-space:pre}
+.slide.light .diagram-box{background:rgba(42,30,19,.05);border:1px solid rgba(42,30,19,.1)}
+.slide.dark .diagram-box{background:rgba(238,223,199,.05);border:1px solid rgba(238,223,199,.1)}
+
+/* ============== Tip Row ============== */
+.tip-row{display:flex;gap:.5vw;margin:.15vh 0;flex-wrap:wrap}
+.tip-item{display:flex;align-items:flex-start;gap:.3vw;padding:.25vh .5vw;border-radius:4px;font-size:max(16px,1vw);line-height:1.35;flex:1}
+.slide.light .tip-item{background:rgba(42,30,19,.035)}
+.slide.dark .tip-item{background:rgba(238,223,199,.035)}
+.tip-item .tip-icon{font-family:var(--serif-zh);font-weight:700;opacity:.4;flex-shrink:0}
+.tip-item p{font-size:max(16px,1vw)!important;margin-bottom:0!important;opacity:.75!important}
+
+/* ============== Footer ============== */
+.foot{margin-top:auto;padding:.3vh 1.2vw .5vh 1.2vw;display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:max(13px,.78vw);letter-spacing:.12em;text-transform:uppercase;opacity:.5;flex-shrink:0}
+.slide.light .foot{border-top:1px solid rgba(42,30,19,.1)}
+.slide.dark .foot{border-top:1px solid rgba(238,223,199,.1)}
+.foot .title{font-family:var(--serif-zh);font-weight:400;letter-spacing:.03em;text-transform:none;opacity:.7;font-size:max(14px,.82vw)}
+
+/* ============== Navigation ============== */
+#nav{position:fixed;left:50%;bottom:1.8vh;transform:translateX(-50%);z-index:30;display:flex;gap:8px;padding:6px 12px;border-radius:999px;background:rgba(0,0,0,.15);backdrop-filter:blur(8px)}
+#nav .dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.3);cursor:pointer;transition:all .3s ease;border:0;padding:0}
+#nav .dot:hover{background:rgba(255,255,255,.5);transform:scale(1.15)}
+#nav .dot.active{background:rgba(238,223,199,.95);width:18px;border-radius:999px}
+#hint{position:fixed;bottom:2vh;right:2vw;z-index:30;font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;opacity:.3;mix-blend-mode:difference;color:#aaa}
+#overview{position:fixed;inset:0;z-index:100;background:rgba(42,30,19,.95);backdrop-filter:blur(12px);display:none;overflow-y:auto;padding:3vh 3vw}
+
+/* ============== Cover Specific ============== */
+.cover-area{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;flex:1;padding:2vh 6vw}
+.cover-area .kicker{font-family:var(--mono);font-size:max(14px,.88vw);letter-spacing:.3em;text-transform:uppercase;opacity:.55;margin-bottom:1vh}
+.cover-area h1{font-family:var(--serif-zh);font-weight:900;font-size:max(56px,6vw);line-height:1.1;letter-spacing:-.015em;margin-bottom:.8vh}
+.cover-area h2{font-family:var(--serif-zh);font-weight:400;font-size:max(28px,2.5vw);line-height:1.3;opacity:.75;margin-bottom:1.2vh}
+.cover-area .meta-row{font-family:var(--mono);font-size:max(14px,.88vw);letter-spacing:.18em;opacity:.6;display:flex;gap:1.2em;justify-content:center;flex-wrap:wrap}
+.cover-area .cover-tags{display:flex;gap:.5vw;margin-top:1.2vh;flex-wrap:wrap;justify-content:center}
+
+/* ============== Responsive ============== */
+@media (max-width:900px){
+  .slide-inner{grid-template-columns:1fr!important;gap:1vh}
+  .learning-sidebar{display:none}
+  .main-content{padding-right:1.2vw}
+  .grid-2,.grid-3,.grid-2-60,.grid-2-70,.grid-2-40{grid-template-columns:1fr}
+}
+</style>
+<style>
+/* ===== inlined unified course styles for standalone distribution ===== */
+/* Course-wide visual normalization.
+   This file intentionally mirrors the warm academic style of 1.html while
+   preserving each deck's existing navigation/runtime structure. */
+:root{
+  --bg:#faf7f0!important;
+  --bg-soft:#f0ece0!important;
+  --surface:#ffffff!important;
+  --surface-2:#f7f1e3!important;
+  --border:rgba(90,60,30,.13)!important;
+  --border-strong:rgba(90,60,30,.28)!important;
+  --text-1:#2a1f12!important;
+  --text-2:#5a4a33!important;
+  --text-3:#8a7859!important;
+  --accent:#3b7a5a!important;
+  --accent-2:#c4812a!important;
+  --accent-3:#b8452e!important;
+  --paper:#faf7f0!important;
+  --paper-tint:#f0ece0!important;
+  --paper-rgb:250,247,240!important;
+  --ink:#2a1f12!important;
+  --ink-rgb:42,31,18!important;
+  --ink-tint:#5a4a33!important;
+  --code-bg:#2a1f12!important;
+  --radius:14px!important;
+  --radius-sm:12px!important;
+  --shadow:0 8px 24px rgba(90,60,30,.07)!important;
+  --font-sans:'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif!important;
+  --font-serif:'Playfair Display','Noto Serif SC',Georgia,serif!important;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace!important;
+}
+html,body,#deck,.deck{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+  font-family:var(--font-sans)!important;
+  letter-spacing:-.01em;
+}
+.slide,
+section[class*="slide"],
+.slide.light,
+.slide.dark,
+.slide-cover,
+.slide-divider{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+}
+.slide.full,
+.cover,
+.slide-cover{
+  background:var(--bg)!important;
+}
+.main,
+.content,
+.slide-content,
+.main-content,
+.right,
+.body,
+.stage{
+  color:var(--text-1)!important;
+  min-height:0!important;
+}
+h1,h2,h3,
+.h1,.h2,.h3,
+.slide-title,
+.cover-title,
+.end-title,
+.h-hero,
+.h-xl,
+.main h1,
+.main h2,
+.main h3{
+  font-family:var(--font-serif)!important;
+  color:var(--text-1)!important;
+  letter-spacing:-.02em!important;
+}
+h1,.h1,.cover-title,.slide-title,.h-hero{
+  font-weight:800!important;
+}
+h2,.h2,.h-xl{
+  font-weight:700!important;
+}
+p,li,td,th,.lede,.dim,.dim2,.fn-desc,.body-text,.txt,.label{
+  color:var(--text-2);
+}
+strong,b{color:var(--text-1)}
+.kicker,
+.eyebrow,
+.module-label,
+.sidebar-module-label,
+.module-code,
+.obj-label,
+.obj-title,
+.obj-header,
+.objectives-title,
+.lb-title,
+.sidebar-label{
+  color:var(--accent-2)!important;
+  font-family:var(--font-sans)!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  letter-spacing:.14em!important;
+  text-transform:uppercase!important;
+}
+.sidebar,
+aside.sidebar,
+.learning-sidebar,
+.slide-sidebar,
+.left-col{
+  background:transparent!important;
+  border-right:1px solid var(--border)!important;
+  border-left:0!important;
+  padding-right:24px!important;
+  color:var(--text-2)!important;
+  box-shadow:none!important;
+}
+.sidebar-title,
+.module-title,
+.sidebar-module,
+.lb-module,
+.brand,
+.sidebar .brand{
+  font-family:var(--font-serif)!important;
+  color:var(--accent)!important;
+  font-size:20px!important;
+  line-height:1.25!important;
+  font-weight:700!important;
+}
+.obj-list,
+.objectives,
+.objective-list,
+.learning-sidebar ul,
+.slide-sidebar ul{
+  list-style:none!important;
+  padding:0!important;
+  margin:0!important;
+  font-family:var(--font-sans)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+  color:var(--text-2)!important;
+}
+.obj-list li,
+.objectives li,
+.objective-list li,
+.learning-sidebar li,
+.slide-sidebar li{
+  position:relative!important;
+  padding:7px 0 7px 22px!important;
+  border-bottom:1px dashed var(--border)!important;
+  color:var(--text-2)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+}
+.obj-list li::before,
+.objectives li::before,
+.objective-list li::before,
+.learning-sidebar li::before,
+.slide-sidebar li::before{
+  content:"○"!important;
+  position:absolute!important;
+  left:0!important;
+  top:7px!important;
+  color:var(--accent)!important;
+  width:auto!important;
+  height:auto!important;
+  background:transparent!important;
+  border-radius:0!important;
+  opacity:1!important;
+}
+.obj-list li.current::before,
+.objectives li.current::before,
+.objective-list li.current::before,
+.obj-list li.highlight::before,
+.objectives li.highlight::before,
+.objective-list li.highlight::before{
+  content:"▸"!important;
+  color:var(--accent-2)!important;
+}
+.obj-list li.current,
+.objectives li.current,
+.objective-list li.current,
+.obj-list li.highlight,
+.objectives li.highlight,
+.objective-list li.highlight{
+  color:var(--text-1)!important;
+  font-weight:700!important;
+}
+.card,
+.concept-box,
+.col-item,
+.metric-card,
+.panel,
+.info-card,
+.tip-box,
+.callout-box,
+.comp-item,
+.diagram-box,
+.data-card,
+.feature-card,
+.task-card,
+.warning-card,
+.workflow-card{
+  background:var(--surface)!important;
+  border:1px solid var(--border)!important;
+  border-radius:var(--radius)!important;
+  box-shadow:var(--shadow)!important;
+  color:var(--text-1)!important;
+}
+.card-accent,
+.accent-card,
+.concept-box h4{
+  border-color:var(--border)!important;
+}
+.callout,
+.tip,
+.note-box{
+  background:var(--surface-2)!important;
+  border-left:4px solid var(--accent-2)!important;
+  border-radius:0 var(--radius) var(--radius) 0!important;
+  color:var(--text-2)!important;
+}
+.warn-box,
+.warning,
+.alert{
+  background:rgba(196,129,42,.08)!important;
+  border:1px solid rgba(196,129,42,.3)!important;
+  border-radius:var(--radius)!important;
+  color:var(--text-2)!important;
+}
+.course-bridge{
+  max-width:72ch;
+  margin-top:16px!important;
+  padding:10px 16px!important;
+  font-size:13px!important;
+  line-height:1.45!important;
+}
+.course-bridge b{
+  color:var(--accent-2)!important;
+}
+
+
+.slide > .sidebar + .main-content + .course-bridge{
+  left:calc(18vw + 3vw)!important;
+  max-width:min(760px,70vw)!important;
+}
+
+.slide > .course-bridge,
+.hero .course-bridge,
+.slide.full .course-bridge,
+section.full .course-bridge{
+  position:absolute!important;
+  left:6vw!important;
+  right:auto!important;
+  bottom:9vh!important;
+  max-width:min(760px,64vw)!important;
+  margin:0!important;
+  z-index:3!important;
+}
+.slide.compact .h2,
+section.compact .h2,
+.slide.compact h2,
+section.compact h2{
+  font-size:clamp(25px,2.15vw,34px)!important;
+  line-height:1.12!important;
+  margin-bottom:6px!important;
+}
+.slide.compact .lede,
+section.compact .lede,
+.slide.compact .fn-desc,
+section.compact .fn-desc,
+.slide.compact p,
+section.compact p{
+  font-size:clamp(13px,1.05vw,16px)!important;
+  line-height:1.45!important;
+}
+.slide.compact .card,
+section.compact .card,
+.slide.compact .concept-box,
+section.compact .concept-box,
+.slide.compact .col-item,
+section.compact .col-item{
+  padding:12px 15px!important;
+}
+.slide.compact .concept-box h4,
+section.compact .concept-box h4,
+.slide.compact .card h4,
+section.compact .card h4{
+  font-size:clamp(14px,1.1vw,17px)!important;
+  line-height:1.25!important;
+  margin-bottom:4px!important;
+}
+.slide.compact .grid,
+section.compact .grid{
+  gap:12px!important;
+}
+.slide.compact .mt-l,
+section.compact .mt-l{
+  margin-top:14px!important;
+}
+.slide.compact .mt-m,
+section.compact .mt-m{
+  margin-top:8px!important;
+}
+.problem-grid .concept-box{
+  min-height:118px;
+}
+.problem-grid .concept-box:last-child{
+  grid-column:1/-1;
+  min-height:96px;
+}
+.slide.code-heavy .code-block,
+section.code-heavy .code-block{
+  font-size:clamp(10px,.82vw,12px)!important;
+  line-height:1.28!important;
+  padding:10px 12px!important;
+}
+.slide.compact .data-table th,
+.slide.compact .data-table td,
+section.compact .data-table th,
+section.compact .data-table td{
+  padding:4px 7px!important;
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.3!important;
+}
+.slide.compact .code-block,
+section.compact .code-block{
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.35!important;
+  padding:10px 12px!important;
+}
+pre,
+code,
+.code,
+.code-block,
+.code-panel{
+  font-family:var(--font-mono)!important;
+}
+pre,
+.code,
+.code-block,
+.code-panel{
+  background:#2a1f12!important;
+  color:#f0ece0!important;
+  border:0!important;
+  border-radius:var(--radius)!important;
+  box-shadow:none!important;
+}
+code:not(pre code){
+  background:rgba(90,60,30,.08)!important;
+  color:var(--text-1)!important;
+}
+table,
+.data-table{
+  border-color:var(--border)!important;
+}
+th,
+.data-table th{
+  background:var(--surface-2)!important;
+  color:var(--text-1)!important;
+}
+td,
+.data-table td{
+  background:var(--surface)!important;
+  color:var(--text-2)!important;
+}
+.pill,
+.pill-academic,
+.tag,
+.badge{
+  background:var(--surface-2)!important;
+  color:var(--text-2)!important;
+  border:1px solid var(--border)!important;
+  border-radius:4px!important;
+  font-family:var(--font-mono)!important;
+}
+.pill-accent,
+.tag.accent,
+.badge.accent{
+  color:var(--accent)!important;
+  border-color:color-mix(in srgb,var(--accent) 28%,transparent)!important;
+}
+.deck-footer,
+.page-meta,
+.footer,
+.slide-meta{
+  color:var(--text-3)!important;
+}
+.progress-bar>span,
+.progress,
+.progress-dot.active,
+.dot.active{
+  background:var(--accent)!important;
+}
+svg text{font-family:var(--font-sans)!important}
+/* ===== end inlined unified course styles ===== */
+</style>
+</head>
+<body>
+
+<div id="hint">← → 翻页 · ESC 索引</div>
+<div id="deck">
+
+<!-- ================================================================ -->
+<!-- SLIDE 01: 封面 -->
+<!-- ================================================================ -->
+<section class="slide hero dark">
+  <div class="chrome">
+    <div>课堂教学 · 2026 春季</div>
+    <div>Vol.01</div>
+  </div>
+  <div class="cover-area">
+    <div class="kicker">AI-Assisted Programming · Lecture 10</div>
+    <h1>AI 辅助编程</h1>
+    <h2>需求拆解 · 提示词工程 · 代码审查</h2>
+    <p style="font-family:var(--sans-zh);font-size:max(20px,1.5vw);line-height:1.55;opacity:.72;max-width:54vw;margin-bottom:1vh">
+      本讲探讨在课程项目中如何有效使用 AI 编程工具：从需求拆解为功能清单、编写高质量提示词、到对 AI 生成代码进行系统审查与验证。
+    </p>
+    <div class="cover-tags">
+      <span class="tag">90 分钟 · 两节连堂</span>
+      <span class="tag">课程专题</span>
+      <span class="tag">实践导向</span>
+    </div>
+    <div class="meta-row" style="margin-top:1.2vh">
+      <span>春季学期 · Week 12</span>
+      <span class="sep" style="display:inline-block;width:24px;height:1px;background:currentColor;opacity:.3;vertical-align:middle"></span>
+      <span>32 页</span>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">AI 辅助编程 · 需求拆解·提示词工程·代码审查</div>
+    <div>01 / 32</div>
+  </div>
+
+  <div class="callout course-bridge"><b>课程衔接。</b>承接检测平台与部署思维，本讲引入 AI 辅助编程，强调需求拆解、提示词工程和代码审查，帮助学生在最终项目中更规范地使用 AI 工具。</div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 02: 目录 -->
+<!-- ================================================================ -->
+<section class="slide light">
+  <div class="chrome">
+    <div>目次 · Table of Contents</div>
+    <div>02 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>了解</strong>本讲八部分的整体结构</li>
+        <li><strong>理解</strong>各模块之间的逻辑关系</li>
+        <li><strong>明确</strong>课堂任务与评价方式</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Outline · 总览</div>
+      <h2>课程目录</h2>
+      <div class="section-pill" style="margin-bottom:.3vh">
+        <span class="sp-item"><span class="sp-num">01</span> AI 工具定位</span>
+        <span class="sp-item"><span class="sp-num">02</span> 需求拆解</span>
+        <span class="sp-item"><span class="sp-num">03</span> 提示词工程</span>
+        <span class="sp-item"><span class="sp-num">04</span> 代码风险</span>
+        <span class="sp-item"><span class="sp-num">05</span> 代码审查</span>
+        <span class="sp-item"><span class="sp-num">06</span> Spec-driven</span>
+        <span class="sp-item"><span class="sp-num">07</span> OpenAPI</span>
+        <span class="sp-item"><span class="sp-num">08</span> 课堂任务</span>
+      </div>
+      <div class="grid-2" style="margin-top:.15vh">
+        <div class="card">
+          <div class="card-title">第一部分 · 理论框架</div>
+          <p>AI 工具定位 → 需求拆解方法 → 提示词工程结构，建立系统的 AI 协作方法论。涵盖能力边界评估、需求拆解为功能清单、结构化提示词编写。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">第二部分 · 实践技能</div>
+          <p>代码风险识别 → 审查清单 → Spec-driven 开发 → OpenAPI 契约，形成闭环实践能力。涵盖四类风险、八项审查清单、规格驱动开发流程。</p>
+        </div>
+      </div>
+      <div class="annot-row">
+        <div class="annot-item">
+          <div class="annot-label">时间分配</div>
+          <p>第一部分（理论+方法）约 45 分钟 · 第二部分（实践+课堂任务）约 45 分钟。中间休息 5 分钟。</p>
+        </div>
+        <div class="annot-item">
+          <div class="annot-label">教学方式</div>
+          <p>讲授 + 代码演示 + 小组实操。每部分末尾设 3-5 分钟提问环节。课堂任务以小组为单位完成。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">AI 辅助编程 · 目录</div>
+    <div>02 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 03: 课程项目概览 -->
+<!-- ================================================================ -->
+<section class="slide dark">
+  <div class="chrome">
+    <div>Part 01 · 项目背景</div>
+    <div>03 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>理解</strong>课程项目的技术栈与目标</li>
+        <li><strong>掌握</strong>项目整体架构与数据流</li>
+        <li><strong>明确</strong>各模块的职责边界</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Context · 项目上下文</div>
+      <h2>课程项目：目标检测平台</h2>
+      <p>本课程项目开发一个基于 YOLO 模型的目标检测平台，支持图片与视频上传、模型推理、结果展示与记录管理。技术栈如下：</p>
+      <ul>
+        <li><strong>前端</strong>：HTML / CSS / JavaScript 或 React，提供直观的文件上传与结果展示界面</li>
+        <li><strong>后端</strong>：Python FastAPI，处理文件接收、模型调用、结果返回</li>
+        <li><strong>模型推理</strong>：YOLOv5 / YOLOv5-lite，加载预训练权重执行目标检测</li>
+        <li><strong>存储</strong>：本地文件系统存储上传文件与检测结果，SQLite 记录检测日志</li>
+      </ul>
+      <div class="diagram-box" style="text-align:center;font-size:max(15px,.95vw)">用户浏览器 ──HTTP──→ FastAPI 后端 ──调用──→ YOLO 模型推理 ──→ 结果返回浏览器
+    │                    │
+    └── 上传 jpg/png/mp4 ┘    └── 保存至 uploads/ + 记录至 SQLite</div>
+      <div class="annot-row">
+        <div class="annot-item">
+          <div class="annot-label">项目规模参考</div>
+          <p>前端约 3-5 个页面（上传页、结果页、历史页），后端约 4-6 个 API 端点，模型推理封装为独立模块。</p>
+        </div>
+        <div class="annot-item">
+          <div class="annot-label">开发环境</div>
+          <p>Python 3.10+ · FastAPI 0.104+ · PyTorch 2.0+ · YOLOv5-lite · 推荐使用 conda 虚拟环境隔离依赖。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 01 · 项目背景</div>
+    <div>03 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 04: AI 工具定位与能力边界 -->
+<!-- ================================================================ -->
+<section class="slide light">
+  <div class="chrome">
+    <div>Part 01 · AI 工具定位</div>
+    <div>04 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>理解</strong>AI 在项目中的适用边界</li>
+        <li><strong>区分</strong>AI 适合做的事与不宜信任的事</li>
+        <li><strong>建立</strong>审慎使用 AI 的工程态度</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">AI Tool Positioning</div>
+      <h2>AI 工具定位与能力边界</h2>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">AI 适合承担的任务</div>
+          <ul>
+            <li><strong>需求拆解</strong>：将模糊描述转化为结构化功能清单</li>
+            <li><strong>代码骨架</strong>：生成接口模板、数据模型、目录结构</li>
+            <li><strong>编译错误解释</strong>：分析错误堆栈并给出修复建议</li>
+            <li><strong>接口调用示例</strong>：生成 curl 命令、客户端调用代码</li>
+            <li><strong>文档初稿</strong>：API 文档、README、使用说明</li>
+            <li><strong>测试用例生成</strong>：基于函数签名生成边界测试</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">AI 不宜直接信任的领域</div>
+          <ul>
+            <li><strong>复杂依赖安装命令</strong>：版本兼容性需人工验证</li>
+            <li><strong>未经验证的算法结论</strong>：模型精度、性能数据需实测</li>
+            <li><strong>未运行过的完整项目</strong>：AI 生成的完整项目首次运行几乎必然报错</li>
+            <li><strong>隐私安全版权判断</strong>：AI 不区分开源协议和版权限制</li>
+            <li><strong>生产环境配置</strong>：安全配置、性能调优需领域知识</li>
+          </ul>
+        </div>
+      </div>
+      <div class="annot-row">
+        <div class="annot-item">
+          <div class="annot-label">核心原则</div>
+          <p>将 AI 视为"需要代码审查的初级开发者"。其输出必须经过读代码、运行测试、逐行验证三个步骤才能合入项目。</p>
+        </div>
+        <div class="annot-item">
+          <div class="annot-label">课程要求</div>
+          <p>每次使用 AI 后提交"AI 使用记录"：任务描述、原始提示词、AI 输出、人工修改点及原因、运行截图。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 01 · AI 工具定位与能力边界</div>
+    <div>04 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 05: AI 使用规范 -->
+<!-- ================================================================ -->
+<section class="slide dark">
+  <div class="chrome">
+    <div>Part 01 · 使用规范</div>
+    <div>05 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>掌握</strong>AI 输出的验证方法</li>
+        <li><strong>理解</strong>代码生成模型的黑盒性质</li>
+        <li><strong>建立</strong>系统化的 AI 使用流程</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Usage Policy · 使用规范</div>
+      <h2>AI 使用规范与验证流程</h2>
+      <div class="grid-2-60">
+        <div class="card">
+          <div class="card-title">五类常见问题</div>
+          <ul>
+            <li><strong>幻觉</strong>：生成不存在的 API、函数签名或库版本。例如虚构 <span class="inline-code">torchvision.models.yolo</span></li>
+            <li><strong>上下文遗忘</strong>：长对话中丢失项目结构约定，生成不一致的代码风格</li>
+            <li><strong>路径假设</strong>：默认使用绝对路径或假定文件结构，与项目实际布局不符</li>
+            <li><strong>依赖盲区</strong>：假设某些包已安装，或推荐不兼容的版本组合</li>
+            <li><strong>安全漠视</strong>：不主动考虑输入验证、文件路径遍历、SQL 注入等安全实践</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">AI 输出验证三步法</div>
+          <div class="flow-row" style="gap:.3vw;margin-bottom:.3vh">
+            <div class="flow-step" style="flex-direction:column;align-items:flex-start;padding:.3vh .4vw;flex:1">
+              <div class="fn">Step 1</div>
+              <div style="font-size:max(14px,.88vw);opacity:.75">通读代码，理解每一行</div>
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" style="flex-direction:column;align-items:flex-start;padding:.3vh .4vw;flex:1">
+              <div class="fn">Step 2</div>
+              <div style="font-size:max(14px,.88vw);opacity:.75">在隔离环境运行测试</div>
+            </div>
+            <span class="flow-arrow">→</span>
+            <div class="flow-step" style="flex-direction:column;align-items:flex-start;padding:.3vh .4vw;flex:1">
+              <div class="fn">Step 3</div>
+              <div style="font-size:max(14px,.88vw);opacity:.75">逐行验证后合入</div>
+            </div>
+          </div>
+          <div class="code-block" style="margin:.2vh 0 0 0">
+            <div class="code-header"><span>AI 使用记录模板</span><span>md</span></div>
+            <pre><code>## AI 使用记录
+- 任务：为图片检测接口添加批量处理
+- 提示词：[五部分结构全文]
+- AI 输出：[原始代码]
+- 修改点：1) 添加文件大小校验
+           2) 替换绝对路径为 Path(__file__)
+- 修改原因：安全加固 + 可移植性
+- 运行截图：[附件]</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 01 · AI 使用规范</div>
+    <div>05 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 06: 需求拆解 - 章节幕封 -->
+<!-- ================================================================ -->
+<section class="slide hero light">
+  <div class="chrome">
+    <div>Part 02 · 需求拆解</div>
+    <div>06 / 32</div>
+  </div>
+  <div class="cover-area">
+    <div class="kicker">02 · Requirements Decomposition</div>
+    <h1 style="font-size:max(48px,5.2vw)">从一句话到功能清单</h1>
+    <p style="font-family:var(--sans-zh);font-size:max(20px,1.5vw);line-height:1.55;opacity:.72;max-width:54vw">
+      需求拆解是人与 AI 协作的第一步。将模糊的原始需求转化为结构化的功能列表与模块划分，为后续提示词编写和代码生成奠定基础。
+    </p>
+    <div class="annot-row" style="justify-content:center;margin-top:1.5vh">
+      <div class="annot-item" style="max-width:18vw;text-align:center">
+        <div class="annot-label">核心产出</div>
+        <p>功能清单 · 模块划分 · 接口规格</p>
+      </div>
+      <div class="annot-item" style="max-width:18vw;text-align:center">
+        <div class="annot-label">关键原则</div>
+        <p>先拆解后编码 · 异常即功能</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 02 · 需求拆解方法</div>
+    <div>06 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 07: 原始需求分析 -->
+<!-- ================================================================ -->
+<section class="slide dark">
+  <div class="chrome">
+    <div>Part 02 · 原始需求分析</div>
+    <div>07 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>理解</strong>原始需求的特征与局限</li>
+        <li><strong>掌握</strong>需求拆解的基本方法</li>
+        <li><strong>学会</strong>从模糊描述中提取关键要素</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Raw Requirement Analysis</div>
+      <h2>原始需求的特征与局限</h2>
+      <div class="grid-2-40">
+        <div class="card">
+          <div class="card-title">原始需求（28 字）</div>
+          <div class="code-block" style="margin:0">
+            <pre><code>做一个目标检测平台，可以上传图片和视频，调用 YOLO 模型，显示检测结果。</code></pre>
+          </div>
+          <p style="margin-top:.2vh">上述描述信息量远远不够。需要拆解出以下维度：</p>
+          <ul>
+            <li><strong>输入</strong>：支持的文件格式、单图/批量方式与大小限制</li>
+            <li><strong>参数</strong>：置信度阈值、模型变体等可配置项</li>
+            <li><strong>输出</strong>：检测结果展示形式，包括列表、标注图与 JSON</li>
+            <li><strong>异常</strong>：格式不支持、模型加载失败等场景的处理策略</li>
+            <li><strong>记录</strong>：检测历史的持久化与查询需求</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">需求拆解方法论</div>
+          <p>需求拆解遵循"5W1H + 异常覆盖"框架：</p>
+          <ul>
+            <li><strong>What</strong>：系统目标与核心功能</li>
+            <li><strong>Who</strong>：使用者与用户规模</li>
+            <li><strong>Where</strong>：运行环境：本地或服务器</li>
+            <li><strong>When</strong>：执行方式：同步、异步与排队机制</li>
+            <li><strong>Why</strong>：功能价值与优先级</li>
+            <li><strong>How</strong>：实现路径与技术选型</li>
+          </ul>
+          <div class="info-box" style="margin-top:.2vh">
+            <div class="ib-title">拆解原则</div>
+            <p>每个"正常流程"都对应一个"异常流程"。例如"上传图片"的正常流程对应"格式不支持""文件过大""文件损坏"等异常流程。异常处理本身就是功能需求。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 02 · 原始需求分析</div>
+    <div>07 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 08: 功能拆解清单 -->
+<!-- ================================================================ -->
+<section class="slide light">
+  <div class="chrome">
+    <div>Part 02 · 功能拆解清单</div>
+    <div>08 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>掌握</strong>功能清单的编写方法</li>
+        <li><strong>区分</strong>核心功能与辅助功能</li>
+        <li><strong>学会</strong>覆盖异常场景</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Function Breakdown</div>
+      <h2>功能拆解清单</h2>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">核心功能</div>
+          <ul>
+            <li><strong>文件上传</strong>：支持 jpg / png / mp4 格式，单文件上传，前端预览</li>
+            <li><strong>参数选择</strong>：模型类型（YOLOv5s/v5lite）、置信度阈值（0.0-1.0）、输入尺寸</li>
+            <li><strong>检测调用</strong>：后端加载模型并返回结构化结果（类别、置信度、边界框）</li>
+            <li><strong>结果展示</strong>：原图显示、标注结果图叠加、检测列表（类别/置信度/位置）</li>
+            <li><strong>视频检测</strong>：逐帧分析、关键帧提取、检测结果汇总</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">辅助功能</div>
+          <ul>
+            <li><strong>记录管理</strong>：检测时间、文件名、类别数量、检测结果持久化</li>
+            <li><strong>结果下载</strong>：检测结果图片保存与导出（标注图 + JSON 数据）</li>
+            <li><strong>批量处理</strong>：多文件排队检测，进度显示</li>
+            <li><strong>历史查询</strong>：按日期/文件名/类别筛选检测记录</li>
+            <li><strong>异常处理</strong>：格式错误（400）、模型失败（500）、无目标（空数组）</li>
+          </ul>
+        </div>
+      </div>
+      <div class="annot-row">
+        <div class="annot-item">
+          <div class="annot-label">功能清单的 AI 用途</div>
+          <p>将功能清单直接粘贴到提示词中作为"背景"部分，AI 能更准确地理解项目范围和边界，减少无关代码生成。</p>
+        </div>
+        <div class="annot-item">
+          <div class="annot-label">清单粒度建议</div>
+          <p>每条功能应独立可测试。例如"文件上传"应拆分为"格式校验""大小校验""内容校验"三个独立条目。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 02 · 功能拆解清单</div>
+    <div>08 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 09: 模块划分 -->
+<!-- ================================================================ -->
+<section class="slide dark">
+  <div class="chrome">
+    <div>Part 02 · 模块划分</div>
+    <div>09 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>掌握</strong>模块化拆分的基本原则</li>
+        <li><strong>理解</strong>前后端分离的架构意义</li>
+        <li><strong>学会</strong>将功能清单映射为模块</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Modularization</div>
+      <h2>模块划分：高内聚低耦合</h2>
+      <div class="grid-3" style="gap:.6vw;margin-bottom:.2vh">
+        <div class="card">
+          <div class="card-title">前端页面模块</div>
+          <ul>
+            <li>上传表单（文件选择 + 参数配置）</li>
+            <li>结果展示（原图 + 标注图 + 列表）</li>
+            <li>历史记录（查询 + 详情 + 删除）</li>
+            <li>状态管理（加载中 / 成功 / 错误）</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">后端 API 模块</div>
+          <ul>
+            <li>文件接收（格式校验 + 安全存储）</li>
+            <li>模型调度（加载 + 推理 + 卸载）</li>
+            <li>结果序列化（JSON 响应 + 图片返回）</li>
+            <li>错误处理（统一异常 + 日志记录）</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">推理服务模块</div>
+          <ul>
+            <li>YOLO 加载（权重路径 + 设备选择）</li>
+            <li>推理封装（预处理 + 推理 + 后处理）</li>
+            <li>结果后处理（NMS + 坐标转换）</li>
+            <li>多模型切换（YOLOv5s / v5lite）</li>
+          </ul>
+        </div>
+      </div>
+      <div class="diagram-box" style="text-align:center;font-size:max(14px,.88vw)">┌─────────────┐     HTTP      ┌──────────────┐     调用     ┌──────────────┐
+│  前端页面    │ ←──────────→ │  后端 API    │ ←────────→ │  推理服务    │
+│  (HTML/JS)   │    JSON      │  (FastAPI)   │             │  (YOLO)      │
+└─────────────┘              └──────────────┘             └──────────────┘
+                                    │                            │
+                                    └── 文件系统 (uploads/)       └── 权重文件 (.pt)</div>
+      <div class="annot-row">
+        <div class="annot-item">
+          <div class="annot-label">基础设施</div>
+          <p>文件存储（uploads/ + results/）· SQLite 记录 · 日志系统（loguru）· 错误处理框架</p>
+        </div>
+        <div class="annot-item">
+          <div class="annot-label">模块间通信</div>
+          <p>前端 ↔ 后端：HTTP RESTful API · 后端 ↔ 推理：Python 函数调用（同进程）</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 02 · 模块划分</div>
+    <div>09 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 10: 需求规格模板 -->
+<!-- ================================================================ -->
+<section class="slide light">
+  <div class="chrome">
+    <div>Part 02 · 规格模板</div>
+    <div>10 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>掌握</strong>轻量需求规格模板</li>
+        <li><strong>理解</strong>规格对 AI 生成的约束作用</li>
+        <li><strong>学会</strong>编写可执行的验收标准</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Spec Template</div>
+      <h2>轻量需求规格模板</h2>
+      <div class="grid-2-60">
+        <div class="card">
+          <div class="card-title">规格模板结构</div>
+          <div class="code-block" style="margin:0">
+            <div class="code-header"><span>图片检测功能规格</span><span>md</span></div>
+            <pre><code># 功能：图片目标检测
+## 输入
+- image: jpg/png，≤ 16MB
+- conf: 0.0–1.0，默认 0.25
+## 输出
+- result_image_url：标注图路径
+- detections：[{class, confidence, bbox}]
+- elapsed_ms：推理耗时
+## 异常
+- 文件为空 → 400
+- 格式不支持 → 400
+- 推理失败 → 500 + 日志
+## 验收
+- 合法图片 → 200 + detections
+- txt 文件 → 400
+- 无目标 → 空数组</code></pre>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">规格的作用</div>
+          <p>规格模板起到三重作用：</p>
+          <ul>
+            <li><strong>对齐</strong>：团队成员对功能有一致的理解</li>
+            <li><strong>约束</strong>：将规格嵌入提示词，限制 AI 的生成空间</li>
+            <li><strong>验收</strong>：每条验收标准都是可执行的测试用例</li>
+          </ul>
+          <div class="info-box" style="margin-top:.3vh">
+            <div class="ib-title">规格粒度</div>
+            <p>课程项目中，每个 API 端点对应一份规格。规格不宜过粗（一个功能一句话）也不宜过细（每行代码都写规格）。输入/输出/异常/验收四部分缺一不可。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 02 · 需求规格模板</div>
+    <div>10 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 11: 提示词工程 - 章节幕封 -->
+<!-- ================================================================ -->
+<section class="slide hero dark">
+  <div class="chrome">
+    <div>Part 03 · 提示词工程</div>
+    <div>11 / 32</div>
+  </div>
+  <div class="cover-area">
+    <div class="kicker">03 · Prompt Engineering</div>
+    <h1 style="font-size:max(48px,5.2vw)">高质量提示词的五部分结构</h1>
+    <p style="font-family:var(--sans-zh);font-size:max(20px,1.5vw);line-height:1.55;opacity:.72;max-width:54vw">
+      提示词是与 AI 模型沟通的接口。结构化的提示词显著提高代码生成的首轮准确率，减少迭代次数和调试成本。
+    </p>
+    <div class="annot-row" style="justify-content:center;margin-top:1.5vh">
+      <div class="annot-item" style="max-width:16vw;text-align:center">
+        <div class="annot-label">低质量首轮可用率</div>
+        <p style="font-size:max(24px,1.8vw)!important;font-weight:700;opacity:.95!important">20-30%</p>
+      </div>
+      <div class="annot-item" style="max-width:16vw;text-align:center">
+        <div class="annot-label">高质量首轮可用率</div>
+        <p style="font-size:max(24px,1.8vw)!important;font-weight:700;opacity:.95!important">60-80%</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 03 · 提示词工程</div>
+    <div>11 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 12: 五部分结构详解 -->
+<!-- ================================================================ -->
+<section class="slide light">
+  <div class="chrome">
+    <div>Part 03 · 五部分结构</div>
+    <div>12 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>掌握</strong>五部分提示词结构</li>
+        <li><strong>理解</strong>各部分的作用与必要性</li>
+        <li><strong>学会</strong>编写完整的结构化提示词</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Five-Part Structure</div>
+      <h2>提示词的五部分框架</h2>
+      <table class="teach-table">
+        <thead>
+          <tr><th>#</th><th>部分</th><th>内容</th><th>作用</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td><strong>角色</strong></td><td>"你是一个 Python/FastAPI 视觉应用开发助手"</td><td>设定回答视角和知识范围</td></tr>
+          <tr><td>2</td><td><strong>背景</strong></td><td>"课程项目使用 YOLOv5-lite 检测图片"</td><td>提供项目上下文与约束</td></tr>
+          <tr><td>3</td><td><strong>输入</strong></td><td>"已有 detect_image(image_path, conf) 函数"</td><td>说明现有基础与依赖</td></tr>
+          <tr><td>4</td><td><strong>约束</strong></td><td>"不要改模型代码；返回 JSON"</td><td>限定 AI 的行为边界</td></tr>
+          <tr><td>5</td><td><strong>验收</strong></td><td>"提供启动命令、测试 curl、目录结构"</td><td>明确交付物形式和标准</td></tr>
+        </tbody>
+      </table>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">各部分详解</div>
+          <p><strong>角色</strong>决定了 AI 调用的知识子集。指定"FastAPI 开发助手"比不指定角色获得的代码质量更高。<strong>背景</strong>提供项目上下文，避免 AI 从零假设。<strong>输入</strong>说明已有代码的接口签名，防止 AI 生成重复或冲突的函数。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">约束与验收的关键性</div>
+          <p><strong>约束</strong>是最容易被忽略的部分。缺约束意味着 AI 会在不相关方向上浪费 Token——例如生成了前端代码但只需要后端接口。<strong>验收</strong>定义了"完成"的标准，避免 AI 输出不完整的半成品。</p>
+        </div>
+      </div>
+      <div class="annot-row">
+        <div class="annot-item">
+          <div class="annot-label">迭代策略</div>
+          <p>建议采用"基线提示词 → 评估输出 → 补充约束 → 重新生成"的迭代循环，每次只改一个维度。</p>
+        </div>
+        <div class="annot-item">
+          <div class="annot-label">常见误区</div>
+          <p>一次性添加过多约束导致 AI 顾此失彼。应逐步增加约束，观察每次变化对输出的影响。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 03 · 五部分结构详解</div>
+    <div>12 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 13: 完整提示词示例 -->
+<!-- ================================================================ -->
+<section class="slide dark">
+  <div class="chrome">
+    <div>Part 03 · 完整示例</div>
+    <div>13 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>观察</strong>完整提示词的写法</li>
+        <li><strong>理解</strong>五部分如何协同工作</li>
+        <li><strong>学会</strong>将规格嵌入提示词</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Complete Prompt Example</div>
+      <h2>完整提示词示例</h2>
+      <div class="grid-2-60">
+        <div class="card">
+          <div class="card-title">结构化提示词</div>
+          <div class="code-block" style="margin:0">
+            <div class="code-header"><span>FastAPI 图片检测接口</span><span>text</span></div>
+            <pre><code>请帮我用 FastAPI 写一个图片检测接口。
+
+【角色】你是 Python FastAPI 视觉应用
+开发助手。
+
+【背景】课程项目使用 YOLOv5-lite 检测
+图片。前端需要接收 JSON 响应。
+
+【输入】已有 detect_image(path, conf=0.25)
+函数，返回 (result_path, detections)。
+detections 格式：[{class, confidence, bbox}]
+
+【约束】不要改模型代码；只写后端接口；
+返回 JSON；添加异常处理；使用 UUID 命名
+保存文件；文件大小限制 16MB。
+
+【验收】提供 uvicorn 启动命令、curl 测试
+示例、最终目录结构。</code></pre>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">提示词设计要点</div>
+          <ul>
+            <li><strong>角色具体化</strong>：指定"FastAPI 视觉应用开发助手"而非泛泛的"编程助手"</li>
+            <li><strong>背景包含技术栈</strong>：YOLOv5-lite + FastAPI + JSON 响应</li>
+            <li><strong>输入给出函数签名</strong>：明确已有函数的参数和返回值类型</li>
+            <li><strong>约束可验证</strong>："不要改模型代码""UUID 命名""16MB 限制"都是可检查的</li>
+            <li><strong>验收可执行</strong>：curl 命令可以直接运行验证</li>
+          </ul>
+          <div class="info-box" style="margin-top:.3vh">
+            <div class="ib-title">提示词长度</div>
+            <p>课程项目中的提示词建议控制在 200-500 字。过短则信息不足，过长则 AI 可能遗漏关键约束。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 03 · 完整提示词示例</div>
+    <div>13 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 14: AI 生成代码展示 -->
+<!-- ================================================================ -->
+<section class="slide light">
+  <div class="chrome">
+    <div>Part 03 · 生成代码</div>
+    <div>14 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>观察</strong>AI 对结构化提示词的响应</li>
+        <li><strong>理解</strong>代码结构与提示词约束的对应关系</li>
+        <li><strong>学会</strong>评估 AI 输出质量</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Generated Code</div>
+      <h2>AI 返回的后端接口代码</h2>
+      <div class="code-block" style="margin:0">
+        <div class="code-header"><span>app/main.py</span><span>python</span></div>
+        <pre><code>from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+import os, uuid, uvicorn
+from pathlib import Path
+from detect import detect_image
+
+app = FastAPI(title="目标检测 API")
+BASE_DIR = Path(__file__).parent
+UPLOAD_DIR = BASE_DIR / "uploads"
+RESULTS_DIR = BASE_DIR / "results"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(RESULTS_DIR, exist_ok=True)
+MAX_SIZE = 16 * 1024 * 1024  # 16MB
+
+@app.post("/detect/image")
+async def detect_image_endpoint(
+    file: UploadFile = File(...),
+    conf: float = Form(0.25)
+):
+    # 格式校验
+    ext = file.filename.split(".")[-1].lower()
+    if ext not in ("jpg", "jpeg", "png"):
+        raise HTTPException(400, f"不支持的格式: {ext}")
+    # 大小校验
+    content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(400, "文件为空")
+    if len(content) > MAX_SIZE:
+        raise HTTPException(413, "文件超过 16MB 限制")
+    # 安全存储（UUID 防覆盖）
+    file_id = str(uuid.uuid4())
+    save_path = UPLOAD_DIR / f"{file_id}.{ext}"
+    with open(save_path, "wb") as f:
+        f.write(content)
+    # 模型推理
+    try:
+        result_path, detections = detect_image(str(save_path), conf)
+    except Exception as e:
+        raise HTTPException(500, f"推理失败: {str(e)}")
+    return {
+        "file_id": file_id,
+        "result_image_url": f"/results/{Path(result_path).name}",
+        "detections": detections,
+        "total": len(detections)
+    }</code></pre>
+      </div>
+      <div class="annot-row">
+        <div class="annot-item">
+          <div class="annot-label">约束对应检查</div>
+          <p>✓ UUID 命名 · ✓ 16MB 限制 · ✓ 异常处理 · ✓ 相对路径 · ✓ JSON 返回 · ✓ 格式校验</p>
+        </div>
+        <div class="annot-item">
+          <div class="annot-label">仍需人工确认</div>
+          <p>检查 detect_image 函数的路径参数类型，并确认 results 目录是否通过静态文件服务暴露。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 03 · AI 生成代码展示</div>
+    <div>14 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 15: 运行命令与测试 -->
+<!-- ================================================================ -->
+<section class="slide dark">
+  <div class="chrome">
+    <div>Part 03 · 运行与测试</div>
+    <div>15 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>掌握</strong>项目启动的完整流程</li>
+        <li><strong>学会</strong>使用 curl 测试接口</li>
+        <li><strong>理解</strong>目录结构的重要性</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Setup & Testing</div>
+      <h2>项目启动与接口测试</h2>
+      <div class="grid-2-60">
+        <div class="card">
+          <div class="card-title">依赖安装与启动</div>
+          <div class="code-block" style="margin:0">
+            <div class="code-header"><span>bash</span></div>
+            <pre><code># 创建虚拟环境（推荐）
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# venv\Scripts\activate   # Windows
+
+# 安装依赖
+pip install fastapi==0.104.0
+pip install "uvicorn[standard]==0.24.0"
+pip install python-multipart==0.0.6
+pip install torch>=2.0.0
+pip install opencv-python-headless
+
+# 启动服务
+cd project
+uvicorn app.main:app --reload --port 8000
+
+# 预期输出
+# INFO: Uvicorn running on http://127.0.0.1:8000</code></pre>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">接口测试与验证</div>
+          <div class="code-block" style="margin:0">
+            <div class="code-header"><span>bash</span></div>
+            <pre><code># 测试正常图片
+curl -X POST http://localhost:8000/detect/image \
+  -F "file=@test.jpg" \
+  -F "conf=0.25"
+
+# 预期返回
+# {"file_id":"xxx","result_image_url":"/results/xxx.jpg",
+#  "detections":[{"class":"person","confidence":0.89,
+#  "bbox":[100,200,300,400]}],"total":1}
+
+# 测试非法文件
+curl -X POST http://localhost:8000/detect/image \
+  -F "file=@test.txt"
+# 预期返回 400
+
+# 查看自动文档
+# 浏览器打开 http://127.0.0.1:8000/docs</code></pre>
+          </div>
+          <div class="annot-item" style="margin-top:.2vh;padding:.3vh .5vw">
+            <div class="annot-label">目录结构</div>
+            <p>project/ ├── app/main.py ├── app/detect.py ├── uploads/ ├── results/ ├── requirements.txt └── run.sh</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 03 · 运行命令与测试</div>
+    <div>15 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 16: 提示词质量对比 -->
+<!-- ================================================================ -->
+<section class="slide light">
+  <div class="chrome">
+    <div>Part 03 · 质量对比</div>
+    <div>16 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>理解</strong>提示词质量对生成结果的直接影响</li>
+        <li><strong>掌握</strong>评估提示词质量的维度</li>
+        <li><strong>学会</strong>迭代优化提示词的方法</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Quality Comparison</div>
+      <h2>低质量 vs 高质量提示词对比</h2>
+      <table class="teach-table">
+        <thead>
+          <tr><th>维度</th><th>低质量提示词</th><th>高质量提示词</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>描述方式</strong></td><td>"写一个图片检测接口"</td><td>五部分结构化描述 + 上下文 + 约束</td></tr>
+          <tr><td><strong>技术栈</strong></td><td>未指定框架</td><td>明确 FastAPI + python-multipart</td></tr>
+          <tr><td><strong>依赖关系</strong></td><td>未提现有代码</td><td>说明已有 detect_image 函数的签名与返回</td></tr>
+          <tr><td><strong>边界约束</strong></td><td>无约束</td><td>规定错误处理、文件校验、勿改模型</td></tr>
+          <tr><td><strong>验收标准</strong></td><td>无</td><td>提供 curl 测试命令、目录结构、启动方式</td></tr>
+          <tr><td><strong>首轮可用率</strong></td><td>约 20-30%</td><td>约 60-80%</td></tr>
+        </tbody>
+      </table>
+      <div class="annot-row">
+        <div class="annot-item">
+          <div class="annot-label">迭代优化策略</div>
+          <p>首轮提示词很难完美。建议采用"基线提示词 → 评估输出 → 补充约束 → 重新生成"的迭代循环，每次只改一个维度。</p>
+        </div>
+        <div class="annot-item">
+          <div class="annot-label">常见误区</div>
+          <p>一次性添加过多约束导致 AI 顾此失彼。应逐步增加约束，观察每次变化对输出的影响。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 03 · 提示词质量对比</div>
+    <div>16 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 17: 代码风险 - 章节幕封 -->
+<!-- ================================================================ -->
+<section class="slide hero dark">
+  <div class="chrome">
+    <div>Part 04 · 代码风险</div>
+    <div>17 / 32</div>
+  </div>
+  <div class="cover-area">
+    <div class="kicker">04 · Risk Assessment</div>
+    <h1 style="font-size:max(48px,5.2vw)">AI 生成代码的四大风险</h1>
+    <p style="font-family:var(--sans-zh);font-size:max(20px,1.5vw);line-height:1.55;opacity:.72;max-width:54vw">
+      幻觉、路径错误、依赖冲突、安全问题——四类风险在课程项目中频繁出现，需要系统性的审查机制来应对。
+    </p>
+    <div class="annot-row" style="justify-content:center;margin-top:1.5vh">
+      <div class="annot-item" style="max-width:12vw;text-align:center">
+        <div class="annot-label">幻觉</div>
+        <p>虚构 API 与函数</p>
+      </div>
+      <div class="annot-item" style="max-width:12vw;text-align:center">
+        <div class="annot-label">路径</div>
+        <p>硬编码与结构假设</p>
+      </div>
+      <div class="annot-item" style="max-width:12vw;text-align:center">
+        <div class="annot-label">依赖</div>
+        <p>版本冲突与缺失</p>
+      </div>
+      <div class="annot-item" style="max-width:12vw;text-align:center">
+        <div class="annot-label">安全</div>
+        <p>路径遍历与注入</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 04 · AI 生成代码风险</div>
+    <div>17 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 18: 风险一：幻觉 -->
+<!-- ================================================================ -->
+<section class="slide light">
+  <div class="chrome">
+    <div>Part 04 · 幻觉风险</div>
+    <div>18 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>理解</strong>模型幻觉的产生机制</li>
+        <li><strong>掌握</strong>识别虚构 API 的方法</li>
+        <li><strong>学会</strong>验证 AI 生成的代码引用</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Hallucination · 模型幻觉</div>
+      <h2>风险一：模型幻觉——虚构 API 与函数</h2>
+      <div class="grid-2-40">
+        <div class="card">
+          <div class="card-title">虚构 vs 真实代码对比</div>
+          <div class="code-block" style="margin:0">
+            <div class="code-header"><span>AI 可能虚构的导入</span><span>python</span></div>
+            <pre><code># ❌ AI 虚构：此模块不存在
+from torchvision.models.yolo import \
+    load_pretrained_yolov5
+
+# ✅ 正确的导入方式
+import torch
+model = torch.hub.load(
+    'ultralytics/yolov5',
+    'yolov5s', pretrained=True)</code></pre>
+          </div>
+          <p style="margin-top:.2vh">AI 还可能虚构方法名，如 <span class="inline-code">model.detect_objects()</span>，而实际 API 是 <span class="inline-code">results = model(img)</span> 后通过 <span class="inline-code">results.pandas().xyxy[0]</span> 获取结果。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">幻觉检测方法</div>
+          <ul>
+            <li><strong>文档验证</strong>：对每个不熟悉的 API 调用，查阅官方文档确认签名</li>
+            <li><strong>REPL 测试</strong>：在 Python 交互环境中逐条执行 import 语句</li>
+            <li><strong>版本核对</strong>：确认 AI 使用的 API 版本与安装的包版本一致</li>
+            <li><strong>错误信息分析</strong>：<span class="inline-code">ModuleNotFoundError</span> 和 <span class="inline-code">AttributeError</span> 是幻觉的直接证据</li>
+          </ul>
+          <div class="info-box" style="margin-top:.3vh">
+            <div class="ib-title">典型幻觉模式</div>
+            <p>AI 倾向于将不同库的功能合并到一个虚构的 API 中。例如将 torchvision 的数据集加载功能和 ultralytics 的检测功能合并为一个不存在的 <span class="inline-code">torchvision.detection.YOLO</span>。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 04 · 幻觉风险</div>
+    <div>18 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 19: 风险二：路径错误 -->
+<!-- ================================================================ -->
+<section class="slide dark">
+  <div class="chrome">
+    <div>Part 04 · 路径错误</div>
+    <div>19 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>理解</strong>路径错误的常见模式</li>
+        <li><strong>掌握</strong>使用 pathlib 处理路径</li>
+        <li><strong>学会</strong>编写可移植的文件操作代码</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Path Errors · 路径与文件结构错误</div>
+      <h2>风险二：路径与文件结构错误</h2>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">四类路径问题</div>
+          <ul>
+            <li><strong>硬编码绝对路径</strong>：<span class="inline-code">/home/user/project/weights/yolov5.pt</span> 在其他机器上必然不存在</li>
+            <li><strong>错误的工作目录假设</strong>：假定脚本在项目根目录运行，但实际可能在 <span class="inline-code">app/</span> 子目录中</li>
+            <li><strong>跨平台路径分隔符</strong>：Windows 使用 <span class="inline-code">\</span>，Linux/Mac 使用 <span class="inline-code">/</span></li>
+            <li><strong>遗漏目录创建</strong>：代码写入 <span class="inline-code">uploads/</span> 但未创建目录，导致 FileNotFoundError</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">正确做法：pathlib</div>
+          <div class="code-block" style="margin:0">
+            <div class="code-header"><span>python</span></div>
+            <pre><code>from pathlib import Path
+
+# 基于当前文件定位项目根目录
+BASE_DIR = Path(__file__).resolve().parent
+
+# 子目录路径
+UPLOAD_DIR = BASE_DIR / "uploads"
+RESULTS_DIR = BASE_DIR / "results"
+WEIGHTS_DIR = BASE_DIR / "weights"
+
+# 自动创建目录
+UPLOAD_DIR.mkdir(exist_ok=True)
+RESULTS_DIR.mkdir(exist_ok=True)
+
+# 安全地拼接路径
+model_path = WEIGHTS_DIR / "yolov5s.pt"
+save_path = UPLOAD_DIR / f"{uuid.uuid4()}.jpg"</code></pre>
+          </div>
+          <p style="margin-top:.2vh">使用 <span class="inline-code">pathlib.Path</span> 替代 <span class="inline-code">os.path</span>，自动处理跨平台路径分隔符。</p>
+        </div>
+      </div>
+      <div class="annot-row">
+        <div class="annot-item">
+          <div class="annot-label">审查要点</div>
+          <p>搜索代码中的 <span class="inline-code">/home/</span>、<span class="inline-code">C:\Users\</span>、<span class="inline-code">/Users/</span> 等绝对路径前缀，以及未调用 <span class="inline-code">mkdir(exist_ok=True)</span> 的文件写入操作。</p>
+        </div>
+        <div class="annot-item">
+          <div class="annot-label">AI 提示词建议</div>
+          <p>在提示词约束中明确要求"使用 pathlib 处理所有路径""所有路径基于项目根目录""自动创建所需目录"。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 04 · 路径错误</div>
+    <div>19 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 20: 风险三：依赖冲突 -->
+<!-- ================================================================ -->
+<section class="slide light">
+  <div class="chrome">
+    <div>Part 04 · 依赖冲突</div>
+    <div>20 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>理解</strong>依赖冲突的常见场景</li>
+        <li><strong>掌握</strong>使用虚拟环境隔离依赖</li>
+        <li><strong>学会</strong>编写版本锁定的 requirements.txt</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Dependency Conflicts</div>
+      <h2>风险三：依赖版本冲突</h2>
+      <div class="grid-2-60">
+        <div class="card">
+          <div class="card-title">正确的 requirements.txt</div>
+          <div class="code-block" style="margin:0">
+            <div class="code-header"><span>text</span></div>
+            <pre><code>fastapi==0.104.0
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+torch>=1.12.0,&lt;3.0.0
+torchvision>=0.13.0
+opencv-python-headless>=4.8.0
+numpy>=1.21.0,&lt;2.0.0
+Pillow>=9.0.0
+python-magic-bin==0.4.14  # 仅 Windows
+loguru>=0.7.0</code></pre>
+          </div>
+          <p style="margin-top:.2vh">AI 生成的 requirements.txt 通常未指定版本号或使用过时版本。建议使用 <span class="inline-code">pip freeze &gt; requirements.txt</span> 生成实际安装的版本。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">典型冲突场景</div>
+          <ul>
+            <li><strong>PyTorch 与 CUDA 版本不匹配</strong>：安装的 PyTorch 版本与系统 CUDA 驱动不兼容</li>
+            <li><strong>opencv-python 与 opencv-contrib-python 冲突</strong>：两者不能同时安装</li>
+            <li><strong>Pillow 版本过低</strong>：导致 JPEG 编码错误或 WebP 格式不支持</li>
+            <li><strong>numpy 2.x 兼容性</strong>：部分旧库不支持 numpy 2.0 的 API 变更</li>
+          </ul>
+          <div class="info-box" style="margin-top:.3vh">
+            <div class="ib-title">虚拟环境最佳实践</div>
+            <p>每个项目使用独立的虚拟环境。使用 <span class="inline-code">conda create -n yolo-project python=3.10</span> 创建，<span class="inline-code">conda activate yolo-project</span> 激活。避免在 base 环境中安装项目依赖。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 04 · 依赖冲突</div>
+    <div>20 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 21: 风险四：安全漏洞 -->
+<!-- ================================================================ -->
+<section class="slide dark">
+  <div class="chrome">
+    <div>Part 04 · 安全风险</div>
+    <div>21 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>理解</strong>文件上传功能的常见安全漏洞</li>
+        <li><strong>掌握</strong>MIME type 校验方法</li>
+        <li><strong>学会</strong>编写安全的文件处理代码</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Security Vulnerabilities</div>
+      <h2>风险四：安全漏洞</h2>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">文件上传安全风险</div>
+          <ul>
+            <li><strong>路径遍历</strong>：<span class="inline-code">../../../etc/passwd</span> 作为文件名可能覆盖系统文件</li>
+            <li><strong>无文件类型校验</strong>：仅检查扩展名，不检查 MIME type 和文件魔数</li>
+            <li><strong>无大小限制</strong>：超大文件上传导致磁盘占满或 OOM</li>
+            <li><strong>覆盖已有文件</strong>：使用原文件名保存而非 UUID 重命名</li>
+            <li><strong>无速率限制</strong>：频繁请求可能导致拒绝服务</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">安全加固代码</div>
+          <div class="code-block" style="margin:0">
+            <div class="code-header"><span>python</span></div>
+            <pre><code>import magic
+import uuid
+from pathlib import Path
+
+ALLOWED_MIME = [
+    "image/jpeg",
+    "image/png",
+    "video/mp4"
+]
+MAX_SIZE = 16 * 1024 * 1024  # 16MB
+
+# MIME type 校验（基于文件内容）
+file_type = magic.from_buffer(
+    content[:1024], mime=True
+)
+if file_type not in ALLOWED_MIME:
+    raise HTTPException(400, "不支持的文件类型")
+
+# UUID 重命名防覆盖
+safe_name = f"{uuid.uuid4()}.{ext}"
+save_path = UPLOAD_DIR / safe_name
+
+# 路径遍历防护
+if ".." in file.filename:
+    raise HTTPException(400, "非法的文件名")</code></pre>
+          </div>
+        </div>
+      </div>
+      <div class="annot-row">
+        <div class="annot-item">
+          <div class="annot-label">安全审查清单</div>
+          <p>□ 文件类型校验（MIME + 魔数） □ 文件大小上限 □ UUID 重命名 □ 路径遍历防护 □ 速率限制</p>
+        </div>
+        <div class="annot-item">
+          <div class="annot-label">依赖安装</div>
+          <p>MIME 校验需要 <span class="inline-code">pip install python-magic-bin</span>（Windows）或 <span class="inline-code">pip install python-magic</span>（Linux/Mac）。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 04 · 安全风险</div>
+    <div>21 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 22: 代码审查 - 章节幕封 -->
+<!-- ================================================================ -->
+<section class="slide hero light">
+  <div class="chrome">
+    <div>Part 05 · 代码审查</div>
+    <div>22 / 32</div>
+  </div>
+  <div class="cover-area">
+    <div class="kicker">05 · Code Review</div>
+    <h1 style="font-size:max(48px,5.2vw)">代码审查：读懂·运行·测试·修改</h1>
+    <p style="font-family:var(--sans-zh);font-size:max(20px,1.5vw);line-height:1.55;opacity:.72;max-width:54vw">
+      审查 AI 生成代码的过程本身就是重要的学习环节。通过系统化的审查清单，将 AI 输出转化为可合入项目的可靠代码。
+    </p>
+    <div class="annot-row" style="justify-content:center;margin-top:1.5vh">
+      <div class="annot-item" style="max-width:12vw;text-align:center">
+        <div class="annot-label">Step 1</div>
+        <p>读懂代码</p>
+      </div>
+      <div class="annot-item" style="max-width:12vw;text-align:center">
+        <div class="annot-label">Step 2</div>
+        <p>运行验证</p>
+      </div>
+      <div class="annot-item" style="max-width:12vw;text-align:center">
+        <div class="annot-label">Step 3</div>
+        <p>边界测试</p>
+      </div>
+      <div class="annot-item" style="max-width:12vw;text-align:center">
+        <div class="annot-label">Step 4</div>
+        <p>修改记录</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 05 · 代码审查</div>
+    <div>22 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 23: 八项审查清单 -->
+<!-- ================================================================ -->
+<section class="slide dark">
+  <div class="chrome">
+    <div>Part 05 · 审查清单</div>
+    <div>23 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>掌握</strong>八项审查清单</li>
+        <li><strong>学会</strong>逐项检查 AI 生成代码</li>
+        <li><strong>理解</strong>每项审查的工程意义</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Review Checklist</div>
+      <h2>AI 生成代码审查清单（八项）</h2>
+      <div class="grid-2">
+        <div class="check-item">
+          <svg class="ci-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+          <div><strong>项目已有函数复用检查</strong><br>检查 AI 是否自行编造了全新的检测逻辑，而非调用已经实现的 <span class="inline-code">detect_image()</span></div>
+        </div>
+        <div class="check-item">
+          <svg class="ci-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+          <div><strong>项目根目录相对路径检查</strong><br>所有文件路径应从项目根目录出发，使用 <span class="inline-code">Path(__file__).parent</span> 进行解析</div>
+        </div>
+        <div class="check-item">
+          <svg class="ci-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+          <div><strong>requirements.txt 依赖记录检查</strong><br>AI 引入的每个第三方包都应被记录，检查是否遗漏了 <span class="inline-code">python-multipart</span> 等隐式依赖</div>
+        </div>
+        <div class="check-item">
+          <svg class="ci-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+          <div><strong>本机绝对路径硬编码检查</strong><br>搜索 <span class="inline-code">/home/</span>、<span class="inline-code">C:\Users\</span>、<span class="inline-code">/Users/</span> 等绝对路径前缀</div>
+        </div>
+        <div class="check-item">
+          <svg class="ci-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+          <div><strong>异常处理覆盖检查</strong><br>每个可能失败的外部调用（文件读取、模型推理、IO）都应有 try/except 包裹</div>
+        </div>
+        <div class="check-item">
+          <svg class="ci-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+          <div><strong>用户文件覆盖风险检查</strong><br>检查文件保存是否使用 UUID 等唯一名称，防止多用户并发覆盖</div>
+        </div>
+        <div class="check-item">
+          <svg class="ci-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+          <div><strong>大文件与非法文件处理检查</strong><br>应有文件大小上限检测、MIME type 校验、空文件检查</div>
+        </div>
+        <div class="check-item">
+          <svg class="ci-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+          <div><strong>返回结构与前端契约一致性检查</strong><br>后端返回的字段名称和类型应匹配前端的接口消费代码</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 05 · 审查清单</div>
+    <div>23 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 24: 审查流程 -->
+<!-- ================================================================ -->
+<section class="slide light">
+  <div class="chrome">
+    <div>Part 05 · 审查流程</div>
+    <div>24 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>掌握</strong>四步审查工作流</li>
+        <li><strong>理解</strong>每步的具体操作</li>
+        <li><strong>学会</strong>记录审查过程</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Review Workflow</div>
+      <h2>四步审查工作流</h2>
+      <div class="flow-row" style="gap:.6vw;justify-content:space-between;margin-bottom:.3vh">
+        <div class="flow-step" style="flex-direction:column;align-items:flex-start;flex:1;padding:.5vh .6vw">
+          <div class="fn" style="font-size:max(18px,1.1vw);margin-bottom:.2vh">Step 1 · 读懂</div>
+          <div style="font-family:var(--sans-zh);font-size:max(16px,1vw);opacity:.75">通读 AI 生成的完整代码，理解每一行的意图。标记不理解的函数调用和语法结构。</div>
+        </div>
+        <span class="flow-arrow" style="font-size:max(24px,1.5vw)">→</span>
+        <div class="flow-step" style="flex-direction:column;align-items:flex-start;flex:1;padding:.5vh .6vw">
+          <div class="fn" style="font-size:max(18px,1.1vw);margin-bottom:.2vh">Step 2 · 运行</div>
+          <div style="font-family:var(--sans-zh);font-size:max(16px,1vw);opacity:.75">在隔离环境中运行代码，观察首次运行是否通过。记录所有错误信息。</div>
+        </div>
+        <span class="flow-arrow" style="font-size:max(24px,1.5vw)">→</span>
+        <div class="flow-step" style="flex-direction:column;align-items:flex-start;flex:1;padding:.5vh .6vw">
+          <div class="fn" style="font-size:max(18px,1.1vw);margin-bottom:.2vh">Step 3 · 测试</div>
+          <div style="font-family:var(--sans-zh);font-size:max(16px,1vw);opacity:.75">用边界值测试：空文件、超大文件、非法格式、极高置信度阈值等。</div>
+        </div>
+        <span class="flow-arrow" style="font-size:max(24px,1.5vw)">→</span>
+        <div class="flow-step" style="flex-direction:column;align-items:flex-start;flex:1;padding:.5vh .6vw">
+          <div class="fn" style="font-size:max(18px,1.1vw);margin-bottom:.2vh">Step 4 · 修改</div>
+          <div style="font-family:var(--sans-zh);font-size:max(16px,1vw);opacity:.75">根据审查和测试结果修改。记录每处修改的原因。</div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">审查记录模板</div>
+          <div class="code-block" style="margin:0">
+            <div class="code-header"><span>md</span></div>
+            <pre><code>## 审查记录
+- 审查时间：2026-05-15
+- 审查代码：app/main.py
+- 发现问题：
+  1. 缺少文件大小校验
+  2. 使用原文件名保存（覆盖风险）
+  3. 未创建 uploads/ 目录
+- 修改措施：
+  1. 添加 MAX_SIZE 检查
+  2. 替换为 UUID 命名
+  3. 添加 mkdir(exist_ok=True)</code></pre>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">审查原则</div>
+          <ul>
+            <li><strong>先读后改</strong>：理解完整代码后再修改，避免局部修改引入新问题</li>
+            <li><strong>逐项核对</strong>：对照八项清单逐条检查，不跳过任何一项</li>
+            <li><strong>记录原因</strong>：每处修改记录"为什么改"，便于后续回顾</li>
+            <li><strong>重新测试</strong>：修改后重新运行所有测试，确保不引入回归</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 05 · 审查流程</div>
+    <div>24 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 25: 审查实操案例 -->
+<!-- ================================================================ -->
+<section class="slide dark">
+  <div class="chrome">
+    <div>Part 05 · 实操案例</div>
+    <div>25 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>应用</strong>审查清单到真实代码</li>
+        <li><strong>识别</strong>AI 代码中的典型问题</li>
+        <li><strong>掌握</strong>修改 AI 代码的方法</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Case Study</div>
+      <h2>审查实操案例：有问题的 AI 代码</h2>
+      <div class="grid-2-60">
+        <div class="card">
+          <div class="card-title">AI 生成的原始代码</div>
+          <div class="code-block" style="margin:0">
+            <div class="code-header"><span>python</span></div>
+            <pre><code>@app.post("/upload")
+async def upload(file: UploadFile):
+    # 直接使用原文件名
+    with open(file.filename, "wb") as f:
+        f.write(await file.read())
+    # 硬编码模型路径
+    model = YOLO("/home/user/best.pt")
+    results = model(image)
+    # 无错误处理
+    return {"detections":
+        results.xyxy[0].tolist()}</code></pre>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">审查发现的问题</div>
+          <ul>
+            <li><strong>文件覆盖风险</strong>：直接使用用户提供的文件名保存，可能覆盖系统文件</li>
+            <li><strong>硬编码路径</strong>：模型权重路径在其他机器上必然不存在</li>
+            <li><strong>缺少尺寸校验</strong>：未限制上传文件大小</li>
+            <li><strong>无异常处理</strong>：模型推理失败会直接返回 500</li>
+            <li><strong>依赖缺失</strong>：未确保 ultralytics 包在 requirements.txt 中</li>
+            <li><strong>缺少目录创建</strong>：未创建 uploads/ 目录</li>
+          </ul>
+          <div class="info-box" style="margin-top:.3vh">
+            <div class="ib-title">修改策略</div>
+            <p>逐项修复：UUID 重命名 → pathlib 路径 → 文件大小校验 → try/except 包裹 → 更新 requirements.txt。每修一项运行一次测试。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 05 · 审查实操案例</div>
+    <div>25 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 26: Spec-driven - 章节幕封 -->
+<!-- ================================================================ -->
+<section class="slide hero dark">
+  <div class="chrome">
+    <div>Part 06 · Spec-driven</div>
+    <div>26 / 32</div>
+  </div>
+  <div class="cover-area">
+    <div class="kicker">06 · Spec-Driven Development</div>
+    <h1 style="font-size:max(48px,5.2vw)">先写规格，再让 AI 实现</h1>
+    <p style="font-family:var(--sans-zh);font-size:max(20px,1.5vw);line-height:1.55;opacity:.72;max-width:54vw">
+      Spec-driven development 的核心思想：在编写代码之前，先明确定义需求、接口行为、边界条件和验收标准，然后让 AI 依照规格实现。
+    </p>
+    <div class="annot-row" style="justify-content:center;margin-top:1.5vh">
+      <div class="annot-item" style="max-width:18vw;text-align:center">
+        <div class="annot-label">核心主张</div>
+        <p>先规格 · 后代码 · 再验收</p>
+      </div>
+      <div class="annot-item" style="max-width:18vw;text-align:center">
+        <div class="annot-label">课堂要求</div>
+        <p>Markdown 轻量规格即可</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 06 · Spec-driven 开发思维</div>
+    <div>26 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 27: 规格三层级 -->
+<!-- ================================================================ -->
+<section class="slide light">
+  <div class="chrome">
+    <div>Part 06 · 规格体系</div>
+    <div>27 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>理解</strong>Spec-driven 的核心原理</li>
+        <li><strong>掌握</strong>规格的三层级模型</li>
+        <li><strong>理解</strong>规格如何约束 AI 行为</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Spec System</div>
+      <h2>规格三层级模型</h2>
+      <table class="teach-table">
+        <thead>
+          <tr><th>层级</th><th>受众</th><th>形态</th><th>示例</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>需求文档</strong></td><td>人（项目经理、开发者）</td><td>自然语言 + 列表</td><td>"用户可上传图片查看检测结果"</td></tr>
+          <tr><td><strong>接口规格</strong></td><td>人和程序（双方可读）</td><td>结构化 YAML / JSON</td><td>OpenAPI schema、函数签名</td></tr>
+          <tr><td><strong>AI 执行规格</strong></td><td>AI 编码代理</td><td>提示词 + 约束 + 验收</td><td>五部分提示词 + Markdown 规格</td></tr>
+        </tbody>
+      </table>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">规格作为 AI 协作边界</div>
+          <p>在团队开发中，规格文档起到"契约"的作用——开发者之间、开发者与 AI 之间都遵循同一份规格。将规格模板直接粘贴到提示词中，作为"输入"部分的内容附加，使 AI 的生成空间被严格限定在规格定义的边界内。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">验收标准示例</div>
+          <div class="code-block" style="margin:0">
+            <div class="code-header"><span>md</span></div>
+            <pre><code>## 验收
+- 合法图片 → 200 + detections
+- txt 文件 → 400
+- 无目标 → 空数组
+- 超大文件 → 413
+- 模型失败 → 500 + 日志</code></pre>
+          </div>
+          <p style="margin-top:.2vh">每条验收标准对应一个可执行的测试用例。AI 生成代码后，逐条运行验证。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 06 · 规格三层级</div>
+    <div>27 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 28: Spec-driven 工作流 -->
+<!-- ================================================================ -->
+<section class="slide dark">
+  <div class="chrome">
+    <div>Part 06 · 工作流</div>
+    <div>28 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>掌握</strong>Spec-driven 四步工作流</li>
+        <li><strong>理解</strong>规格与提示词的结合方式</li>
+        <li><strong>学会</strong>将规格转化为验收测试</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Spec-Driven Workflow</div>
+      <h2>Spec-driven 四步工作流</h2>
+      <div class="flow-row" style="gap:.6vw;justify-content:space-between;margin-bottom:.3vh">
+        <div class="flow-step" style="flex-direction:column;align-items:flex-start;flex:1;padding:.5vh .6vw">
+          <div class="fn" style="font-size:max(18px,1.1vw);margin-bottom:.2vh">1. 写规格</div>
+          <div style="font-size:max(15px,.95vw);opacity:.75">定义输入/输出/异常/验收标准</div>
+        </div>
+        <span class="flow-arrow" style="font-size:max(24px,1.5vw)">→</span>
+        <div class="flow-step" style="flex-direction:column;align-items:flex-start;flex:1;padding:.5vh .6vw">
+          <div class="fn" style="font-size:max(18px,1.1vw);margin-bottom:.2vh">2. 配提示词</div>
+          <div style="font-size:max(15px,.95vw);opacity:.75">将规格嵌入五部分结构</div>
+        </div>
+        <span class="flow-arrow" style="font-size:max(24px,1.5vw)">→</span>
+        <div class="flow-step" style="flex-direction:column;align-items:flex-start;flex:1;padding:.5vh .6vw">
+          <div class="fn" style="font-size:max(18px,1.1vw);margin-bottom:.2vh">3. 生成代码</div>
+          <div style="font-size:max(15px,.95vw);opacity:.75">AI 按规格实现</div>
+        </div>
+        <span class="flow-arrow" style="font-size:max(24px,1.5vw)">→</span>
+        <div class="flow-step" style="flex-direction:column;align-items:flex-start;flex:1;padding:.5vh .6vw">
+          <div class="fn" style="font-size:max(18px,1.1vw);margin-bottom:.2vh">4. 对照验收</div>
+          <div style="font-size:max(15px,.95vw);opacity:.75">逐条验证验收标准</div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">规格与提示词的结合</div>
+          <div class="code-block" style="margin:0">
+            <div class="code-header"><span>提示词中的规格嵌入</span><span>text</span></div>
+            <pre><code>【输入】已有 detect_image(path, conf) 函数。
+以下为接口规格，请严格按此实现：
+
+## 输入
+- image: jpg/png, ≤ 16MB
+- conf: 0.0–1.0, 默认 0.25
+## 输出
+- result_image_url: 标注图路径
+- detections: [{class, confidence, bbox}]
+## 异常
+- 文件为空 → 400
+- 格式不支持 → 400
+## 验收
+- 合法图片 → 200 + detections
+- txt 文件 → 400</code></pre>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">工作流优势</div>
+          <ul>
+            <li><strong>减少迭代</strong>：规格明确后，AI 首轮生成质量显著提升</li>
+            <li><strong>可追溯</strong>：每段代码都能追溯到规格中的某条要求</li>
+            <li><strong>可测试</strong>：验收标准直接转化为测试用例</li>
+            <li><strong>可复用</strong>：同一份规格可用于不同 AI 工具或人工实现</li>
+          </ul>
+          <div class="info-box" style="margin-top:.3vh">
+            <div class="ib-title">课程项目实践</div>
+            <p>建议为每个 API 端点编写一份 Markdown 规格，保存在 <span class="inline-code">specs/</span> 目录下。规格本身也是项目文档的一部分。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 06 · Spec-driven 工作流</div>
+    <div>28 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 29: OpenAPI - 章节幕封 -->
+<!-- ================================================================ -->
+<section class="slide hero light">
+  <div class="chrome">
+    <div>Part 07 · OpenAPI</div>
+    <div>29 / 32</div>
+  </div>
+  <div class="cover-area">
+    <div class="kicker">07 · OpenAPI & Interface Contract</div>
+    <h1 style="font-size:max(48px,5.2vw)">OpenAPI 与接口契约</h1>
+    <p style="font-family:var(--sans-zh);font-size:max(20px,1.5vw);line-height:1.55;opacity:.72;max-width:54vw">
+      OpenAPI 是描述 HTTP API 的标准格式，使人和工具都能理解接口的能力。FastAPI 原生支持自动生成 OpenAPI 文档，极大简化前后端协作。
+    </p>
+    <div class="annot-row" style="justify-content:center;margin-top:1.5vh">
+      <div class="annot-item" style="max-width:14vw;text-align:center">
+        <div class="annot-label">Swagger UI</div>
+        <p style="font-size:max(13px,.82vw)!important">/docs</p>
+      </div>
+      <div class="annot-item" style="max-width:14vw;text-align:center">
+        <div class="annot-label">ReDoc</div>
+        <p style="font-size:max(13px,.82vw)!important">/redoc</p>
+      </div>
+      <div class="annot-item" style="max-width:14vw;text-align:center">
+        <div class="annot-label">OpenAPI JSON</div>
+        <p style="font-size:max(13px,.82vw)!important">/openapi.json</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 07 · OpenAPI 与接口契约</div>
+    <div>29 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 30: OpenAPI 基础与项目应用 -->
+<!-- ================================================================ -->
+<section class="slide light">
+  <div class="chrome">
+    <div>Part 07 · 基础与项目应用</div>
+    <div>30 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>理解</strong>OpenAPI 的作用与价值</li>
+        <li><strong>掌握</strong>FastAPI 自动生成文档的使用</li>
+        <li><strong>学会</strong>在答辩中展示接口文档</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">OpenAPI Basics & Project Application</div>
+      <h2>OpenAPI 标准与课程项目应用</h2>
+      <div class="grid-2-60">
+        <div class="card">
+          <div class="card-title">FastAPI 自动文档与代码声明</div>
+          <div class="code-block" style="margin:0">
+            <div class="code-header"><span>python</span></div>
+            <pre><code>from pydantic import BaseModel
+
+class DetectionResult(BaseModel):
+    file_id: str
+    result_image_url: str
+    detections: list
+    total: int
+
+@app.post("/detect/image",
+    response_model=DetectionResult,
+    summary="图片目标检测")
+async def detect_image(
+    file: UploadFile = File(...,
+        description="图片文件"),
+    conf: float = Form(0.25,
+        description="置信度阈值")
+):
+    """接收图片并返回检测结果"""
+    # 接口实现</code></pre>
+          </div>
+          <p style="margin-top:.2vh">启动后访问 <span class="inline-code">http://127.0.0.1:8000/docs</span> 即可查看完整接口文档，包括请求参数、响应格式和测试功能。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">课程项目接口清单</div>
+          <table class="teach-table">
+            <thead>
+              <tr><th>端点</th><th>方法</th><th>功能</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="inline-code">/detect/image</span></td><td>POST</td><td>图片目标检测</td></tr>
+              <tr><td><span class="inline-code">/detect/video</span></td><td>POST</td><td>视频目标检测</td></tr>
+              <tr><td><span class="inline-code">/records</span></td><td>GET</td><td>检测历史记录</td></tr>
+              <tr><td><span class="inline-code">/records/{id}</span></td><td>GET</td><td>单条检测详情</td></tr>
+              <tr><td><span class="inline-code">/health</span></td><td>GET</td><td>服务健康检查</td></tr>
+            </tbody>
+          </table>
+          <div class="annot-item" style="margin-top:.2vh;padding:.3vh .5vw">
+            <div class="annot-label">资源链接</div>
+            <p>OpenAPI 规范：<span class="inline-code">https://learn.openapis.org/specification/</span> · Swagger 编辑器：<span class="inline-code">https://swagger.io/specification/</span></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 07 · OpenAPI 基础与项目应用</div>
+    <div>30 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 31: 课堂任务 - 章节幕封 -->
+<!-- ================================================================ -->
+<section class="slide hero dark">
+  <div class="chrome">
+    <div>Part 08 · 课堂任务</div>
+    <div>31 / 32</div>
+  </div>
+  <div class="cover-area">
+    <div class="kicker">08 · In-Class Task</div>
+    <h1 style="font-size:max(48px,5.2vw)">课堂实操任务</h1>
+    <p style="font-family:var(--sans-zh);font-size:max(20px,1.5vw);line-height:1.55;opacity:.72;max-width:54vw">
+      以小组为单位，完成从需求规格到 AI 代码审查的完整闭环实践。每组提交一份报告包含全部五项交付物。
+    </p>
+    <div style="display:flex;gap:.5vw;flex-wrap:wrap;justify-content:center;margin-top:.8vh">
+      <span class="tag">小组任务</span>
+      <span class="tag">45 分钟</span>
+      <span class="tag">5 项交付物</span>
+    </div>
+    <div class="annot-row" style="justify-content:center;margin-top:1.2vh">
+      <div class="annot-item" style="max-width:12vw;text-align:center">
+        <div class="annot-label">功能清单</div>
+        <p>≥ 10 条</p>
+      </div>
+      <div class="annot-item" style="max-width:12vw;text-align:center">
+        <div class="annot-label">接口规格</div>
+        <p>Markdown</p>
+      </div>
+      <div class="annot-item" style="max-width:12vw;text-align:center">
+        <div class="annot-label">页面草图</div>
+        <p>手绘/工具</p>
+      </div>
+      <div class="annot-item" style="max-width:12vw;text-align:center">
+        <div class="annot-label">提示词</div>
+        <p>五部分结构</p>
+      </div>
+      <div class="annot-item" style="max-width:12vw;text-align:center">
+        <div class="annot-label">审查记录</div>
+        <p>八项清单</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 08 · 课堂任务</div>
+    <div>31 / 32</div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 32: 本讲总结与任务说明 -->
+<!-- ================================================================ -->
+<section class="slide light">
+  <div class="chrome">
+    <div>Part 08 · 本讲总结</div>
+    <div>32 / 32</div>
+  </div>
+  <div class="slide-inner">
+    <div class="learning-sidebar">
+      <div class="lb-title">学习目标</div>
+      <ul>
+        <li><strong>应用</strong>本讲全部方法</li>
+        <li><strong>完成</strong>五项交付物</li>
+        <li><strong>体验</strong>完整的 AI 协作闭环</li>
+      </ul>
+    </div>
+    <div class="main-content">
+      <div class="kicker">Summary & Evaluation</div>
+      <h2>本讲总结与课堂任务要求</h2>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">交付物 1：功能清单</div>
+          <p>为"目标检测平台"项目编写完整的功能清单，覆盖核心功能、辅助功能、异常处理三大类别，不少于 10 条。</p>
+          <div class="code-block" style="margin:.2vh 0">
+            <pre><code>## 功能清单（示例）
+- 图片上传与格式校验
+- 置信度阈值调节
+- 检测结果列表展示
+- 检测历史记录查询</code></pre>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">交付物 2-5</div>
+          <ul>
+            <li><strong>交付物 2</strong>：一份接口规格（Markdown），包含输入/输出/异常/验收标准</li>
+            <li><strong>交付物 3</strong>：一份页面草图（手绘或工具绘制均可，拍照或截图提交）</li>
+            <li><strong>交付物 4</strong>：一段用于 AI 生成后端接口的完整提示词</li>
+            <li><strong>交付物 5</strong>：AI 输出代码后的审查记录（使用八项清单逐项记录审查结果）</li>
+          </ul>
+        </div>
+      </div>
+      <div class="grid-2-70">
+        <div class="card">
+          <div class="card-title">评价维度（满分 100）</div>
+          <table class="teach-table">
+            <thead>
+              <tr><th>维度</th><th>权重</th><th>要求</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>功能清单完整性</td><td>20%</td><td>覆盖核心+辅助+异常</td></tr>
+              <tr><td>接口规格质量</td><td>25%</td><td>输入/输出/异常/验收完整</td></tr>
+              <tr><td>提示词质量</td><td>25%</td><td>包含五部分结构+约束</td></tr>
+              <tr><td>审查记录质量</td><td>20%</td><td>真实记录+修改说明</td></tr>
+              <tr><td>页面草图清晰度</td><td>10%</td><td>可理解的前端结构</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title">课外拓展</div>
+          <ul>
+            <li>学习 FastAPI 自动文档和 OpenAPI schema 的完整功能</li>
+            <li>尝试用 AI 生成测试用例，对比人工测试与 AI 测试的覆盖率差异</li>
+            <li>思考：未来工程师的核心能力将更多体现在定义问题、验证结果与整合系统。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="annot-row">
+        <div class="annot-item">
+          <div class="annot-label">课后提交</div>
+          <p>课堂任务报告提交至课程平台，截止时间为下周课前。</p>
+        </div>
+        <div class="annot-item">
+          <div class="annot-label">本讲总结</div>
+          <p>本讲覆盖 AI 辅助编程的完整方法论——从需求拆解、提示词工程、代码审查到 Spec-driven 开发。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <div class="title">Part 08 · 本讲总结与评价</div>
+    <div>32 / 32</div>
+  </div>
+</section>
+
+</div><!-- /#deck -->
+
+<div id="nav"></div>
+
+<script>
+// =============== 导航（翻页 / 圆点 / 键盘 / 滚轮 / 触屏） ===============
+const deck=document.getElementById('deck');
+const slides=deck.querySelectorAll('.slide');
+const nav=document.getElementById('nav');
+let idx=0,total=slides.length,lock=false;
+
+deck.style.width=(total*100)+'vw';
+
+slides.forEach((s,i)=>{
+  const b=document.createElement('button');
+  b.className='dot';b.dataset.i=i;b.setAttribute('aria-label','Page '+(i+1));
+  b.onclick=()=>go(i);
+  nav.appendChild(b);
+});
+
+function go(n){
+  if(lock)return;
+  idx=Math.max(0,Math.min(total-1,n));
+  deck.style.transform=`translateX(${-idx*100}vw)`;
+  slides.forEach((s,i)=>s.classList.toggle('active',i===idx));
+  nav.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===idx));
+  lock=true;setTimeout(()=>lock=false,700);
+}
+
+/* =============== ESC 索引视图 =============== */
+let overviewOn=false;
+const ov=document.createElement('div');
+ov.id='overview';
+ov.style.cssText='position:fixed;inset:0;z-index:100;background:rgba(42,30,19,.95);backdrop-filter:blur(12px);display:none;overflow-y:auto;padding:3vh 3vw';
+document.body.appendChild(ov);
+
+function buildOverview(){
+  ov.innerHTML='';
+  const grid=document.createElement('div');
+  grid.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:1.6vh 1.2vw;max-width:90vw;margin:0 auto';
+  slides.forEach((s,i)=>{
+    const card=document.createElement('div');
+    card.style.cssText='cursor:pointer;border-radius:6px;overflow:hidden;border:2px solid '+(i===idx?'rgba(238,223,199,.8)':'rgba(238,223,199,.15)')+';transition:border-color .2s';
+    card.onmouseenter=()=>card.style.borderColor='rgba(238,223,199,.6)';
+    card.onmouseleave=()=>card.style.borderColor=i===idx?'rgba(238,223,199,.8)':'rgba(238,223,199,.15)';
+    const wrap=document.createElement('div');
+    wrap.style.cssText='width:100%;aspect-ratio:16/9;overflow:hidden;position:relative;pointer-events:none;background:'+(s.classList.contains('light')?'var(--paper)':'var(--ink)');
+    const clone=s.cloneNode(true);
+    clone.style.cssText='width:100vw;height:100vh;transform:scale('+(1/4.5)+');transform-origin:top left;position:absolute;top:0;left:0;pointer-events:none';
+    wrap.appendChild(clone);
+    const label=document.createElement('div');
+    label.style.cssText='padding:4px 8px;font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--paper);opacity:.7';
+    label.textContent=(i+1)+' / '+total;
+    card.appendChild(wrap);
+    card.appendChild(label);
+    card.onclick=()=>{toggleOverview();go(i)};
+    grid.appendChild(card);
+  });
+  ov.appendChild(grid);
+}
+
+function toggleOverview(){
+  overviewOn=!overviewOn;
+  if(overviewOn){buildOverview();ov.style.display='block';}
+  else{ov.style.display='none';}
+}
+
+addEventListener('keydown',e=>{
+  if(e.key==='Escape'){e.preventDefault();toggleOverview();return;}
+  if(overviewOn)return;
+  if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '||e.key==='ArrowDown')go(idx+1);
+  if(e.key==='ArrowLeft'||e.key==='PageUp'||e.key==='ArrowUp')go(idx-1);
+  if(e.key==='Home')go(0);
+  if(e.key==='End')go(total-1);
+});
+
+let wheelTO=null,wheelAcc=0;
+addEventListener('wheel',e=>{
+  wheelAcc+=e.deltaY+e.deltaX;
+  if(Math.abs(wheelAcc)>50){go(idx+(wheelAcc>0?1:-1));wheelAcc=0;}
+  clearTimeout(wheelTO);wheelTO=setTimeout(()=>wheelAcc=0,150);
+},{passive:true});
+
+let tx=0,ty=0;
+addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY},{passive:true});
+addEventListener('touchend',e=>{
+  const dx=(e.changedTouches[0].clientX-tx);
+  const dy=(e.changedTouches[0].clientY-ty);
+  if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy))go(idx+(dx<0?1:-1));
+},{passive:true});
+
+go(0);
+</script>
+</body>
+</html>

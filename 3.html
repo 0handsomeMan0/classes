@@ -1,0 +1,2235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>边缘检测、轮廓提取、特征工程与传统视觉 · 计算机视觉课程第三讲</title>
+<style>
+/* ============================================================
+   Warm Paper Classroom Deck — COMPACT EDITION
+   边缘检测 / 轮廓提取 / 特征工程
+   ============================================================ */
+:root{
+  --ink:#2a1e13;  --ink-rgb:42,30,19;
+  --paper:#eedfc7;  --paper-rgb:238,223,199;
+  --paper-tint:#e0d0b6;  --ink-tint:#3a2a1d;
+  --accent:#8b5e3c;  --accent-rgb:139,94,60;
+  --code-bg:#e5d6be;
+  --sidebar-w:220px;
+
+  --serif-zh:'Noto Serif SC',source-han-serif-sc,serif;
+  --sans-zh:'Noto Sans SC',source-han-sans-sc,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  --serif-en:'Playfair Display','Source Serif 4',Georgia,serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+
+html,body{
+  width:100%;height:100%;overflow:hidden;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--serif-zh);
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.045'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:1000;
+}
+
+#deck{position:fixed;inset:0;width:10000vw;height:100vh;display:flex;flex-wrap:nowrap;transition:transform .7s cubic-bezier(.77,0,.175,1);z-index:10;will-change:transform}
+.slide{width:100vw;height:100vh;flex:0 0 100vw;display:grid;grid-template-columns:var(--sidebar-w) 1fr;overflow:hidden;position:relative}
+
+/* ============== Sidebar ============== */
+.sidebar{
+  background:var(--paper-tint);
+  border-right:1.5px solid rgba(var(--ink-rgb),.12);
+  padding:2.4vh 14px 2vh 20px;
+  display:flex;flex-direction:column;
+  overflow:hidden;
+}
+.sidebar .module-label{
+  font-family:var(--mono);
+  font-size:10px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--accent);opacity:.7;
+  margin-bottom:1vh;
+}
+.sidebar .module-title{
+  font-family:var(--serif-zh);font-weight:700;
+  font-size:18px;line-height:1.35;
+  margin-bottom:2vh;
+  padding-bottom:1.4vh;
+  border-bottom:1.5px solid rgba(var(--ink-rgb),.15);
+}
+.sidebar .obj-label{
+  font-family:var(--mono);
+  font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;
+  opacity:.55;margin-bottom:1vh;
+}
+.sidebar .obj-list{
+  list-style:none;
+  display:flex;flex-direction:column;gap:1vh;
+  flex:1;
+}
+.sidebar .obj-list li{
+  font-family:var(--serif-zh);
+  font-size:clamp(15px,1vw,19px);line-height:1.45;
+  opacity:.85;
+  padding-left:14px;position:relative;
+}
+.sidebar .obj-list li::before{
+  content:'';position:absolute;left:0;top:7px;
+  width:6px;height:6px;border-radius:50%;
+  background:var(--accent);opacity:.45;
+}
+.sidebar .page-meta{
+  font-family:var(--mono);
+  font-size:10px;letter-spacing:.15em;opacity:.5;
+  margin-top:auto;
+  padding-top:1.2vh;
+  border-top:1px solid rgba(var(--ink-rgb),.12);
+}
+
+/* ============== Main Content ============== */
+.main{
+  padding:2.4vh 2.8vw 2.2vh 2.6vw;
+  display:flex;flex-direction:column;
+  overflow-y:auto;
+  gap:.6vh;
+}
+.main h1{
+  font-family:var(--serif-zh);font-weight:700;
+  font-size:clamp(30px,2.8vw,48px);line-height:1.2;
+  margin-bottom:0;
+}
+.main h2{
+  font-family:var(--serif-zh);font-weight:600;
+  font-size:clamp(24px,1.9vw,36px);line-height:1.25;
+  margin-top:.8vh;margin-bottom:.5vh;
+}
+.main h3{
+  font-family:var(--serif-zh);font-weight:600;
+  font-size:clamp(20px,1.5vw,30px);line-height:1.3;
+  margin-top:.6vh;margin-bottom:.4vh;
+}
+.main p{
+  font-family:var(--serif-zh);font-weight:400;
+  font-size:clamp(18px,1.35vw,26px);line-height:1.6;
+  margin-bottom:.3vh;opacity:.92;
+}
+.main ul,.main ol{
+  padding-left:1.4em;margin-bottom:.4vh;
+}
+.main li{
+  font-family:var(--serif-zh);
+  font-size:clamp(17px,1.2vw,23px);line-height:1.5;
+  margin-bottom:.2vh;opacity:.9;
+}
+.main li strong{font-weight:600}
+
+/* Code blocks — larger */
+.code-block{
+  background:var(--code-bg);
+  border-left:3px solid var(--accent);
+  padding:12px 16px;
+  margin:.4vh 0 .6vh 0;
+  font-family:var(--mono);
+  font-size:clamp(15px,1vw,20px);line-height:1.6;
+  white-space:pre-wrap;word-break:break-word;
+  border-radius:0 6px 6px 0;
+  color:var(--ink);opacity:.95;
+}
+.code-block .cmt{color:rgba(var(--ink-rgb),.5);font-style:italic}
+.code-block .kw{font-weight:600}
+.code-block .str{color:var(--accent)}
+
+.formula{
+  font-family:var(--serif-en);font-style:italic;font-weight:400;
+  font-size:clamp(19px,1.5vw,30px);line-height:1.45;
+  padding:10px 18px;
+  margin:.4vh 0 .6vh 0;
+  background:rgba(var(--accent-rgb),.06);
+  border-radius:4px;
+  text-align:center;letter-spacing:.02em;
+}
+
+/* Two-column layouts */
+.cols-2{display:grid;grid-template-columns:1fr 1fr;gap:1.2vw;margin:.4vh 0}
+.cols-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.8vw;margin:.4vh 0}
+.cols-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.6vw;margin:.4vh 0}
+.col-item{
+  background:rgba(var(--ink-rgb),.03);border-radius:4px;padding:8px 10px;
+  display:flex;flex-direction:column;gap:2px;
+}
+.col-item h4{
+  font-family:var(--serif-zh);font-weight:600;
+  font-size:clamp(17px,1.15vw,22px);margin-bottom:0;
+}
+.col-item p{
+  font-family:var(--serif-zh);
+  font-size:clamp(15px,1vw,20px);line-height:1.45;
+  margin:0;
+}
+
+/* Comparison table */
+.comp-table{
+  display:grid;grid-template-columns:1fr 1fr;
+  margin:.3vh 0 .5vh 0;
+  border:1px solid rgba(var(--ink-rgb),.12);
+  border-radius:4px;overflow:hidden;
+}
+.comp-table .col{padding:8px 12px}
+.comp-table .col:first-child{background:rgba(var(--ink-rgb),.05);border-right:1px solid rgba(var(--ink-rgb),.08)}
+.comp-table .col h4{font-family:var(--serif-zh);font-weight:700;font-size:clamp(16px,1.05vw,21px);margin-bottom:.4vh}
+.comp-table .col ul{margin:0;padding-left:1.1em}
+.comp-table .col li{
+  font-family:var(--serif-zh);
+  font-size:clamp(15px,0.95vw,19px);margin-bottom:.1vh;
+}
+
+/* Step list */
+.step-list{display:flex;flex-direction:column;gap:5px;margin:.4vh 0 .6vh 0}
+.step-item{display:grid;grid-template-columns:minmax(82px,max-content) minmax(0,1fr);gap:10px;align-items:start;padding:5px 0;border-bottom:1px dashed rgba(var(--ink-rgb),.08)}
+.step-item .num{
+  font-family:var(--mono);font-weight:700;
+  font-size:clamp(12px,.78vw,15px);color:var(--accent);text-align:left;
+  white-space:normal;overflow-wrap:anywhere;line-height:1.35;
+}
+.step-item .txt{
+  font-family:var(--serif-zh);
+  font-size:clamp(15px,1vw,19px);line-height:1.45;min-width:0;
+}
+
+/* Tip boxes */
+.tip-box{
+  display:flex;gap:10px;
+  padding:8px 12px;
+  margin:.3vh 0 .5vh 0;
+  background:rgba(var(--accent-rgb),.08);
+  border-radius:4px;
+  border:1px solid rgba(var(--accent-rgb),.15);
+}
+.tip-box .label{
+  font-family:var(--mono);
+  font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+  color:var(--accent);flex-shrink:0;padding-top:2px;
+}
+.tip-box .body{
+  font-family:var(--serif-zh);
+  font-size:clamp(16px,1.05vw,22px);line-height:1.5;opacity:.88;
+}
+
+/* SVG diagram container */
+.diagram{
+  margin:.3vh 0 .2vh 0;
+  display:flex;justify-content:center;
+  width:100%;
+}
+.diagram svg{max-width:100%;}
+
+/* Cover slide */
+.slide.cover .sidebar{display:none}
+.slide.cover .main{
+  grid-column:1/-1;
+  justify-content:center;align-items:center;
+  text-align:center;padding:5vh 8vw;
+}
+.slide.cover .main h1{
+  font-size:clamp(34px,4.5vw,76px);line-height:1.1;
+  margin-bottom:1.8vh;
+}
+.slide.cover .main .subtitle{
+  font-family:var(--serif-en);font-style:italic;
+  font-size:clamp(18px,1.6vw,30px);opacity:.7;margin-bottom:2.5vh;
+}
+.slide.cover .main .meta{
+  font-family:var(--mono);
+  font-size:clamp(11px,.8vw,14px);letter-spacing:.2em;text-transform:uppercase;
+  opacity:.55;
+}
+.slide.cover .main .divider{width:60px;height:2px;background:var(--accent);margin:1.5vh auto}
+
+/* TOC slide */
+.slide.toc .sidebar{display:none}
+.slide.toc .main{grid-column:1/-1;padding:4vh 8vw}
+.slide.toc .main h1{text-align:center;font-size:clamp(26px,2.6vw,42px);margin-bottom:2.5vh;padding-bottom:1.4vh;border-bottom:1.5px solid rgba(var(--ink-rgb),.12)}
+.slide.toc .toc-grid{display:grid;grid-template-columns:1fr 1fr;gap:1vh 3vw}
+.slide.toc .toc-item{display:flex;gap:10px;align-items:baseline;padding:5px 0;border-bottom:1px dotted rgba(var(--ink-rgb),.1)}
+.slide.toc .toc-item .idx{font-family:var(--serif-en);font-weight:700;font-size:clamp(14px,.9vw,17px);color:var(--accent);flex-shrink:0;width:26px;text-align:right}
+.slide.toc .toc-item .txt{font-family:var(--serif-zh);font-size:clamp(16px,.95vw,20px);line-height:1.35}
+
+/* Summary slide */
+.slide.toc .main .footnote{font-family:var(--mono);font-size:10px;letter-spacing:.18em;opacity:.4;margin-top:1.5vh;text-align:center}
+
+/* Navigation */
+.deck-nav{
+  position:fixed;bottom:2vh;left:50%;transform:translateX(-50%);
+  z-index:100;
+  display:flex;gap:6px;align-items:center;
+  padding:5px 12px;
+  background:rgba(var(--paper-rgb),.85);
+  backdrop-filter:blur(8px);
+  border-radius:999px;
+  border:1px solid rgba(var(--ink-rgb),.12);
+  box-shadow:0 2px 12px rgba(var(--ink-rgb),.08);
+}
+.deck-nav .dot{
+  width:6px;height:6px;border-radius:50%;
+  background:rgba(var(--ink-rgb),.2);
+  cursor:pointer;border:0;padding:0;
+  transition:all .25s ease;
+}
+.deck-nav .dot:hover{background:rgba(var(--ink-rgb),.4);transform:scale(1.2)}
+.deck-nav .dot.active{background:var(--accent);width:16px;border-radius:999px}
+.deck-nav .nav-btn{
+  background:none;border:none;
+  font-family:var(--mono);font-size:11px;
+  color:rgba(var(--ink-rgb),.5);
+  cursor:pointer;padding:2px 4px;
+  transition:color .2s;user-select:none;
+}
+.deck-nav .nav-btn:hover{color:var(--ink)}
+.deck-nav .counter{
+  font-family:var(--mono);font-size:10px;
+  color:rgba(var(--ink-rgb),.5);letter-spacing:.1em;
+  margin:0 4px;
+}
+#hint{
+  position:fixed;bottom:2.6vh;right:2.4vw;z-index:100;
+  font-family:var(--mono);font-size:9px;letter-spacing:.18em;
+  color:rgba(var(--ink-rgb),.35);
+}
+
+/* Print */
+@media print{
+  body::before{display:none}
+  .deck-nav,#hint{display:none}
+  .slide{page-break-after:always;width:100%;height:auto;min-height:100vh;grid-template-columns:180px 1fr}
+  #deck{width:100%!important;transform:none!important;position:static;display:block}
+}
+@media (max-width:1024px){
+  .slide{grid-template-columns:180px 1fr}
+  .sidebar{padding:1.6vh 10px 1.6vh 14px}
+  .sidebar .obj-list li{font-size:13px}
+  .sidebar .module-title{font-size:15px}
+}
+@media (max-width:768px){
+  .slide{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  .sidebar{border-right:none;border-bottom:1.5px solid rgba(var(--ink-rgb),.12);padding:1vh 14px;flex-direction:row;flex-wrap:wrap;gap:3px}
+  .sidebar .module-label,.sidebar .page-meta{display:none}
+  .sidebar .module-title{margin:0;padding:0;border:none;font-size:14px;flex:1}
+  .sidebar .obj-label{display:none}
+  .sidebar .obj-list{flex-direction:row;gap:5px;flex-wrap:wrap}
+  .sidebar .obj-list li{font-size:12px;padding-left:10px}
+  .sidebar .obj-list li::before{width:4px;height:4px;top:7px}
+  .cols-2,.cols-3,.cols-4{grid-template-columns:1fr}
+}
+</style>
+<style>
+/* ===== inlined unified course styles for standalone distribution ===== */
+/* Course-wide visual normalization.
+   This file intentionally mirrors the warm academic style of 1.html while
+   preserving each deck's existing navigation/runtime structure. */
+:root{
+  --bg:#faf7f0!important;
+  --bg-soft:#f0ece0!important;
+  --surface:#ffffff!important;
+  --surface-2:#f7f1e3!important;
+  --border:rgba(90,60,30,.13)!important;
+  --border-strong:rgba(90,60,30,.28)!important;
+  --text-1:#2a1f12!important;
+  --text-2:#5a4a33!important;
+  --text-3:#8a7859!important;
+  --accent:#3b7a5a!important;
+  --accent-2:#c4812a!important;
+  --accent-3:#b8452e!important;
+  --paper:#faf7f0!important;
+  --paper-tint:#f0ece0!important;
+  --paper-rgb:250,247,240!important;
+  --ink:#2a1f12!important;
+  --ink-rgb:42,31,18!important;
+  --ink-tint:#5a4a33!important;
+  --code-bg:#2a1f12!important;
+  --radius:14px!important;
+  --radius-sm:12px!important;
+  --shadow:0 8px 24px rgba(90,60,30,.07)!important;
+  --font-sans:'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif!important;
+  --font-serif:'Playfair Display','Noto Serif SC',Georgia,serif!important;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace!important;
+}
+html,body,#deck,.deck{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+  font-family:var(--font-sans)!important;
+  letter-spacing:-.01em;
+}
+.slide,
+section[class*="slide"],
+.slide.light,
+.slide.dark,
+.slide-cover,
+.slide-divider{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+}
+.slide.full,
+.cover,
+.slide-cover{
+  background:var(--bg)!important;
+}
+.main,
+.content,
+.slide-content,
+.main-content,
+.right,
+.body,
+.stage{
+  color:var(--text-1)!important;
+  min-height:0!important;
+}
+h1,h2,h3,
+.h1,.h2,.h3,
+.slide-title,
+.cover-title,
+.end-title,
+.h-hero,
+.h-xl,
+.main h1,
+.main h2,
+.main h3{
+  font-family:var(--font-serif)!important;
+  color:var(--text-1)!important;
+  letter-spacing:-.02em!important;
+}
+h1,.h1,.cover-title,.slide-title,.h-hero{
+  font-weight:800!important;
+}
+h2,.h2,.h-xl{
+  font-weight:700!important;
+}
+p,li,td,th,.lede,.dim,.dim2,.fn-desc,.body-text,.txt,.label{
+  color:var(--text-2);
+}
+strong,b{color:var(--text-1)}
+.kicker,
+.eyebrow,
+.module-label,
+.sidebar-module-label,
+.module-code,
+.obj-label,
+.obj-title,
+.obj-header,
+.objectives-title,
+.lb-title,
+.sidebar-label{
+  color:var(--accent-2)!important;
+  font-family:var(--font-sans)!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  letter-spacing:.14em!important;
+  text-transform:uppercase!important;
+}
+.sidebar,
+aside.sidebar,
+.learning-sidebar,
+.slide-sidebar,
+.left-col{
+  background:transparent!important;
+  border-right:1px solid var(--border)!important;
+  border-left:0!important;
+  padding-right:24px!important;
+  color:var(--text-2)!important;
+  box-shadow:none!important;
+}
+.sidebar-title,
+.module-title,
+.sidebar-module,
+.lb-module,
+.brand,
+.sidebar .brand{
+  font-family:var(--font-serif)!important;
+  color:var(--accent)!important;
+  font-size:20px!important;
+  line-height:1.25!important;
+  font-weight:700!important;
+}
+.obj-list,
+.objectives,
+.objective-list,
+.learning-sidebar ul,
+.slide-sidebar ul{
+  list-style:none!important;
+  padding:0!important;
+  margin:0!important;
+  font-family:var(--font-sans)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+  color:var(--text-2)!important;
+}
+.obj-list li,
+.objectives li,
+.objective-list li,
+.learning-sidebar li,
+.slide-sidebar li{
+  position:relative!important;
+  padding:7px 0 7px 22px!important;
+  border-bottom:1px dashed var(--border)!important;
+  color:var(--text-2)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+}
+.obj-list li::before,
+.objectives li::before,
+.objective-list li::before,
+.learning-sidebar li::before,
+.slide-sidebar li::before{
+  content:"○"!important;
+  position:absolute!important;
+  left:0!important;
+  top:7px!important;
+  color:var(--accent)!important;
+  width:auto!important;
+  height:auto!important;
+  background:transparent!important;
+  border-radius:0!important;
+  opacity:1!important;
+}
+.obj-list li.current::before,
+.objectives li.current::before,
+.objective-list li.current::before,
+.obj-list li.highlight::before,
+.objectives li.highlight::before,
+.objective-list li.highlight::before{
+  content:"▸"!important;
+  color:var(--accent-2)!important;
+}
+.obj-list li.current,
+.objectives li.current,
+.objective-list li.current,
+.obj-list li.highlight,
+.objectives li.highlight,
+.objective-list li.highlight{
+  color:var(--text-1)!important;
+  font-weight:700!important;
+}
+.card,
+.concept-box,
+.col-item,
+.metric-card,
+.panel,
+.info-card,
+.tip-box,
+.callout-box,
+.comp-item,
+.diagram-box,
+.data-card,
+.feature-card,
+.task-card,
+.warning-card,
+.workflow-card{
+  background:var(--surface)!important;
+  border:1px solid var(--border)!important;
+  border-radius:var(--radius)!important;
+  box-shadow:var(--shadow)!important;
+  color:var(--text-1)!important;
+}
+.card-accent,
+.accent-card,
+.concept-box h4{
+  border-color:var(--border)!important;
+}
+.callout,
+.tip,
+.note-box{
+  background:var(--surface-2)!important;
+  border-left:4px solid var(--accent-2)!important;
+  border-radius:0 var(--radius) var(--radius) 0!important;
+  color:var(--text-2)!important;
+}
+.warn-box,
+.warning,
+.alert{
+  background:rgba(196,129,42,.08)!important;
+  border:1px solid rgba(196,129,42,.3)!important;
+  border-radius:var(--radius)!important;
+  color:var(--text-2)!important;
+}
+.course-bridge{
+  max-width:72ch;
+  margin-top:16px!important;
+  padding:10px 16px!important;
+  font-size:13px!important;
+  line-height:1.45!important;
+}
+.course-bridge b{
+  color:var(--accent-2)!important;
+}
+
+
+.slide > .sidebar + .main-content + .course-bridge{
+  left:calc(18vw + 3vw)!important;
+  max-width:min(760px,70vw)!important;
+}
+
+.slide > .course-bridge,
+.hero .course-bridge,
+.slide.full .course-bridge,
+section.full .course-bridge{
+  position:absolute!important;
+  left:6vw!important;
+  right:auto!important;
+  bottom:9vh!important;
+  max-width:min(760px,64vw)!important;
+  margin:0!important;
+  z-index:3!important;
+}
+.slide.compact .h2,
+section.compact .h2,
+.slide.compact h2,
+section.compact h2{
+  font-size:clamp(25px,2.15vw,34px)!important;
+  line-height:1.12!important;
+  margin-bottom:6px!important;
+}
+.slide.compact .lede,
+section.compact .lede,
+.slide.compact .fn-desc,
+section.compact .fn-desc,
+.slide.compact p,
+section.compact p{
+  font-size:clamp(13px,1.05vw,16px)!important;
+  line-height:1.45!important;
+}
+.slide.compact .card,
+section.compact .card,
+.slide.compact .concept-box,
+section.compact .concept-box,
+.slide.compact .col-item,
+section.compact .col-item{
+  padding:12px 15px!important;
+}
+.slide.compact .concept-box h4,
+section.compact .concept-box h4,
+.slide.compact .card h4,
+section.compact .card h4{
+  font-size:clamp(14px,1.1vw,17px)!important;
+  line-height:1.25!important;
+  margin-bottom:4px!important;
+}
+.slide.compact .grid,
+section.compact .grid{
+  gap:12px!important;
+}
+.slide.compact .mt-l,
+section.compact .mt-l{
+  margin-top:14px!important;
+}
+.slide.compact .mt-m,
+section.compact .mt-m{
+  margin-top:8px!important;
+}
+.problem-grid .concept-box{
+  min-height:118px;
+}
+.problem-grid .concept-box:last-child{
+  grid-column:1/-1;
+  min-height:96px;
+}
+.slide.code-heavy .code-block,
+section.code-heavy .code-block{
+  font-size:clamp(10px,.82vw,12px)!important;
+  line-height:1.28!important;
+  padding:10px 12px!important;
+}
+.slide.compact .data-table th,
+.slide.compact .data-table td,
+section.compact .data-table th,
+section.compact .data-table td{
+  padding:4px 7px!important;
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.3!important;
+}
+.slide.compact .code-block,
+section.compact .code-block{
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.35!important;
+  padding:10px 12px!important;
+}
+pre,
+code,
+.code,
+.code-block,
+.code-panel{
+  font-family:var(--font-mono)!important;
+}
+pre,
+.code,
+.code-block,
+.code-panel{
+  background:#2a1f12!important;
+  color:#f0ece0!important;
+  border:0!important;
+  border-radius:var(--radius)!important;
+  box-shadow:none!important;
+}
+code:not(pre code){
+  background:rgba(90,60,30,.08)!important;
+  color:var(--text-1)!important;
+}
+table,
+.data-table{
+  border-color:var(--border)!important;
+}
+th,
+.data-table th{
+  background:var(--surface-2)!important;
+  color:var(--text-1)!important;
+}
+td,
+.data-table td{
+  background:var(--surface)!important;
+  color:var(--text-2)!important;
+}
+.pill,
+.pill-academic,
+.tag,
+.badge{
+  background:var(--surface-2)!important;
+  color:var(--text-2)!important;
+  border:1px solid var(--border)!important;
+  border-radius:4px!important;
+  font-family:var(--font-mono)!important;
+}
+.pill-accent,
+.tag.accent,
+.badge.accent{
+  color:var(--accent)!important;
+  border-color:color-mix(in srgb,var(--accent) 28%,transparent)!important;
+}
+.deck-footer,
+.page-meta,
+.footer,
+.slide-meta{
+  color:var(--text-3)!important;
+}
+.progress-bar>span,
+.progress,
+.progress-dot.active,
+.dot.active{
+  background:var(--accent)!important;
+}
+svg text{font-family:var(--font-sans)!important}
+/* ===== end inlined unified course styles ===== */
+</style>
+</head>
+<body>
+
+<div id="hint">← → 翻页 · ESC 索引</div>
+<div id="deck">
+
+<!-- ========================================================================
+     SLIDE 01 · 封面
+     ======================================================================== -->
+<section class="slide cover">
+  <div class="sidebar"></div>
+  <div class="main">
+    <div class="divider"></div>
+    <h1>边缘检测、轮廓提取<br>特征工程与传统视觉</h1>
+    <p class="subtitle">Edge Detection, Contour Extraction, Feature Engineering &amp; Classical Computer Vision</p>
+    <div><span class="meta">计算机视觉课程 · 第三讲</span></div>
+    <div style="margin-top:1.2vh"><span class="meta" style="opacity:.4">90 分钟 · 课程专题</span></div>
+    <div class="divider" style="margin-top:2.4vh"></div>
+    <p class="serif" style="margin-top:1.2vh;font-size:clamp(13px,.75vw,17px);opacity:.55">
+      从图像亮度变化到几何特征提取 · 传统视觉方法体系
+    </p>
+  </div>
+
+  <div class="callout course-bridge"><b>课程衔接。</b>承接 OpenCV 基础操作，本讲进一步讨论如何从像素矩阵中提取边缘、轮廓和手工特征；这些传统视觉方法也是理解后续 CNN 特征学习的重要参照。</div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 02 · 目录
+     ======================================================================== -->
+<section class="slide toc">
+  <div class="sidebar"></div>
+  <div class="main">
+    <h1>讲座结构</h1>
+    <div class="toc-grid">
+      <div class="toc-item"><span class="idx">01</span><span class="txt">边缘的数学含义与图像梯度</span></div>
+      <div class="toc-item"><span class="idx">02</span><span class="txt">Sobel 算子与实现</span></div>
+      <div class="toc-item"><span class="idx">03</span><span class="txt">Laplacian 算子与 LoG</span></div>
+      <div class="toc-item"><span class="idx">04</span><span class="txt">Canny 边缘检测算法（四阶段）</span></div>
+      <div class="toc-item"><span class="idx">05</span><span class="txt">阈值分割：全局、自适应与 Otsu</span></div>
+      <div class="toc-item"><span class="idx">06</span><span class="txt">形态学操作：腐蚀、膨胀、开闭运算</span></div>
+      <div class="toc-item"><span class="idx">07</span><span class="txt">轮廓提取与几何特征分析</span></div>
+      <div class="toc-item"><span class="idx">08</span><span class="txt">传统视觉特征工程：HOG</span></div>
+      <div class="toc-item"><span class="idx">09</span><span class="txt">局部特征：SIFT 与 ORB</span></div>
+      <div class="toc-item"><span class="idx">10</span><span class="txt">模板匹配与工业应用</span></div>
+      <div class="toc-item"><span class="idx">11</span><span class="txt">传统视觉与深度学习的关系</span></div>
+      <div class="toc-item"><span class="idx">12</span><span class="txt">实操：零件轮廓检测流水线</span></div>
+    </div>
+    <p class="footnote">总计 90 分钟 · 含课堂实操环节</p>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 03 · 边缘的数学含义与图像梯度（合并原 03+04+05）
+     ======================================================================== -->
+<section class="slide compact">
+  <div class="sidebar">
+    <div class="module-label">Module · Edge Detection</div>
+    <div class="module-title">边缘的数学含义与图像梯度</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>理解边缘在人类视觉中的基础地位</li>
+      <li>掌握图像梯度的定义与离散近似</li>
+      <li>理解梯度方向与边缘朝向的正交关系</li>
+      <li>认识噪声对微分运算的影响</li>
+    </ul>
+    <div class="page-meta">03 / 30</div>
+  </div>
+  <div class="main">
+    <h1>边缘的数学本质</h1>
+    <p>边缘是图像中亮度、颜色或纹理发生显著变化的位置。人类视觉皮层中存在大量朝向选择性神经元，专门响应特定方向的边缘。边缘定义为图像函数 <em>I</em>(x, y) 的梯度模的局部极大值点集：在边缘点处，|∇I| 沿梯度方向取得极大值。</p>
+
+    <h2>图像梯度定义与离散近似</h2>
+    <p>对于灰度图像，梯度是各方向偏导数构成的向量场。梯度方向指向亮度变化最快的方向，梯度幅值度量变化剧烈程度。</p>
+    <div class="formula">∇I = [ ∂I/∂x , ∂I/∂y ]<sup>T</sup>　　|∇I| = √( (∂I/∂x)² + (∂I/∂y)² )</div>
+    <div class="formula">∂I/∂x ≈ I(x+1, y) − I(x, y)　（前向差分）</div>
+
+    <div class="cols-2">
+      <div class="col-item">
+        <h4>一阶导数视角</h4>
+        <p>边缘对应 |∇I| 的峰值。计算简单、对弱边缘响应较好，但响应带较宽，需非极大值抑制细化。</p>
+      </div>
+      <div class="col-item">
+        <h4>二阶导数视角</h4>
+        <p>边缘对应 ∇²I 的零交叉（zero-crossing），定位精度更高，但对噪声极为敏感，使用前必须平滑。</p>
+      </div>
+    </div>
+
+    <h2>噪声与微分运算</h2>
+    <p>微分运算本质上是高通滤波，会显著放大高频噪声。因此实用边缘检测器都包含平滑预处理（如高斯滤波），构成"平滑-差分"级联结构。</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 700 80" width="700" height="80">
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="#2a1e13"/></marker></defs>
+        <rect x="0" y="0" width="700" height="80" fill="none"/>
+        <!-- 亮度剖面曲线 -->
+        <text x="10" y="20" font-family="'IBM Plex Mono',monospace" font-size="11" fill-opacity=".5">亮度剖面</text>
+        <polyline points="40,55 100,55 130,55 160,30 190,18 220,14 250,14 280,18 310,30 340,55 400,55"
+          fill="none" stroke="#8b5e3c" stroke-width="2.5"/>
+        <!-- 阶跃标注 -->
+        <line x1="160" y1="55" x2="160" y2="14" stroke="#8b5e3c" stroke-width="1" stroke-dasharray="3,3" opacity=".4"/>
+        <text x="120" y="74" font-family="'IBM Plex Mono',monospace" font-size="9" fill-opacity=".5">边缘区域</text>
+        <line x1="310" y1="55" x2="310" y2="14" stroke="#8b5e3c" stroke-width="1" stroke-dasharray="3,3" opacity=".4"/>
+        <text x="406" y="20" font-family="'IBM Plex Mono',monospace" font-size="9" fill-opacity=".5">梯度幅值</text>
+        <polyline points="420,55 450,55 480,55 500,30 520,16 540,16 560,30 580,55 620,55"
+          fill="none" stroke="#2a1e13" stroke-width="2.5" stroke-dasharray="4,3"/>
+        <!-- 梯度方向箭头 -->
+        <line x1="500" y1="55" x2="500" y2="16" stroke="#8b5e3c" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <text x="470" y="70" font-family="'IBM Plex Mono',monospace" font-size="9" fill-opacity=".5">梯度的模在边缘处达到峰值</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 04 · Sobel 算子原理与实现（合并原 06+07）
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Sobel</div>
+    <div class="module-title">Sobel 算子原理与实现</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>掌握 Sobel 3×3 卷积核结构</li>
+      <li>理解分离式差分与平滑机制</li>
+      <li>掌握 OpenCV Sobel 函数调用</li>
+      <li>理解 ksize 参数对结果的影响</li>
+    </ul>
+    <div class="page-meta">04 / 30</div>
+  </div>
+  <div class="main">
+    <h1>Sobel 算子</h1>
+    <p>Sobel 算子使用两个 3×3 卷积核分别近似 x 和 y 方向梯度。其核心设计是差分计算与邻域平滑的结合：中心像素权重大、两侧权重递减，在计算差分的同时抑制噪声。</p>
+
+    <div class="cols-2">
+      <div class="col-item">
+        <h4>G<sub>x</sub> — 水平梯度（响应垂直边缘）</h4>
+        <div class="formula" style="font-family:var(--mono);font-style:normal;font-size:clamp(14px,.88vw,18px);padding:6px 14px;">
+[ -1  0  +1<br>
+  -2  0  +2<br>
+  -1  0  +1 ]
+        </div>
+      </div>
+      <div class="col-item">
+        <h4>G<sub>y</sub> — 垂直梯度（响应水平边缘）</h4>
+        <div class="formula" style="font-family:var(--mono);font-style:normal;font-size:clamp(14px,.88vw,18px);padding:6px 14px;">
+[ -1  -2  -1<br>
+   0   0   0<br>
+  +1  +2  +1 ]
+        </div>
+      </div>
+    </div>
+
+    <h2>分离特性与 OpenCV 实现</h2>
+    <p>Sobel 核可分解为平滑核与差分核的卷积：G<sub>x</sub> = [1 2 1]<sup>T</sup> · [−1 0 1]（垂直平滑 + 水平差分）</p>
+
+    <div class="code-block"><span class="cmt"># 完整的 Sobel 梯度计算流程</span>
+import cv2, numpy as np
+img = cv2.imread('parts.jpg')
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+<span class="cmt"># x 方向梯度（dx=1, dy=0），ksize=3</span>
+sobel_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+<span class="cmt"># y 方向梯度（dx=0, dy=1）</span>
+sobel_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
+
+<span class="cmt"># 梯度幅值与方向</span>
+magnitude = cv2.magnitude(sobel_x, sobel_y)        <span class="cmt"># 精确计算</span>
+orientation = cv2.phase(sobel_x, sobel_y, angleInDegrees=True)
+
+<span class="cmt"># ksize 参数的含义</span>
+<span class="cmt"># ksize=1: 3×1 或 1×3 核（最简差分），ksize=3: 标准 Sobel</span>
+<span class="cmt"># ksize=-1: 使用 Scharr 核（3×3，梯度计算更精确但噪声响应更大）</span></div>
+
+    <div class="tip-box">
+      <span class="label">Note</span>
+      <span class="body"><code>cv2.CV_64F</code> 输出包含正负值（梯度方向）。转换为可显示图像时需取绝对值或映射到 [0, 255]：<code>cv2.convertScaleAbs()</code> 可快速转换。梯度幅值近似可用 |G<sub>x</sub>| + |G<sub>y</sub>| 以提高计算效率。</span>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 05 · Laplacian 算子与 LoG（合并原 08+09）
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Laplacian</div>
+    <div class="module-title">Laplacian 算子与 LoG</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>理解二阶导数边缘检测机制</li>
+      <li>掌握 Laplacian 离散卷积核</li>
+      <li>理解 LoG 的平滑-差分级联</li>
+      <li>掌握高斯标准差 σ 的尺度效应</li>
+    </ul>
+    <div class="page-meta">05 / 30</div>
+  </div>
+  <div class="main">
+    <h1>Laplacian 算子</h1>
+    <p>Laplacian 算子使用二阶导数检测亮度变化率的突变点，是各向同性的（旋转不变）。边缘位置对应 Laplacian 响应的零交叉（zero-crossing）。</p>
+    <div class="formula">∇²I = ∂²I/∂x² + ∂²I/∂y²</div>
+
+    <div class="cols-2" style="grid-template-columns:1fr 1.3fr">
+      <div>
+        <h3>离散卷积核</h3>
+        <div class="formula" style="font-family:var(--mono);font-style:normal;text-align:left;font-size:clamp(14px,.88vw,18px);padding:8px 14px;">
+4-邻域:  &nbsp; 8-邻域（含对角）:<br>
+[ 0 -1  0]  &nbsp; [-1 -1 -1]<br>
+[-1 +4 -1]  &nbsp; [-1 +8 -1]<br>
+[ 0 -1  0]  &nbsp; [-1 -1 -1]
+        </div>
+        <div class="code-block" style="font-size:clamp(13px,.82vw,16px);padding:8px 12px;">
+<span class="cmt"># Laplacian</span>
+lap = cv2.Laplacian(gray, cv2.CV_64F, ksize=3)
+_, th = cv2.threshold(<br>  cv2.convertScaleAbs(lap),<br>  30, 255, cv2.THRESH_BINARY)</div>
+      </div>
+      <div>
+        <h3>LoG：高斯拉普拉斯</h3>
+        <p style="font-size:clamp(15px,1vw,20px)">平滑与二阶差分级联：</p>
+        <div class="formula" style="font-size:clamp(16px,1.2vw,24px);padding:8px 14px;">LoG = ∇²[G(σ) ∗ I] = [∇²G(σ)] ∗ I</div>
+        <p style="font-size:clamp(15px,1vw,20px)">OpenCV 中实现为 <code>GaussianBlur</code> + <code>Laplacian</code> 两步。</p>
+        <div class="col-item" style="padding:6px 10px;margin-top:4px;">
+          <p style="font-size:clamp(14px,.9vw,18px)"><strong>σ 的尺度效应</strong>：σ 小→保留精细边缘但噪声多；σ 大→仅宏观结构边缘，定位精度下降。推荐 σ = 1.0–2.0 作为平衡点。</p>
+        </div>
+        <div class="tip-box" style="margin-top:4px;padding:6px 10px;">
+          <span class="label">Caution</span>
+          <span class="body" style="font-size:clamp(14px,.9vw,18px)">Laplacian 对高频噪声极其敏感，几乎从不同时单独使用。LoG 或 DoG（Difference of Gaussian）是实际工程中的可靠替代。</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 06 · Canny 边缘检测：概览与设计准则
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Canny</div>
+    <div class="module-title">Canny 边缘检测：概览</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>理解 Canny 的三项设计准则</li>
+      <li>掌握 Canny 的四阶段级联架构</li>
+      <li>认识双阈值的参数意义</li>
+    </ul>
+    <div class="page-meta">06 / 30</div>
+  </div>
+  <div class="main">
+    <h1>Canny 算法（John Canny, 1986）</h1>
+    <p>Canny 将边缘检测从业余的视觉任务转化为有约束的多阶段优化问题。算法的设计遵循三个明确目标：<strong>高信噪比</strong>（不漏真边缘、不误报）、<strong>高定位精度</strong>（检测到的边缘接近真实位置）、<strong>单像素响应</strong>（每个边缘只被检测一次）。</p>
+
+    <h3>四阶段流水线</h3>
+    <div class="cols-2">
+      <div class="col-item">
+        <h4>① 高斯滤波</h4>
+        <p>抑制高频噪声。核大小和 σ 控制平滑程度，推荐核大小 <code>2·ceil(3σ)+1</code>。</p>
+      </div>
+      <div class="col-item">
+        <h4>② 梯度计算</h4>
+        <p>Sobel 算子计算 x/y 方向梯度，获得幅值图 M 和角度图 θ，量化为 4 个主方向。</p>
+      </div>
+      <div class="col-item">
+        <h4>③ 非极大值抑制</h4>
+        <p>沿梯度方向搜索局部最大值，仅保留峰值，将边缘收窄至单像素宽度。</p>
+      </div>
+      <div class="col-item">
+        <h4>④ 双阈值与滞后连接</h4>
+        <p>高阈值标记确定边缘，低阈值保留候选弱边缘，通过连通性判断筛选最终的边缘。</p>
+      </div>
+    </div>
+
+    <div class="diagram">
+      <svg viewBox="0 0 700 70" width="700" height="70">
+        <rect x="0" y="0" width="700" height="70" fill="none"/>
+        <rect x="20" y="15" width="130" height="38" rx="4" fill="rgba(139,94,60,.12)" stroke="#8b5e3c" stroke-width="1.2"/>
+        <text x="85" y="38" font-family="'IBM Plex Mono',monospace" font-size="13" fill="#8b5e3c" text-anchor="middle" font-weight="600">高斯滤波</text>
+        <line x1="150" y1="34" x2="180" y2="34" stroke="#2a1e13" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <rect x="182" y="15" width="130" height="38" rx="4" fill="rgba(139,94,60,.12)" stroke="#8b5e3c" stroke-width="1.2"/>
+        <text x="247" y="38" font-family="'IBM Plex Mono',monospace" font-size="13" fill="#8b5e3c" text-anchor="middle" font-weight="600">梯度计算</text>
+        <line x1="312" y1="34" x2="342" y2="34" stroke="#2a1e13" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <rect x="344" y="15" width="145" height="38" rx="4" fill="rgba(139,94,60,.12)" stroke="#8b5e3c" stroke-width="1.2"/>
+        <text x="416" y="38" font-family="'IBM Plex Mono',monospace" font-size="13" fill="#8b5e3c" text-anchor="middle" font-weight="600">非极大值抑制</text>
+        <line x1="489" y1="34" x2="519" y2="34" stroke="#2a1e13" stroke-width="1.5" marker-end="url(#arrow)"/>
+        <rect x="521" y="15" width="155" height="38" rx="4" fill="rgba(139,94,60,.12)" stroke="#8b5e3c" stroke-width="1.2"/>
+        <text x="598" y="38" font-family="'IBM Plex Mono',monospace" font-size="13" fill="#8b5e3c" text-anchor="middle" font-weight="600">双阈值 + 滞后连接</text>
+      </svg>
+    </div>
+
+    <div class="code-block"><span class="cmt"># OpenCV 单行调用（内部封装了全部四阶段）</span>
+edges = cv2.Canny(gray, threshold1=80, threshold2=160)
+<span class="cmt"># 或使用 L2 范数计算梯度（更精确，稍慢）</span>
+edges = cv2.Canny(gray, 80, 160, L2gradient=True)</div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 07 · Canny Step 1-2：高斯滤波与梯度计算
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Canny</div>
+    <div class="module-title">Canny Step 1-2：滤波与梯度</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>掌握高斯滤波的参数选择策略</li>
+      <li>理解梯度幅值与方向图的生成</li>
+      <li>分析平滑强度与边缘保留的权衡</li>
+    </ul>
+    <div class="page-meta">07 / 30</div>
+  </div>
+  <div class="main">
+    <h1>第一步：高斯滤波</h1>
+    <p>二维高斯函数权重由中心向四周按高斯分布递减，σ 越大平滑范围越广、高频噪声抑制程度越高，但也可能模糊弱边缘。</p>
+    <div class="formula">G(x, y) = (1 / 2πσ²) · exp(−(x² + y²) / 2σ²)</div>
+    <p>核尺寸取 <code>ksize = 2·ceil(3σ) + 1</code>，确保覆盖 ±3σ 范围（99.7% 的权重）。σ=1.0 → 7×7 核。</p>
+
+    <h1>第二步：梯度计算与方向量化</h1>
+    <p>Sobel 算子对平滑后图像分别计算 G<sub>x</sub> 和 G<sub>y</sub>。幅值 M = √(G<sub>x</sub>² + G<sub>y</sub>²)，方向 θ = arctan(G<sub>y</sub> / G<sub>x</sub>)。</p>
+    <p>梯度方向在 Canny 中量化为四个主方向，用于后续 NMS 邻居选择：</p>
+    <div class="code-block" style="font-size:clamp(14px,.88vw,18px);padding:8px 16px;">
+<span class="cmt"># 方向量化规则</span>
+θ ∈ [−22.5°, 22.5°] ∪ [157.5°, 202.5°]  →  0°（水平）&nbsp;&nbsp; 比较左右邻居 (x±1, y)
+θ ∈ [22.5°, 67.5°] ∪ [202.5°, 247.5°]    →  45°&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 比较对角邻居 (x∓1, y±1)
+θ ∈ [67.5°, 112.5°] ∪ [247.5°, 292.5°]   →  90°（垂直）&nbsp;&nbsp; 比较上下邻居 (x, y±1)
+θ ∈ [112.5°, 157.5°] ∪ [292.5°, 337.5°]  →  135°&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 比较反对角邻居 (x±1, y±1)</div>
+
+    <div class="diagram">
+      <svg viewBox="0 0 700 55" width="700" height="55">
+        <rect x="0" y="0" width="700" height="55" fill="none"/>
+        <rect x="30" y="8" width="300" height="40" rx="3" fill="rgba(var(--accent-rgb),.07)" stroke="rgba(var(--accent-rgb),.15)" stroke-width="1"/>
+        <text x="180" y="33" font-family="var(--serif-zh)" font-size="16" fill="#2a1e13" text-anchor="middle">σ 小 ← 平衡 → σ 大</text>
+        <text x="50" y="56" font-family="'IBM Plex Mono',monospace" font-size="9" fill-opacity=".4">精细边缘保留 · 噪声多</text>
+        <text x="310" y="56" font-family="'IBM Plex Mono',monospace" font-size="9" fill-opacity=".4">仅宏观结构 · 边缘偏移</text>
+        <rect x="370" y="8" width="310" height="40" rx="3" fill="rgba(var(--accent-rgb),.07)" stroke="rgba(var(--accent-rgb),.15)" stroke-width="1"/>
+        <text x="525" y="25" font-family="var(--serif-zh)" font-size="14" fill="#2a1e13" text-anchor="middle">梯度幅值图特点</text>
+        <text x="525" y="42" font-family="var(--serif-zh)" font-size="14" fill="#2a1e13" text-anchor="middle">NMS 前：边缘区域"发光"，宽响应带</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 08 · Canny Step 3：非极大值抑制
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Canny</div>
+    <div class="module-title">Canny Step 3：NMS</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>理解非极大值抑制的原理</li>
+      <li>掌握梯度方向量化与邻居选择</li>
+      <li>分析边缘细化效果</li>
+    </ul>
+    <div class="page-meta">08 / 30</div>
+  </div>
+  <div class="main">
+    <h1>非极大值抑制（NMS）</h1>
+    <p>梯度计算得到的边缘响应带通常较宽（多像素）。NMS 沿梯度方向搜索局部最大值，只保留峰值位置的像素，将边缘收窄到单像素宽。</p>
+
+    <h2>算法步骤</h2>
+    <div class="step-list">
+      <div class="step-item"><span class="num">1</span><span class="txt">对每个像素，根据梯度方向确定量化后的主方向（0°/45°/90°/135°）</span></div>
+      <div class="step-item"><span class="num">2</span><span class="txt">沿梯度方向检查两个相邻像素的梯度幅值（通过查表确定邻居坐标）</span></div>
+      <div class="step-item"><span class="num">3</span><span class="txt">若当前像素幅值 ≤ 任一邻居幅值，将其抑制（幅值置 0）</span></div>
+      <div class="step-item"><span class="num">4</span><span class="txt">仅保留局域最大值像素，形成单像素宽边缘线</span></div>
+    </div>
+
+    <div class="diagram">
+      <svg viewBox="0 0 700 72" width="700" height="72">
+        <rect x="0" y="0" width="700" height="72" fill="none"/>
+        <!-- NMS before -->
+        <rect x="20" y="5" width="310" height="62" rx="3" fill="rgba(var(--accent-rgb),.05)" stroke="rgba(var(--accent-rgb),.12)" stroke-width="1"/>
+        <text x="175" y="22" font-family="'IBM Plex Mono',monospace" font-size="11" fill="#8b5e3c" text-anchor="middle" font-weight="600">NMS 前</text>
+        <rect x="50" y="28" width="22" height="22" fill="rgba(42,30,19,.1)" rx="1"/>
+        <rect x="74" y="28" width="22" height="22" fill="rgba(42,30,19,.2)" rx="1"/>
+        <rect x="98" y="28" width="22" height="22" fill="rgba(42,30,19,.5)" rx="1"/>
+        <rect x="122" y="28" width="22" height="22" fill="rgba(42,30,19,.8)" rx="1"/>
+        <rect x="146" y="28" width="22" height="22" fill="#2a1e13" rx="1"/>
+        <rect x="170" y="28" width="22" height="22" fill="rgba(42,30,19,.8)" rx="1"/>
+        <rect x="194" y="28" width="22" height="22" fill="rgba(42,30,19,.5)" rx="1"/>
+        <rect x="218" y="28" width="22" height="22" fill="rgba(42,30,19,.2)" rx="1"/>
+        <rect x="242" y="28" width="22" height="22" fill="rgba(42,30,19,.1)" rx="1"/>
+        <text x="175" y="62" font-family="var(--serif-zh)" font-size="9" fill-opacity=".5" text-anchor="middle">像素梯度由暗到亮：响应带较宽</text>
+        <!-- NMS after -->
+        <rect x="370" y="5" width="310" height="62" rx="3" fill="rgba(var(--accent-rgb),.05)" stroke="rgba(var(--accent-rgb),.12)" stroke-width="1"/>
+        <text x="525" y="22" font-family="'IBM Plex Mono',monospace" font-size="11" fill="#8b5e3c" text-anchor="middle" font-weight="600">NMS 后</text>
+        <rect x="400" y="28" width="22" height="22" fill="rgba(42,30,19,.05)" rx="1"/>
+        <rect x="424" y="28" width="22" height="22" fill="rgba(42,30,19,.05)" rx="1"/>
+        <rect x="448" y="28" width="22" height="22" fill="rgba(42,30,19,.05)" rx="1"/>
+        <rect x="472" y="28" width="22" height="22" fill="rgba(42,30,19,.05)" rx="1"/>
+        <rect x="496" y="28" width="22" height="22" fill="#2a1e13" rx="1"/>
+        <rect x="520" y="28" width="22" height="22" fill="rgba(42,30,19,.05)" rx="1"/>
+        <rect x="544" y="28" width="22" height="22" fill="rgba(42,30,19,.05)" rx="1"/>
+        <rect x="568" y="28" width="22" height="22" fill="rgba(42,30,19,.05)" rx="1"/>
+        <rect x="592" y="28" width="22" height="22" fill="rgba(42,30,19,.05)" rx="1"/>
+        <text x="525" y="62" font-family="var(--serif-zh)" font-size="9" fill-opacity=".5" text-anchor="middle">仅保留最大值像素 → 单像素宽边缘线</text>
+      </svg>
+    </div>
+
+    <div class="tip-box">
+      <span class="label">Key Fact</span>
+      <span class="body">NMS 前梯度幅值图呈"发光的边缘带"（边缘区域亮成一片），NMS 后只剩一条明亮细线——这是"单像素响应"准则的实现手段。</span>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 09 · Canny Step 4：双阈值与滞后连接
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Canny</div>
+    <div class="module-title">Canny Step 4：双阈值</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>理解双阈值的三级分类机制</li>
+      <li>掌握滞后连接的条件判断</li>
+      <li>分析参数调优的取舍关系</li>
+    </ul>
+    <div class="page-meta">09 / 30</div>
+  </div>
+  <div class="main">
+    <h1>双阈值检测机制</h1>
+    <p>NMS 后图像中仍包含噪声响应与真实边缘的混杂。Canny 使用双阈值将像素分为三级：</p>
+    <div class="cols-3" style="margin-bottom:.3vh">
+      <div class="col-item"><h4>强边缘</h4><p>幅值 &gt; T<sub>high</sub>，立即标记为确定边缘。</p></div>
+      <div class="col-item"><h4>弱边缘</h4><p>T<sub>low</sub> ≤ 幅值 ≤ T<sub>high</sub>，通过滞后连接判断。</p></div>
+      <div class="col-item"><h4>非边缘</h4><p>幅值 &lt; T<sub>low</sub>，直接抑制为背景。</p></div>
+    </div>
+
+    <h2>滞后连接（Hysteresis Linking）</h2>
+    <p>遍历所有弱边缘像素，检查其 8-邻域中是否存在强边缘像素。若存在，弱边缘被提升为边缘——认为与真边缘连通；若不存在，判定为孤立噪声响应并抑制。</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 700 65" width="700" height="65">
+        <rect x="0" y="0" width="700" height="65" fill="none"/>
+        <text x="350" y="16" font-family="'IBM Plex Mono',monospace" font-size="11" fill="#8b5e3c" text-anchor="middle" font-weight="600">滞后连接示意</text>
+        <!-- 3x3 grid showing weak edge and strong edge neighbors -->
+        <rect x="240" y="24" width="20" height="20" fill="rgba(42,30,19,.06)" rx="1"/>
+        <rect x="262" y="24" width="20" height="20" fill="rgba(42,30,19,.06)" rx="1"/>
+        <rect x="284" y="24" width="20" height="20" fill="rgba(42,30,19,.06)" rx="1"/>
+        <rect x="240" y="46" width="20" height="20" fill="rgba(42,30,19,.06)" rx="1"/>
+        <rect x="262" y="46" width="20" height="20" fill="rgba(139,94,60,.35)" rx="1" stroke="#8b5e3c" stroke-width="1"/><text x="272" y="59" font-family="monospace" font-size="9" fill="#8b5e3c" text-anchor="middle">W</text>
+        <rect x="284" y="46" width="20" height="20" fill="rgba(42,30,19,.06)" rx="1"/>
+        <rect x="240" y="68" width="20" height="20" fill="rgba(42,30,19,.06)" rx="1"/>
+        <rect x="262" y="68" width="20" height="20" fill="#2a1e13" rx="1"/>
+        <rect x="284" y="68" width="20" height="20" fill="rgba(42,30,19,.06)" rx="1"/>
+        <text x="272" y="93" font-family="var(--serif-zh)" font-size="12" fill="#2a1e13" text-anchor="middle">弱边缘(W)的 8-邻域中有强边缘 → 提升为边缘</text>
+      </svg>
+    </div>
+
+    <h2>参数调优直觉</h2>
+    <div class="step-list">
+      <div class="step-item"><span class="num">T<sub>high</sub>↑</span><span class="txt">边缘断裂、出现间隙。真实边缘因被归为弱边缘后无强邻接而被丢弃。</span></div>
+      <div class="step-item"><span class="num">T<sub>low</sub>↓</span><span class="txt">噪声混入弱边缘并通过连通性渗透进最终结果，伪边缘泛滥。</span></div>
+      <div class="step-item"><span class="num">T<sub>high</sub>↓</span><span class="txt">强边缘区域过大，弱边缘易被误判为连通，边缘过粗且含噪声。</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 10 · Canny 参数调优与对比
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Canny</div>
+    <div class="module-title">Canny 参数调优与对比</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>通过对比理解参数效应</li>
+      <li>掌握不同场景的参数选择策略</li>
+      <li>学会交互式调参方法</li>
+    </ul>
+    <div class="page-meta">10 / 30</div>
+  </div>
+  <div class="main">
+    <h1>不同阈值下的效果对比</h1>
+    <div class="comp-table">
+      <div class="col"><h4>阈值过低 (30, 60)</h4><ul><li>边缘密集含纹理细节</li><li>噪声响应被误判提升</li><li>伪边缘多</li></ul></div>
+      <div class="col"><h4>标准 (80, 160)</h4><ul><li>主要结构边缘清晰连续</li><li>纹理噪声被抑制</li><li>弱边缘保持完整</li></ul></div>
+      <div class="col"><h4>保守 (150, 300)</h4><ul><li>仅最强对比度边缘</li><li>弱边大量断裂</li><li>纯净但信息丢失</li></ul></div>
+      <div class="col"><h4>自适应 (Otsu×1.5)</h4><ul><li>自动适应全局对比度</li><li>适合多场景初始值</li><li>低成本的省心方案</li></ul></div>
+    </div>
+
+    <h2>参数选择的一般策略</h2>
+    <p>高低阈值比通常设置在 1.5:1 至 3:1，推荐初始值 2:1（如 80/160）。对比度高可整体提高阈值（120/240）；噪声大时应增大高斯滤波核而非降低阈值。</p>
+
+    <div class="code-block" style="margin-bottom:0"><span class="cmt"># 交互式调参代码（trackbar 滑动条）</span>
+cv2.namedWindow('Canny')
+cv2.createTrackbar('T_low', 'Canny', 50, 300, lambda x: None)
+cv2.createTrackbar('T_high', 'Canny', 100, 500, lambda x: None)
+
+while True:
+    t_low = cv2.getTrackbarPos('T_low', 'Canny')
+    t_high = cv2.getTrackbarPos('T_high', 'Canny')
+    edges = cv2.Canny(gray, t_low, t_high)
+    cv2.imshow('Canny', edges)
+    if cv2.waitKey(30) == 27: break</div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 11 · 阈值分割（合并原 15+16）
+     ======================================================================== -->
+<section class="slide compact">
+  <div class="sidebar">
+    <div class="module-label">Module · Threshold</div>
+    <div class="module-title">阈值分割：固定与自适应</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>掌握二值化的数学定义</li>
+      <li>理解固定阈值的适用条件</li>
+      <li>理解自适应阈值的局部机制</li>
+      <li>掌握自适应阈值参数调优</li>
+    </ul>
+    <div class="page-meta">11 / 30</div>
+  </div>
+  <div class="main">
+    <h1>阈值分割</h1>
+    <p>阈值分割将灰度图像转换为二值图像：dst(x,y) = 255 若 src(x,y) &gt; T，否则 0。阈值选择是核心问题——选值过大会切碎目标，选值过小会将背景噪声纳入前景。阈值分割是边缘检测到轮廓提取之间的关键桥梁。</p>
+
+    <div class="cols-2">
+      <div>
+        <h3>固定阈值</h3>
+        <p>光照均匀、前景背景灰度可分离时简单有效（如文档扫描白纸≈200-255，黑字≈0-80，T=127 即可）。光照变化时单一全局阈值无法同时分割亮区和暗区。</p>
+        <div class="code-block" style="font-size:clamp(13px,.82vw,17px);padding:8px 12px;">ret, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY)
+<span class="cmt"># THRESH_BINARY: dst=255 if src>T else 0</span></div>
+      </div>
+      <div>
+        <h3>自适应阈值</h3>
+        <p>每个像素以局部邻域为参考计算独立阈值：阈值 = 邻域均值 − C。适应局部光照变化，适合光照不均的图像。</p>
+        <div class="code-block" style="font-size:clamp(13px,.82vw,17px);padding:8px 12px;">binary = cv2.adaptiveThreshold(gray, 255,
+    cv2.ADAPTIVE_THRESH_MEAN_C,
+    cv2.THRESH_BINARY, blockSize=11, C=2)</div>
+      </div>
+    </div>
+
+    <h2>自适应参数详解</h2>
+    <div class="step-list">
+      <div class="step-item"><span class="num">blockSize</span><span class="txt">局部窗口尺寸，必须为奇数。太小（&lt;5）阈值受局部噪声影响大；太大（&gt;51）退化为全局阈值。</span></div>
+      <div class="step-item"><span class="num">C</span><span class="txt">从均值中减去的常量。增大 C 使更多像素归为前景，减小 C 使阈值升高。</span></div>
+      <div class="step-item"><span class="num">MEAN vs GAUSSIAN</span><span class="txt">MEAN 邻域等权平均、速度快；GAUSSIAN 中心像素权重更大、边缘更平滑。</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 12 · Otsu 阈值法
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Otsu</div>
+    <div class="module-title">Otsu 阈值法</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>理解 Otsu 的类间方差最大化原理</li>
+      <li>掌握 Otsu 的直方图分析过程</li>
+      <li>评估 Otsu 的适用条件与局限</li>
+    </ul>
+    <div class="page-meta">12 / 30</div>
+  </div>
+  <div class="main">
+    <h1>Otsu 算法（大津展之, 1979）</h1>
+    <p>Otsu 自动计算最优全局阈值，无需人工设定 T。核心思想：若某个阈值能将前景和背景分得最好，该类间方差（between-class variance）最大。</p>
+
+    <h2>算法流程与数学推导</h2>
+    <div class="step-list">
+      <div class="step-item"><span class="num">1</span><span class="txt">计算灰度直方图（256 bins），获取各灰度级像素占比 p(i)</span></div>
+      <div class="step-item"><span class="num">2</span><span class="txt">对每个候选阈值 t∈[0,255]，将像素分为 C₀(≤t) 和 C₁(&gt;t)，计算 ω₀(t) = Σp(i) for i≤t，ω₁(t) = 1−ω₀</span></div>
+      <div class="step-item"><span class="num">3</span><span class="txt">计算两类灰度均值 μ₀(t)、μ₁(t)，及全局均值 μ = ω₀μ₀ + ω₁μ₁</span></div>
+      <div class="step-item"><span class="num">4</span><span class="txt">类间方差 σ²<sub>b</sub>(t) = ω₀(t)·ω₁(t)·[μ₀(t)−μ₁(t)]²，选择使 σ²<sub>b</sub> 最大的 t</span></div>
+    </div>
+
+    <div class="cols-2">
+      <div class="col-item">
+        <h4>适用条件</h4>
+        <p>直方图呈现明显双峰分布时效果最佳——均匀光照、前景背景对比度高。此时 Otsu 自动找到两峰之间的谷底。</p>
+      </div>
+      <div class="col-item">
+        <h4>局限</h4>
+        <p>直方图为单峰（前景面积极小或极大）、多峰（多种灰度目标）或无明显分离峰时，效果急剧下降。此时应改用自适应阈值。</p>
+      </div>
+    </div>
+
+    <div class="code-block"><span class="cmt"># Otsu 自动阈值（ret 返回计算出的最优阈值）</span>
+ret, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+print(f'Otsu threshold = {ret}')  <span class="cmt"># 输出如 127.0</span>
+
+<span class="cmt"># Otsu + 自适应 Canny 阈值推荐</span>
+<span class="cmt"># T_low = otsu_threshold, T_high = 1.5 * otsu_threshold</span></div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 13 · 形态学：腐蚀与膨胀
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Morphology</div>
+    <div class="module-title">腐蚀与膨胀</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>理解腐蚀和膨胀的滑动核操作机制</li>
+      <li>掌握结构元素的形状和尺寸影响</li>
+      <li>区分腐蚀与膨胀的几何效果</li>
+    </ul>
+    <div class="page-meta">13 / 30</div>
+  </div>
+  <div class="main">
+    <h1>形态学基础操作</h1>
+    <p>形态学操作处理二值图像中的形状和结构。核心是使用结构元素在图像上滑动执行局部逻辑运算——目的是将检测目标转换成更稳定的几何表达。</p>
+
+    <div class="cols-2">
+      <div class="col-item">
+        <h4>腐蚀（Erosion）</h4>
+        <p>结构元素区域内所有像素均为前景时，中心像素保留；否则设为背景。缩小前景区域，消除孤立小噪点，断开细连接。</p>
+        <div class="code-block" style="font-size:clamp(13px,.82vw,16px);padding:6px 10px;">erosion = cv2.erode(binary, kernel, iterations=1)</div>
+        <div class="diagram" style="margin:.2vh 0">
+          <svg viewBox="0 0 280 40" width="280" height="40">
+            <rect x="0" y="4" width="36" height="32" rx="2" fill="rgba(42,30,19,.5)"/>
+            <text x="18" y="25" font-family="'IBM Plex Mono',monospace" font-size="10" fill="#fff" text-anchor="middle">A</text>
+            <text x="45" y="25" font-family="'IBM Plex Mono',monospace" font-size="14" fill="#2a1e13">→ 腐蚀 →</text>
+            <rect x="110" y="6" width="28" height="28" rx="2" fill="#2a1e13"/>
+            <text x="124" y="25" font-family="'IBM Plex Mono',monospace" font-size="10" fill="#fff" text-anchor="middle">A'</text>
+            <text x="150" y="25" font-family="'IBM Plex Mono',monospace" font-size="10" fill-opacity=".5" fill="#2a1e13">缩小轮廓</text>
+          </svg>
+        </div>
+      </div>
+      <div class="col-item">
+        <h4>膨胀（Dilation）</h4>
+        <p>结构元素区域内存在至少一个前景像素，中心像素设为前景；否则为背景。扩大前景区域，填充小孔洞，连接断裂邻近区域。</p>
+        <div class="code-block" style="font-size:clamp(13px,.82vw,16px);padding:6px 10px;">dilation = cv2.dilate(binary, kernel, iterations=1)</div>
+        <div class="diagram" style="margin:.2vh 0">
+          <svg viewBox="0 0 280 40" width="280" height="40">
+            <rect x="0" y="6" width="28" height="28" rx="2" fill="#2a1e13"/>
+            <text x="14" y="25" font-family="'IBM Plex Mono',monospace" font-size="10" fill="#fff" text-anchor="middle">A</text>
+            <text x="37" y="25" font-family="'IBM Plex Mono',monospace" font-size="14" fill="#2a1e13">→ 膨胀 →</text>
+            <rect x="100" y="4" width="36" height="32" rx="2" fill="rgba(42,30,19,.5)"/>
+            <text x="118" y="25" font-family="'IBM Plex Mono',monospace" font-size="10" fill="#fff" text-anchor="middle">A'</text>
+            <text x="145" y="25" font-family="'IBM Plex Mono',monospace" font-size="10" fill-opacity=".5" fill="#2a1e13">扩大轮廓</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <h2>结构元素创建方式</h2>
+    <div class="code-block" style="margin-bottom:0"><span class="cmt"># OpenCV 中三种结构元素形状</span>
+kernel_rect    = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))    <span class="cmt"># 矩形 — 各向同性，通用</span>
+kernel_ellipse = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)) <span class="cmt"># 椭圆 — 平滑效果更佳</span>
+kernel_cross   = cv2.getStructuringElement(cv2.MORPH_CROSS, (5, 5))   <span class="cmt"># 十字 — 各向异性</span>
+<span class="cmt"># iterations 控制重复执行次数，1 次去细小噪点，3-5 次显著收缩/扩张</span></div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 14 · 开运算与闭运算
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Morphology</div>
+    <div class="module-title">开运算与闭运算</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>掌握开闭运算的级联顺序</li>
+      <li>理解开闭运算各自的应用场景</li>
+      <li>学会选择合适的内核尺寸</li>
+    </ul>
+    <div class="page-meta">14 / 30</div>
+  </div>
+  <div class="main">
+    <h1>复合形态学操作</h1>
+    <p>腐蚀和膨胀的级联组合构成更高级的操作。开运算消除噪点，闭运算填充孔洞——它们是工业预处理中最常用的两种形态学操作。</p>
+
+    <div class="cols-2">
+      <div class="col-item">
+        <h4>开运算 — Opening</h4>
+        <p><strong>先腐蚀再膨胀</strong>：腐蚀消除细小突出和独立亮点，膨胀将主要区域恢复至接近原尺寸。用途：去除孤立噪声点、切断细的桥接部分、平滑目标外轮廓。</p>
+        <div class="code-block" style="font-size:clamp(13px,.82vw,16px);padding:6px 10px;">opening = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)</div>
+      </div>
+      <div class="col-item">
+        <h4>闭运算 — Closing</h4>
+        <p><strong>先膨胀再腐蚀</strong>：膨胀先填充内部小孔洞和窄缝隙，腐蚀将外扩区域收缩回原尺寸。用途：填充孔洞、连接断裂邻近区域、平滑目标内轮廓。</p>
+        <div class="code-block" style="font-size:clamp(13px,.82vw,16px);padding:6px 10px;">closing = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)</div>
+      </div>
+    </div>
+
+    <div class="diagram">
+      <svg viewBox="0 0 700 42" width="700" height="42">
+        <rect x="0" y="0" width="700" height="42" fill="none"/>
+        <text x="30" y="26" font-family="var(--serif-zh)" font-size="14" fill="#2a1e13">开运算：</text>
+        <rect x="100" y="10" width="70" height="26" rx="3" fill="rgba(42,30,19,.7)"/>
+        <circle cx="125" cy="23" r="3" fill="#eedfc7"/>
+        <text x="178" y="26" font-family="'IBM Plex Mono',monospace" font-size="13" fill="#2a1e13">→</text>
+        <rect x="200" y="12" width="60" height="22" rx="3" fill="#2a1e13"/>
+        <text x="350" y="26" font-family="var(--serif-zh)" font-size="14" fill="#2a1e13">闭运算：</text>
+        <rect x="420" y="12" width="60" height="22" rx="3" fill="#2a1e13"/>
+        <circle cx="448" cy="18" r="3" fill="#eedfc7"/>
+        <text x="488" y="26" font-family="'IBM Plex Mono',monospace" font-size="13" fill="#2a1e13">→</text>
+        <rect x="510" y="10" width="70" height="26" rx="3" fill="rgba(42,30,19,.7)"/>
+        <text x="588" y="26" font-family="var(--serif-zh)" font-size="12" fill-opacity=".5" fill="#2a1e13">孔洞被填充</text>
+      </svg>
+    </div>
+
+    <p>核尺寸应根据目标尺度选择。例如 PCB 焊点检查时，焊点约 30-50 像素，设核为 5×5 可去 2-3 像素孤立噪点而不影响焊点几何形态。连接断裂文字笔画时核可放大至 7×7+。</p>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 15 · 形态学应用
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Morphology</div>
+    <div class="module-title">形态学应用实例</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>掌握形态学操作的工程化组合</li>
+      <li>理解形态学梯度的计算方式</li>
+      <li>了解顶帽/黑帽变换的用途</li>
+    </ul>
+    <div class="page-meta">15 / 30</div>
+  </div>
+  <div class="main">
+    <h1>典型工程组合</h1>
+    <p>工业视觉中最常用的形态学后处理链：Canny → 闭运算(3×3) → 开运算(3×3) → 孔洞填充 → 轮廓提取。</p>
+    <div class="step-list">
+      <div class="step-item"><span class="num">01</span><span class="txt"><strong>二值化预处理</strong> — Canny 边缘检测后闭运算连接断裂边缘线，使轮廓闭合。</span></div>
+      <div class="step-item"><span class="num">02</span><span class="txt"><strong>噪声清除</strong> — 开运算去除孤立噪点。核大小根据噪声尺度选 3×3 或 5×5。</span></div>
+      <div class="step-item"><span class="num">03</span><span class="txt"><strong>空洞填充</strong> — 闭运算填充目标区域内小孔洞。内核略大于空洞直径。</span></div>
+      <div class="step-item"><span class="num">04</span><span class="txt"><strong>分离粘连</strong> — 多次腐蚀分离轻度粘连目标，配合距离变换处理复杂粘连。</span></div>
+    </div>
+
+    <div class="cols-2" style="grid-template-columns:1.2fr 1fr">
+      <div>
+        <h3>形态学梯度</h3>
+        <p>膨胀结果与腐蚀结果的差值图像，可提取目标边界：</p>
+        <div class="code-block" style="font-size:clamp(13px,.82vw,17px);padding:8px 12px;">gradient = cv2.morphologyEx(binary, cv2.MORPH_GRADIENT, kernel)
+<span class="cmt"># 等价于：dilate − erode</span>
+<span class="cmt"># 输出为目标的边缘轮廓，非常适合边界测量</span></div>
+      </div>
+      <div>
+        <h3>顶帽 &amp; 黑帽变换</h3>
+        <div class="col-item"><h4>顶帽（Top Hat）</h4><p>原图−开运算，提取明亮细节（小亮点、窄线条）。<code>MORPH_TOPHAT</code></p></div>
+        <div class="col-item" style="margin-top:4px"><h4>黑帽（Black Hat）</h4><p>闭运算−原图，提取暗色细节（小孔洞、窄缝隙）。<code>MORPH_BLACKHAT</code></p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 16 · 轮廓提取：findContours
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Contours</div>
+    <div class="module-title">轮廓提取：findContours</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>理解轮廓与边缘的本质区别</li>
+      <li>掌握 findContours 的调用方法</li>
+      <li>理解轮廓层级模式的选择</li>
+    </ul>
+    <div class="page-meta">16 / 30</div>
+  </div>
+  <div class="main">
+    <h1>轮廓提取</h1>
+    <p>轮廓（Contour）是二值图像中连通区域的有序边界点集。边缘是像素级局部特征，轮廓是区域级结构化表达。典型流水线：灰度化 → 阈值化（或 Canny）→ findContours → 几何特征计算。</p>
+
+    <div class="code-block"><span class="cmt"># 标准调用（OpenCV 3+ 返回两个值）</span>
+contours, hierarchy = cv2.findContours(
+    binary,                     <span class="cmt"># 输入：二值图像（前景白背景黑）</span>
+    cv2.RETR_EXTERNAL,          <span class="cmt"># 检索模式</span>
+    cv2.CHAIN_APPROX_SIMPLE     <span class="cmt"># 轮廓近似方法</span>
+)
+cv2.drawContours(img_rgb, contours, -1, (0, 255, 0), 2)</div>
+
+    <div class="cols-2">
+      <div class="col-item">
+        <h4>四种检索模式</h4>
+        <p><strong>EXTERNAL</strong>：仅最外层轮廓，忽略内部孔洞，速度最快。<br><strong>LIST</strong>：所有轮廓无层级。<br><strong>CCOMP</strong>：两级层级（外=0，内孔=1）。<br><strong>TREE</strong>：完整层级树，最全面但最慢。</p>
+      </div>
+      <div class="col-item">
+        <h4>两种近似方法</h4>
+        <p><strong>NONE</strong>：存储所有边界点（精确但数据量大）。<br><strong>SIMPLE</strong>：仅存储端点（水平/垂直/对角线的端点），数据量减少约 98%。一条 100 点的直线段压缩为 2 个端点。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 17 · 轮廓几何特征
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Contours</div>
+    <div class="module-title">轮廓几何特征提取</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>掌握轮廓的常见几何特征计算</li>
+      <li>理解特征在目标检测中的作用</li>
+      <li>学会轮廓近似与凸包计算</li>
+    </ul>
+    <div class="page-meta">17 / 30</div>
+  </div>
+  <div class="main">
+    <h1>轮廓特征计算</h1>
+    <p>从轮廓可提取丰富的几何特征用于目标识别、形状分类和异常检测。</p>
+
+    <div class="cols-2" style="margin-bottom:.3vh">
+      <div class="col-item"><h4>面积 cv2.contourArea</h4><p>包围区域的像素面积，筛除过小或过大的干扰区域。</p></div>
+      <div class="col-item"><h4>周长 cv2.arcLength</h4><p>闭合曲线长度。结合面积计算圆形度 4πA/P²（完美圆=1.0）。</p></div>
+      <div class="col-item"><h4>外接矩形 cv2.boundingRect</h4><p>最小轴对齐矩形，返回 (x,y,w,h)，ROI 提取的基础。</p></div>
+      <div class="col-item"><h4>最小外接矩形 cv2.minAreaRect</h4><p>可旋转的最小包围矩形，反映目标实际朝向和长宽比。</p></div>
+    </div>
+
+    <div class="code-block" style="font-size:clamp(14px,.88vw,18px);padding:10px 14px;"><span class="cmt"># 对每个轮廓计算完整几何特征</span>
+for i, cnt in enumerate(contours):
+    area = cv2.contourArea(cnt)
+    if area < 100: continue                     <span class="cmt"># 跳过小噪点</span>
+
+    perimeter = cv2.arcLength(cnt, True)
+    x, y, w, h = cv2.boundingRect(cnt)
+    aspect_ratio = w / h                        <span class="cmt"># 长宽比：标牌常接近 1:1</span>
+    rect = cv2.minAreaRect(cnt)                 <span class="cmt"># ((cx,cy), (w,h), angle)</span>
+
+    <span class="cmt"># 轮廓近似（Douglas-Peucker 算法）</span>
+    epsilon = 0.02 * perimeter
+    approx = cv2.approxPolyDP(cnt, epsilon, True)
+    vertices = len(approx)                      <span class="cmt"># 顶点数可用于分类形状</span>
+
+    <span class="cmt"># 凸包与凸度</span>
+    hull = cv2.convexHull(cnt)
+    hull_area = cv2.contourArea(hull)
+    solidity = area / hull_area                 <span class="cmt"># 凸度：1.0=完全凸形</span>
+
+    circularity = 4 * np.pi * area / (perimeter * perimeter)</div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 18 · 轮廓应用：零件检测
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Contours</div>
+    <div class="module-title">轮廓应用：零件检测</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>掌握基于规则的工业检测方法</li>
+      <li>理解几何形状判别的逻辑</li>
+      <li>学会构建检测流水线</li>
+    </ul>
+    <div class="page-meta">18 / 30</div>
+  </div>
+  <div class="main">
+    <h1>基于轮廓特征的规则检测</h1>
+    <p>在受控工业场景中，轮廓几何特征可用于定义简明的合格/不合格判别规则，实现无需机器学习的快速质检。</p>
+
+    <div class="step-list">
+      <div class="step-item"><span class="num">01</span><span class="txt"><strong>零件缺角检测</strong> — 通过 approxPolyDP 计算多边形顶点数。若顶点数少于预期值，判断存在缺角。凸度(solidity)也显著低于完整零件。</span></div>
+      <div class="step-item"><span class="num">02</span><span class="txt"><strong>圆形按钮检测</strong> — 圆形度 4πA/P²：完美圆=1.0，实际圆形按钮通常&gt;0.85。低于阈值则判断变形或缺失。</span></div>
+      <div class="step-item"><span class="num">03</span><span class="txt"><strong>纸张倾斜校正</strong> — minAreaRect 的角度值反映文档摆放姿态，可计算旋转校正量。</span></div>
+      <div class="step-item"><span class="num">04</span><span class="txt"><strong>尺寸测量</strong> — 外接矩形宽高结合像素/毫米标定比计算物理尺寸，超出公差即不合格。</span></div>
+    </div>
+
+    <div class="code-block" style="margin-bottom:0"><span class="cmt"># 完整检测函数：检测图像中的方形零件</span>
+def inspect_part(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    edges = cv2.Canny(gray, 80, 160)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3,3))
+    closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+    cnts, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for c in cnts:
+        area = cv2.contourArea(c)
+        if area < 500: continue
+        peri = cv2.arcLength(c, True)
+        approx = cv2.approxPolyDP(c, 0.02*peri, True)
+        if len(approx) != 4: continue          <span class="cmt"># 舍弃非四边形</span>
+        x,y,w,h = cv2.boundingRect(c)
+        if 0.8 &lt; w/h &lt; 1.2:                  <span class="cmt"># 长宽比在接近正方形的范围</span>
+            cv2.rectangle(image, (x,y), (x+w,y+h), (0,255,0), 2)
+    return image</div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 19 · 传统特征工程概述
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Feature Eng</div>
+    <div class="module-title">传统特征工程概述</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>理解特征工程在视觉中的角色</li>
+      <li>掌握手工设计特征的三阶段范式</li>
+      <li>区分传统特征与深度学习特征</li>
+    </ul>
+    <div class="page-meta">19 / 30</div>
+  </div>
+  <div class="main">
+    <h1>传统视觉特征工程</h1>
+    <p>特征工程是将原始像素数据转换为有意义的数值表示的过程。传统方法依赖人工设计的特征描述子提取图像的局部或全局特征，随后输入分类器（SVM、随机森林）完成识别。</p>
+
+    <h2>特征设计三阶段范式</h2>
+    <div class="step-list">
+      <div class="step-item"><span class="num">1</span><span class="txt"><strong>检测</strong> — 在图像中定位具有显著性的兴趣点（角点、斑点、边缘区域）。检测器需具有可重复性：同一场景不同视角下稳定检出相同点。</span></div>
+      <div class="step-item"><span class="num">2</span><span class="txt"><strong>描述</strong> — 在兴趣点邻域内计算数值向量（描述子）。描述子应具有不变性：对光照、旋转、尺度缩放稳定。</span></div>
+      <div class="step-item"><span class="num">3</span><span class="txt"><strong>匹配/分类</strong> — 将描述子与数据库特征比较相似度，或输入分类器进行类别判定。</span></div>
+    </div>
+
+    <h2>四种经典方法定位</h2>
+    <div class="comp-table">
+      <div class="col"><h4>HOG</h4><ul><li>密集网格 + 梯度直方图</li><li>全局/区域级描述</li><li>行人检测标杆</li></ul></div>
+      <div class="col"><h4>SIFT</h4><ul><li>尺度空间极值点 + 128维描述</li><li>局部稀疏关键点</li><li>图像匹配/拼接/三维重建</li></ul></div>
+      <div class="col"><h4>ORB</h4><ul><li>FAST角点 + rBRIEF描述</li><li>局部稀疏，二值特征</li><li>实时SLAM/AR应用</li></ul></div>
+      <div class="col"><h4>模板匹配</h4><ul><li>滑动窗口 + 相似度度量</li><li>无需训练，固定形状</li><li>工位级零件检测</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 20 · HOG 特征：概念与配置
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · HOG</div>
+    <div class="module-title">HOG：概念与配置</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>理解 HOG 的核心设计思想</li>
+      <li>掌握 Cell 和 Block 的层级结构</li>
+      <li>了解 HOG+SVM 行人检测流程</li>
+    </ul>
+    <div class="page-meta">20 / 30</div>
+  </div>
+  <div class="main">
+    <h1>HOG 特征（Dalal &amp; Triggs, 2005）</h1>
+    <p>HOG（方向梯度直方图）最初用于行人检测。核心思想：物体的外观和形状可以由局部梯度方向的统计分布来描述——即使不知道精确边缘位置，梯度方向分布的统计模式已足够判别。</p>
+
+    <div class="code-block"><span class="cmt"># OpenCV HOGDescriptor 配置（行人检测默认参数）</span>
+hog = cv2.HOGDescriptor(
+    winSize=(64, 128),        <span class="cmt"># 检测窗口尺寸</span>
+    blockSize=(16, 16),       <span class="cmt"># 归一化块大小</span>
+    blockStride=(8, 8),       <span class="cmt"># 块滑动步长</span>
+    cellSize=(8, 8),          <span class="cmt"># 局部 cell 大小</span>
+    nbins=9                   <span class="cmt"># 梯度方向直方图 bin 数</span>
+)
+features = hog.compute(image)              <span class="cmt"># 返回一维数组</span>
+<span class="cmt"># 使用预训练行人检测器</span>
+hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
+boxes, weights = hog.detectMultiScale(image)</div>
+
+    <div class="cols-2">
+      <div class="col-item"><h4>Cell 直方图</h4><p>8×8 像素为一个 cell，统计 9 个方向 bin 的梯度幅值加权投票。"软分配"——方向在 bin 边界附近时按距离线性分配到相邻 bin。</p></div>
+      <div class="col-item"><h4>Block 归一化</h4><p>2×2=4 个 cell 组成一个 block，在 block 内做 L2 归一化克服光照变化。block 之间重叠（stride&lt;size）产生冗余编码——这是 HOG 鲁棒性的重要来源。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 21 · HOG 计算细节
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · HOG</div>
+    <div class="module-title">HOG 特征计算细节</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>掌握梯度方向投票与归一化</li>
+      <li>理解 Block 归一化的必要性</li>
+      <li>能够手动推演特征维度</li>
+    </ul>
+    <div class="page-meta">21 / 30</div>
+  </div>
+  <div class="main">
+    <h1>特征维度推算</h1>
+    <p>以 64×128 检测窗口为例：水平方向 cell 数 = (64−8)/8 = 7，垂直方向 cell 数 = (128−8)/8 = 15。每个 block 覆盖 (16/8)×(16/8)=4 个 cell = 4×9=36 维。block 数 = (7−1)×(15−1)=84（步长 8 像素），总维数 = 84×36 = 3,024 维。</p>
+    <div class="formula" style="font-family:var(--mono);font-style:normal;text-align:left;font-size:clamp(14px,.88vw,18px);padding:8px 16px;">
+总特征向量 = ( (64-16)/8 + 1 ) × ( (128-16)/8 + 1 ) × (4 × 9) = 7 × 15 × 36 = 3,780 维</div>
+
+    <div class="cols-2">
+      <div>
+        <h3>投票机制细节</h3>
+        <p>梯度方向 θ∈[0°,180°]（无符号梯度，利用方向对称性）向 9 个 bin 投票。投票权重为像素的梯度幅值——幅值大的边缘贡献更大。</p>
+        <p>未归一化的 cell 直方图受光照强度直接影响。Block 归一化通过在 block 内对 36 维向量做 L2 归一化解决了这一问题。</p>
+      </div>
+      <div>
+        <div class="diagram" style="margin-top:0">
+          <svg viewBox="0 0 300 90" width="300" height="90">
+            <rect x="0" y="0" width="300" height="90" fill="none"/>
+            <rect x="5" y="5" width="70" height="70" rx="2" fill="rgba(42,30,19,.04)" stroke="rgba(42,30,19,.12)" stroke-width="1"/>
+            <text x="40" y="15" font-family="'IBM Plex Mono',monospace" font-size="8" fill-opacity=".4" text-anchor="middle">cell 8×8</text>
+            <!-- Direction lines -->
+            <line x1="25" y1="40" x2="25" y2="30" stroke="#8b5e3c" stroke-width="1.5"/>
+            <line x1="55" y1="40" x2="55" y2="25" stroke="#8b5e3c" stroke-width="1.5"/>
+            <line x1="40" y1="55" x2="40" y2="45" stroke="#8b5e3c" stroke-width="1.5"/>
+            <line x1="40" y1="30" x2="40" y2="20" stroke="#8b5e3c" stroke-width="2"/>
+            <!-- direction histogram rose -->
+            <rect x="88" y="15" width="65" height="55" rx="2" fill="rgba(139,94,60,.06)" stroke="rgba(139,94,60,.12)" stroke-width="1"/>
+            <text x="120" y="25" font-family="'IBM Plex Mono',monospace" font-size="8" fill-opacity=".4" text-anchor="middle">9-bin 直方图</text>
+            <rect x="92" y="37" width="5" height="18" fill="#8b5e3c" opacity=".25"/>
+            <rect x="99" y="32" width="5" height="23" fill="#8b5e3c" opacity=".35"/>
+            <rect x="106" y="27" width="5" height="28" fill="#8b5e3c" opacity=".5"/>
+            <rect x="113" y="32" width="5" height="23" fill="#8b5e3c" opacity=".4"/>
+            <rect x="120" y="38" width="5" height="17" fill="#8b5e3c" opacity=".25"/>
+            <rect x="127" y="33" width="5" height="22" fill="#8b5e3c" opacity=".35"/>
+            <rect x="134" y="28" width="5" height="27" fill="#8b5e3c" opacity=".5"/>
+            <rect x="141" y="34" width="5" height="21" fill="#8b5e3c" opacity=".3"/>
+            <!-- block -->
+            <rect x="166" y="5" width="130" height="80" rx="2" fill="none" stroke="rgba(42,30,19,.15)" stroke-width="1.5" stroke-dasharray="4,3"/>
+            <text x="231" y="15" font-family="'IBM Plex Mono',monospace" font-size="8" fill-opacity=".4" text-anchor="middle">block 16×16 (4 cells)</text>
+            <rect x="173" y="22" width="55" height="26" rx="2" fill="rgba(42,30,19,.03)" stroke="rgba(42,30,19,.08)" stroke-width="1"/>
+            <rect x="234" y="22" width="55" height="26" rx="2" fill="rgba(42,30,19,.03)" stroke="rgba(42,30,19,.08)" stroke-width="1"/>
+            <rect x="173" y="52" width="55" height="26" rx="2" fill="rgba(42,30,19,.03)" stroke="rgba(42,30,19,.08)" stroke-width="1"/>
+            <rect x="234" y="52" width="55" height="26" rx="2" fill="rgba(42,30,19,.03)" stroke="rgba(42,30,19,.08)" stroke-width="1"/>
+            <text x="200" y="38" font-family="'IBM Plex Mono',monospace" font-size="9" fill-opacity=".3" text-anchor="middle">H₁</text>
+            <text x="262" y="38" font-family="'IBM Plex Mono',monospace" font-size="9" fill-opacity=".3" text-anchor="middle">H₂</text>
+            <text x="200" y="68" font-family="'IBM Plex Mono',monospace" font-size="9" fill-opacity=".3" text-anchor="middle">H₃</text>
+            <text x="262" y="68" font-family="'IBM Plex Mono',monospace" font-size="9" fill-opacity=".3" text-anchor="middle">H₄</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <div class="tip-box">
+      <span class="label">Key Insight</span>
+      <span class="body">HOG 的核心洞见是"用局部梯度方向的统计分布代替精确边缘位置"——小范围的形变不影响统计分布，因此 HOG 对行人姿态变化有较好的容忍度。</span>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 22 · SIFT 特征
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · SIFT</div>
+    <div class="module-title">SIFT：尺度不变特征变换</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>理解尺度空间理论的意义</li>
+      <li>掌握 SIFT 四阶段检测流程</li>
+      <li>掌握 OpenCV SIFT 调用方法</li>
+    </ul>
+    <div class="page-meta">22 / 30</div>
+  </div>
+  <div class="main">
+    <h1>SIFT（Lowe, 1999/2004）</h1>
+    <p>SIFT 是计算机视觉最具影响力的局部特征描述子之一，对缩放、旋转、光照变化和视角变换均具有一定不变性。</p>
+
+    <h2>四阶段检测流程</h2>
+    <div class="step-list">
+      <div class="step-item"><span class="num">01</span><span class="txt"><strong>尺度空间极值检测</strong> — 构建高斯金字塔（不同 σ 和降采样），计算 DoG 多尺度差分，在 3D（x, y, σ）搜索局部极值。</span></div>
+      <div class="step-item"><span class="num">02</span><span class="txt"><strong>关键点精确定位</strong> — 亚像素插值定位，去除低对比度和边缘上的不稳定点。</span></div>
+      <div class="step-item"><span class="num">03</span><span class="txt"><strong>方向分配</strong> — 关键点邻域梯度直方图主峰值作为主方向，赋予旋转不变性。</span></div>
+      <div class="step-item"><span class="num">04</span><span class="txt"><strong>描述子计算</strong> — 16×16 邻域划分 4×4 子区域，每区域 8 方向直方图，共 128 维特征向量。</span></div>
+    </div>
+
+    <div class="code-block"><span class="cmt"># OpenCV SIFT 使用</span>
+sift = cv2.SIFT_create(nfeatures=0, nOctaveLayers=3, contrastThreshold=0.04)
+kp, des = sift.detectAndCompute(gray, None)
+<span class="cmt"># kp: 关键点列表（含位置、尺度、方向）</span>
+<span class="cmt"># des: N×128 numpy 数组（浮点描述子）</span>
+
+<span class="cmt"># 绘制关键点（带尺度和方向可视化）</span>
+img_kp = cv2.drawKeypoints(gray, kp, None,
+    flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+
+<span class="cmt"># 特征匹配（暴力匹配 + Lowe 比率测试过滤）</span>
+bf = cv2.BFMatcher()
+matches = bf.knnMatch(des1, des2, k=2)
+good = [m for m,n in matches if m.distance &lt; 0.75 * n.distance]</div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 23 · ORB 特征
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · ORB</div>
+    <div class="module-title">ORB：实时轻量特征</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>理解 ORB 的设计目标：速度优先</li>
+      <li>掌握 FAST 角点检测原理</li>
+      <li>理解 rBRIEF 二值描述子</li>
+      <li>掌握 ORB 与 SIFT 的对比</li>
+    </ul>
+    <div class="page-meta">23 / 30</div>
+  </div>
+  <div class="main">
+    <h1>ORB（Rublee et al., 2011）</h1>
+    <p>ORB 专为实时应用设计，是 SIFT 的高效替代。它结合了改进的 FAST 角点检测器和 BRIEF 描述子，并添加了旋转不变性和尺度不变性。</p>
+
+    <div class="cols-2">
+      <div class="col-item">
+        <h4>FAST 角点检测</h4>
+        <p>以像素 p 为圆心，检查半径为 3 的 Bresenham 圆上 16 个像素。若连续 N 个像素亮度均高于 I<sub>p</sub>+t 或低于 I<sub>p</sub>−t，判定为角点。ORB 使用 FAST-9（N=9）。</p>
+      </div>
+      <div class="col-item">
+        <h4>rBRIEF 描述子</h4>
+        <p>在关键点邻域内随机选取 256 对像素，比较每对亮度大小，生成 256 位二值描述子。ORB 的改进使用学习到的更优采样模式并加入旋转补偿。二值描述子可用汉明距离高速匹配（异或+位计数），比 L2 距离快一个数量级。</p>
+      </div>
+    </div>
+
+    <h2>ORB 与 SIFT 对比</h2>
+    <div class="comp-table">
+      <div class="col"><h4>SIFT</h4><ul><li>128 维浮点描述子</li><li>欧氏距离匹配</li><li>约 300-500 关键点/帧</li><li>匹配质量高</li><li>专利保护（已过期）</li></ul></div>
+      <div class="col"><h4>ORB</h4><ul><li>256 位二值描述子</li><li>汉明距离匹配</li><li>约 500-1000 关键点/帧</li><li>实时（比 SIFT 快 10-20 倍）</li><li>无专利限制（开源友好）</li></ul></div>
+    </div>
+
+    <div class="code-block" style="margin-bottom:0"><span class="cmt"># ORB 特征检测</span>
+orb = cv2.ORB_create(nfeatures=1000, scaleFactor=1.2, nlevels=8)
+kp, des = orb.detectAndCompute(gray, None)   <span class="cmt"># des: N×256 uint8</span>
+bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+matches = bf.match(des1, des2)</div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 24 · 模板匹配
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Template Matching</div>
+    <div class="module-title">模板匹配</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>掌握滑动窗口匹配机制</li>
+      <li>理解不同相似度度量的差异</li>
+      <li>评估模板匹配的适用边界</li>
+    </ul>
+    <div class="page-meta">24 / 30</div>
+  </div>
+  <div class="main">
+    <h1>模板匹配（Template Matching）</h1>
+    <p>模板匹配是视觉中最基础的物体检测方法——将模板图像在待搜索图上逐像素滑动，每位置计算模板与对应区域的相似度，最高值即为匹配位置。</p>
+
+    <div class="cols-2">
+      <div class="col-item"><h4>TM_CCOEFF_NORMED</h4><p>归一化相关系数。值域 [−1,1]，1=完全匹配。对光照变化最鲁棒，推荐首选。</p></div>
+      <div class="col-item"><h4>TM_CCORR_NORMED</h4><p>归一化互相关。值域 [0,1]。计算快但对亮度敏感。</p></div>
+      <div class="col-item"><h4>TM_SQDIFF_NORMED</h4><p>归一化平方差。值域 [0,1]，0=完全匹配。需取最小值。</p></div>
+      <div class="col-item"><h4>TM_CCOEFF</h4><p>非归一化相关系数。结果范围不可控，不推荐优先使用。</p></div>
+    </div>
+
+    <div class="code-block"><span class="cmt"># 模板匹配实现</span>
+template = cv2.imread('template.png', 0)
+w, h = template.shape[::-1]
+
+result = cv2.matchTemplate(gray, template, cv2.TM_CCOEFF_NORMED)
+min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+top_left = max_loc  <span class="cmt"># CCOEFF 取最大值</span>
+cv2.rectangle(img_rgb, top_left, (top_left[0]+w, top_left[1]+h), (0,255,0), 2)
+
+<span class="cmt"># 多实例匹配（阈值 0.8）</span>
+locations = np.where(result >= 0.8)
+for pt in zip(*locations[::-1]):
+    cv2.rectangle(img_rgb, pt, (pt[0]+w, pt[1]+h), (0,255,0), 1)</div>
+
+    <div class="tip-box">
+      <span class="label">Limitation</span>
+      <span class="body">模板匹配对旋转、缩放极度敏感——旋转 10° 几乎无法匹配。变化范围大时需预准备多角度多尺度模板库，或改用 SIFT/ORB 特征匹配。</span>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 25 · 传统视觉与深度学习的关系
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Relations</div>
+    <div class="module-title">传统视觉与深度学习</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>理解传统方法与深度学习的互补性</li>
+      <li>掌握混合流水线的架构模式</li>
+      <li>评估工业项目的技术选型策略</li>
+    </ul>
+    <div class="page-meta">25 / 30</div>
+  </div>
+  <div class="main">
+    <h1>传统视觉 vs 深度学习</h1>
+
+    <div class="comp-table">
+      <div class="col"><h4>传统方法</h4><ul><li>可解释性强：每个步骤的数学含义可分析</li><li>数据需求极少：零样本或几张即可配置</li><li>计算成本低：嵌入式设备可实时运行</li><li>泛化范围窄：场景变化需重新调参</li><li>特征手工设计：依赖专家经验</li></ul></div>
+      <div class="col"><h4>深度学习方法</h4><ul><li>端到端学习：特征自动从数据中学习</li><li>数据需求大：通常需数千至数万标注样本</li><li>计算开销大：推理需 GPU 或 NPU</li><li>泛化能力强：对姿态/背景/光照更鲁棒</li><li>可解释性弱：决策过程难以追溯</li></ul></div>
+    </div>
+
+    <h2>工业项目中的混合流水线</h2>
+    <p>最常见的工业架构是<strong>传统预处理 + 深度学习检测 + 规则后处理</strong>：</p>
+    <div class="step-list">
+      <div class="step-item"><span class="num">预处理</span><span class="txt"><strong>传统方法</strong>（灰度化、高斯滤波、直方图均衡化、形态学）标准化输入，消除光照和噪声变化。</span></div>
+      <div class="step-item"><span class="num">检测</span><span class="txt"><strong>深度学习模型</strong>（YOLO / Faster R-CNN）在高维特征空间中完成定位和分类。</span></div>
+      <div class="step-item"><span class="num">后处理</span><span class="txt"><strong>传统规则</strong>（面积筛选、长宽比约束、凸度检查、NMS）消除误检、精化结果。</span></div>
+    </div>
+
+    <p>两种方法并非替代关系，而是在不同抽象层级上互补。理解传统方法的边界，是有效运用深度学习的前提。</p>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 26 · 实操：零件轮廓检测（一）
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Lab</div>
+    <div class="module-title">实操：零件轮廓检测（一）</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>完成图像预处理流水线配置</li>
+      <li>实现 Canny 边缘检测并调参</li>
+      <li>应用形态学闭合修复断裂边缘</li>
+    </ul>
+    <div class="page-meta">26 / 30</div>
+  </div>
+  <div class="main">
+    <h1>课堂实操：零件轮廓检测</h1>
+    <p>本实验使用工业零件图像（或安全帽图像）完成从预处理到轮廓提取的完整流水线。每步的参数选择和结果观察均需记录。</p>
+
+    <div class="code-block"><span class="cmt">#!/usr/bin/env python3</span>
+<span class="cmt"># 实验代码：零件轮廓检测 · 完整流水线</span>
+import cv2, numpy as np
+
+<span class="cmt"># 1. 读取图像并灰度化</span>
+img = cv2.imread('part.jpg')
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+<span class="cmt"># 2. 高斯滤波降噪（核大小 5×5, σ=1.0）</span>
+blurred = cv2.GaussianBlur(gray, (5, 5), 1.0)
+
+<span class="cmt"># 3. Canny 边缘检测（初始阈值 80/160）</span>
+edges = cv2.Canny(blurred, 80, 160)
+
+<span class="cmt"># 4. 形态学闭运算 + 开运算（修复断裂 + 去除噪点）</span>
+kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+closed = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+cleaned = cv2.morphologyEx(closed, cv2.MORPH_OPEN, kernel)</div>
+
+    <h2>参数记录表——实验过程中需对比不同配置的输出差异</h2>
+    <div class="comp-table">
+      <div class="col"><h4>高斯核大小</h4><ul><li>(3,3) — 保留精细细节但噪声多</li><li>(5,5) — 平衡，推荐起始值</li><li>(7,7) — 强平滑，弱边缘可能丢失</li></ul></div>
+      <div class="col"><h4>Canny 阈值</h4><ul><li>(50,100) — 边缘密集含纹理</li><li>(80,160) — 标准配置</li><li>(150,300) — 仅极强边缘</li></ul></div>
+      <div class="col"><h4>核形状</h4><ul><li>RECT — 锐利边缘</li><li>ELLIPSE — 平滑过渡</li><li>CROSS — 各向异性</li></ul></div>
+      <div class="col"><h4>核大小</h4><ul><li>(3,3) — 微调</li><li>(5,5) — 中等效果</li><li>(7,7) — 强闭合/强腐蚀</li></ul></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 27 · 实操：轮廓提取与分析
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Lab</div>
+    <div class="module-title">实操：轮廓提取与分析</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>完成轮廓提取与几何特征计算</li>
+      <li>分析关键参数对结果的影响</li>
+      <li>理解参数选择的工程经验规则</li>
+    </ul>
+    <div class="page-meta">27 / 30</div>
+  </div>
+  <div class="main">
+    <h1>实验步骤：轮廓提取与参数影响分析</h1>
+
+    <div class="code-block"><span class="cmt"># 6. 提取轮廓（仅最外层）</span>
+contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+<span class="cmt"># 7. 筛除小噪点并绘制外接矩形</span>
+for i, cnt in enumerate(contours):
+    area = cv2.contourArea(cnt)
+    if area < 500: continue                     <span class="cmt"># 跳过小噪点</span>
+
+    x, y, w, h = cv2.boundingRect(cnt)
+    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+    <span class="cmt"># 输出几何特征用于分析</span>
+    peri = cv2.arcLength(cnt, True)
+    circularity = 4 * np.pi * area / (peri * peri) if peri > 0 else 0
+    print(f'Contour {i}: area={area:.0f}, peri={peri:.1f}, '
+          f'circularity={circularity:.3f}, aspect={w/h:.2f}')
+
+<span class="cmt"># 8. 显示结果</span>
+cv2.imshow('Result', img); cv2.waitKey(0); cv2.destroyAllWindows()</div>
+
+    <h2>实验分析问题</h2>
+    <div class="step-list">
+      <div class="step-item"><span class="num">01</span><span class="txt">记录 Canny 双阈值对边缘数量的影响，并给出定量观察。</span></div>
+      <div class="step-item"><span class="num">02</span><span class="txt">记录高斯核从 (3,3) 到 (7,7) 时轮廓数量和面积的变化。</span></div>
+      <div class="step-item"><span class="num">03</span><span class="txt">分析闭运算核从 3×3 到 7×7 时断裂边缘闭合效果与过度连接风险。</span></div>
+      <div class="step-item"><span class="num">04</span><span class="txt">比较面积阈值 500 与 2000 的筛除效果，并给出合理阈值确定依据。</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 28 · 环境搭建说明
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Setup</div>
+    <div class="module-title">环境搭建与运行说明</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>掌握 OpenCV 安装方法</li>
+      <li>了解多版本 Python 的环境配置</li>
+      <li>能够独立运行演示程序</li>
+    </ul>
+    <div class="page-meta">28 / 30</div>
+  </div>
+  <div class="main">
+    <h1>环境搭建与运行</h1>
+
+    <h2>OpenCV 安装</h2>
+    <div class="code-block"><span class="cmt"># 使用 pip 安装（推荐 Python 3.8-3.11）</span>
+pip install opencv-python==4.9.0.80
+pip install numpy
+
+<span class="cmt"># 如需完整功能（含 GUI 模块）</span>
+pip install opencv-contrib-python==4.9.0.80
+
+<span class="cmt"># 验证安装</span>
+python -c "import cv2; print(cv2.__version__)"
+<span class="cmt"># 预期输出：4.9.0</span></div>
+
+    <p>若遇到 <code>libGL.so.1</code> 报错（Linux 无头环境），安装 OpenCV 无头版：<code>pip install opencv-python-headless</code>。macOS 上若显示相关报错，可通过 <code>brew install opencv</code> 安装系统级依赖。</p>
+
+    <h2>运行演示代码</h2>
+    <div class="step-list">
+      <div class="step-item"><span class="num">01</span><span class="txt">将示例代码保存为 <code>edge_detection.py</code></span></div>
+      <div class="step-item"><span class="num">02</span><span class="txt">准备一张测试图像（如上文的 part.jpg 或从教材网站下载）</span></div>
+      <div class="step-item"><span class="num">03</span><span class="txt">在终端执行 <code>python edge_detection.py</code></span></div>
+      <div class="step-item"><span class="num">04</span><span class="txt">观察窗口中的边缘检测结果，按 ESC 退出</span></div>
+    </div>
+
+    <div class="tip-box">
+      <span class="label">Troubleshoot</span>
+      <span class="body"><code>cv2.imshow</code> 在 SSH 无图形界面或 Docker 中无法使用，此时应将 <code>cv2.imshow</code> 替换为 <code>cv2.imwrite('output.png', img)</code> 将结果写入文件查看。</span>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 29 · 拓展：OpenCV 安装与常见问题
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Troubleshoot</div>
+    <div class="module-title">安装问题与调试建议</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>掌握常见安装错误的解决方法</li>
+      <li>了解交叉编译与嵌入式部署</li>
+      <li>理解官方文档查阅方法</li>
+    </ul>
+    <div class="page-meta">29 / 30</div>
+  </div>
+  <div class="main">
+    <h1>常见安装错误与解决方法</h1>
+
+    <div class="step-list">
+      <div class="step-item"><span class="num"></span><span class="txt"><strong>ImportError: No module named cv2</strong> — 确认已执行 <code>pip install opencv-python</code>，并检查 Python 环境是否与 pip 一致：<code>which python</code> 和 <code>pip list | grep opencv</code>。</span></div>
+      <div class="step-item"><span class="num"></span><span class="txt"><strong>libGL.so.1: cannot open shared object file</strong> — Linux 无图形界面环境，安装 headless 版：<code>pip install opencv-python-headless</code>。</span></div>
+      <div class="step-item"><span class="num"></span><span class="txt"><strong>error: (-215:Assertion failed) !ssize.empty()</strong> — 图像路径错误或文件不存在，使用绝对路径或确认 <code>os.path.exists()</code>。</span></div>
+      <div class="step-item"><span class="num"></span><span class="txt"><strong>无法创建窗口 / 无 GUI 回显</strong> — Docker 或无头服务器中 <code>cv2.imshow</code> 不可用，改用 <code>cv2.imwrite()</code> 保存结果到文件。Jupyter Notebook 中可使用 <code>from matplotlib import pyplot as plt; plt.imshow(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))</code>。</span></div>
+    </div>
+
+    <h2>官方资源</h2>
+    <div class="cols-2">
+      <div class="col-item"><h4>OpenCV 文档</h4><p><code>https://docs.opencv.org/4.x/</code> — 包含全套 Python 和 C++ 教程，每个函数有详细参数说明和代码示例。</p></div>
+      <div class="col-item"><h4>PyPI 包索引</h4><p><code>https://pypi.org/project/opencv-python/</code> — 查看版本历史、发行说明和依赖要求。</p></div>
+    </div>
+
+    <div class="tip-box">
+      <span class="label">Recommendation</span>
+      <span class="body">建议在 <code>conda</code> 或 <code>venv</code> 虚拟环境中安装，避免与系统 Python 产生版本冲突。使用 <code>python -m venv cv_env</code> 创建隔离环境。</span>
+    </div>
+  </div>
+</section>
+
+<!-- ========================================================================
+     SLIDE 30 · 总结与扩展
+     ======================================================================== -->
+<section class="slide">
+  <div class="sidebar">
+    <div class="module-label">Module · Summary</div>
+    <div class="module-title">总结与课外拓展</div>
+    <div class="obj-label">Learning Objectives</div>
+    <ul class="obj-list">
+      <li>系统回顾传统视觉方法体系</li>
+      <li>掌握课外自主学习资源</li>
+      <li>形成传统与深度学习融合的认知框架</li>
+    </ul>
+    <div class="page-meta">30 / 30</div>
+  </div>
+  <div class="main">
+    <h1>本讲回顾</h1>
+    <p>本讲系统介绍了从图像底层边缘检测到高层特征工程的完整技术路线：</p>
+    <div class="formula" style="font-family:var(--serif-zh);font-style:normal;font-size:clamp(17px,1.1vw,22px);padding:10px 14px;">
+像素亮度 → 梯度幅值 → 边缘 → 二值化 → 形态学 → 轮廓 → 几何特征 → 描述子 → 识别
+    </div>
+
+    <h2>关键知识点索引</h2>
+    <div class="cols-2">
+      <div class="col-item"><h4>梯度算子</h4><p>Sobel（一阶差分+平滑）、Laplacian（二阶零交叉）、LoG（平滑+Laplacian 级联）</p></div>
+      <div class="col-item"><h4>Canny 算法</h4><p>四阶段：高斯滤波→梯度→NMS→双阈值滞后连接。工业标准边缘检测方法。</p></div>
+      <div class="col-item"><h4>阈值与形态学</h4><p>固定/自适应/Otsu 三种阈值；腐蚀/膨胀/开/闭四种形态学基元。</p></div>
+      <div class="col-item"><h4>特征描述子</h4><p>HOG（密集梯度直方图）、SIFT（尺度空间极值+128维）、ORB（FAST+rBRIEF）</p></div>
+    </div>
+
+    <h2>课外学习资源</h2>
+    <div class="step-list">
+      <div class="step-item"><span></span><span class="txt"><strong>OpenCV 官方教程</strong> — <span style="font-family:var(--mono);font-size:clamp(12px,.78vw,16px);">https://docs.opencv.org/4.x/d6/d00/tutorial_py_root.html</span></span></div>
+      <div class="step-item"><span></span><span class="txt"><strong>Richard Szeliski《Computer Vision: Algorithms and Applications》</strong> — 经典教材，涵盖传统方法和深度学习。</span></div>
+      <div class="step-item"><span></span><span class="txt"><strong>OpenCV 官方 GitHub</strong> — <span style="font-family:var(--mono);font-size:clamp(12px,.78vw,16px);">https://github.com/opencv/opencv</span> — 源码和样例。</span></div>
+    </div>
+
+    <h2>延伸思考</h2>
+    <p>当光照、背景、拍摄角度不断变化时，传统视觉方法的参数化规则体系会面临明显困难。这一问题指向特征工程的根本局限——手工设计的特征无法覆盖真实世界无限的变化模式。这正是深度学习从数据中自动学习特征表示的动机所在。</p>
+
+    <div style="margin-top:1.2vh;padding-top:1vh;border-top:1.5px solid rgba(var(--ink-rgb),.12);text-align:center;font-family:var(--mono);font-size:10px;letter-spacing:.18em;opacity:.4">
+      本讲总结 · 第三讲 · 边缘检测、轮廓提取、特征工程与传统视觉
+    </div>
+  </div>
+</section>
+
+</div><!-- deck end -->
+
+<div class="deck-nav" id="deckNav"></div>
+
+<script>
+const deck = document.getElementById('deck');
+const slides = deck.querySelectorAll('.slide');
+const nav = document.getElementById('deckNav');
+let idx = 0, total = slides.length, lock = false;
+
+deck.style.width = (total * 100) + 'vw';
+
+const prevBtn = document.createElement('button');
+prevBtn.className = 'nav-btn'; prevBtn.textContent = '‹';
+prevBtn.onclick = () => go(idx - 1);
+nav.appendChild(prevBtn);
+
+const counter = document.createElement('span');
+counter.className = 'counter';
+nav.appendChild(counter);
+
+const dotsContainer = document.createElement('span');
+dotsContainer.style.display = 'contents';
+nav.appendChild(dotsContainer);
+
+slides.forEach((s, i) => {
+  const b = document.createElement('button');
+  b.className = 'dot'; b.dataset.i = i;
+  b.setAttribute('aria-label', 'Slide ' + (i + 1));
+  b.onclick = () => go(i);
+  dotsContainer.appendChild(b);
+});
+
+const nextBtn = document.createElement('button');
+nextBtn.className = 'nav-btn'; nextBtn.textContent = '›';
+nextBtn.onclick = () => go(idx + 1);
+nav.appendChild(nextBtn);
+
+function go(n) {
+  if (lock) return;
+  idx = Math.max(0, Math.min(total - 1, n));
+  deck.style.transform = 'translateX(' + (-idx * 100) + 'vw)';
+  slides.forEach((s, i) => s.classList.toggle('active', i === idx));
+  nav.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+  counter.textContent = (idx + 1) + ' / ' + total;
+  lock = true;
+  setTimeout(() => lock = false, 650);
+}
+
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === 'ArrowDown') { e.preventDefault(); go(idx + 1); }
+  if (e.key === 'ArrowLeft' || e.key === 'PageUp' || e.key === 'ArrowUp') { e.preventDefault(); go(idx - 1); }
+  if (e.key === 'Home') { e.preventDefault(); go(0); }
+  if (e.key === 'End') { e.preventDefault(); go(total - 1); }
+  if (e.key === 'Escape') { e.preventDefault(); } // handled by browser
+});
+
+let wheelAcc = 0, wheelTO = null;
+addEventListener('wheel', e => {
+  wheelAcc += e.deltaY + e.deltaX;
+  if (Math.abs(wheelAcc) > 50) { go(idx + (wheelAcc > 0 ? 1 : -1)); wheelAcc = 0; }
+  clearTimeout(wheelTO);
+  wheelTO = setTimeout(() => wheelAcc = 0, 150);
+}, { passive: true });
+
+let tx = 0, ty = 0;
+addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].clientX - tx;
+  const dy = e.changedTouches[0].clientY - ty;
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) go(idx + (dx < 0 ? 1 : -1));
+}, { passive: true });
+
+try { const saved = parseInt(localStorage.getItem('lecture03_slide_idx')); if (!isNaN(saved) && saved >= 0 && saved < total) idx = saved; } catch(e) {}
+go(idx);
+const origGo = go;
+go = function(n) { origGo(n); try { localStorage.setItem('lecture03_slide_idx', idx); } catch(e) {} };
+</script>
+
+</body>
+</html>

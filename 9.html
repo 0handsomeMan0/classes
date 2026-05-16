@@ -1,0 +1,1993 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>实时推理、视频流、摄像头检测与部署思维 · 计算机视觉第九讲</title>
+<style>
+/* ===== Warm Paper Theme ===== */
+:root {
+  --bg: #f5f0e6;
+  --bg-soft: #efe7da;
+  --surface: #faf6ef;
+  --surface-2: #f0e8db;
+  --border: rgba(80,60,35,.12);
+  --border-strong: rgba(80,60,35,.22);
+  --text-1: #2c2418;
+  --text-2: #6b5d4a;
+  --text-3: #9a8b75;
+  --accent: #8b5e3c;
+  --accent-2: #c47a3a;
+  --accent-3: #a04030;
+  --good: #3a7a5a;
+  --warn: #c47a3a;
+  --bad: #a04030;
+  --grad: linear-gradient(135deg,#8b5e3c,#c47a3a);
+  --grad-soft: linear-gradient(135deg,#f5f0e6,#efe7da);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 18px;
+  --shadow: 0 4px 16px rgba(60,45,20,.08), 0 1px 4px rgba(60,45,20,.04);
+  --shadow-lg: 0 12px 40px rgba(60,45,20,.12), 0 4px 12px rgba(60,45,20,.06);
+  --font-sans: 'Noto Sans SC','Inter',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;
+  --font-serif: 'Noto Serif SC','Playfair Display',Georgia,serif;
+  --font-mono: 'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace;
+  --font-display: 'Noto Serif SC','Playfair Display',Georgia,serif;
+  --letter-tight: -.02em;
+  --letter-normal: -.005em;
+  --ease: cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text-1);
+  font-family:var(--font-sans);font-weight:400;line-height:1.6;
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  letter-spacing:var(--letter-normal)}
+img,svg,video{max-width:100%;display:block}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code,kbd,pre,samp{font-family:var(--font-mono)}
+
+/* ===== Deck System ===== */
+.deck{position:relative;width:100vw;height:100vh;overflow:hidden;background:var(--bg)}
+.slide{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;justify-content:flex-start;
+  padding:48px 64px;
+  box-sizing:border-box;
+  opacity:0;pointer-events:none;
+  transition:opacity .45s var(--ease), transform .45s var(--ease);
+  transform:translateX(24px);
+  overflow-y:auto;
+}
+.slide.is-active{opacity:1;pointer-events:auto;transform:translateX(0);z-index:2}
+.slide.is-prev{transform:translateX(-24px)}
+
+/* ===== Course Module Layout ===== */
+.tpl-course-module .slide{padding:40px 56px;background:var(--bg);display:grid;grid-template-columns:220px 1fr;gap:40px;align-content:start}
+.tpl-course-module .slide.full{grid-template-columns:1fr;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+.tpl-course-module .sidebar{border-right:1px solid var(--border);padding-right:24px;position:relative}
+.tpl-course-module .sidebar .brand{font-family:var(--font-serif);font-size:18px;font-weight:700;color:var(--accent)}
+.tpl-course-module .sidebar .brand::before{content:"✦ ";color:var(--accent-2)}
+.tpl-course-module .sidebar h5{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3);margin:24px 0 10px}
+.tpl-course-module .obj-list{list-style:none;padding:0;margin:0;font-size:12px;color:var(--text-2);line-height:1.45}
+.tpl-course-module .obj-list li{padding:6px 0 6px 20px;position:relative;border-bottom:1px dashed var(--border)}
+.tpl-course-module .obj-list li::before{content:"○";position:absolute;left:0;top:6px;color:var(--accent);font-size:11px}
+.tpl-course-module .obj-list li.done::before{content:"●";color:var(--accent)}
+.tpl-course-module .obj-list li.current{color:var(--text-1);font-weight:700}
+.tpl-course-module .obj-list li.current::before{content:"▸";color:var(--accent-2)}
+.tpl-course-module .main{min-width:0;overflow-y:auto}
+.tpl-course-module .h1{font-family:var(--font-serif);font-size:56px;line-height:1.05;font-weight:800;letter-spacing:var(--letter-tight);color:var(--text-1);margin:0 0 12px}
+.tpl-course-module .h2{font-family:var(--font-serif);font-size:36px;line-height:1.12;font-weight:700;letter-spacing:var(--letter-tight);color:var(--text-1);margin:0 0 10px}
+.tpl-course-module .h3{font-family:var(--font-serif);font-size:24px;line-height:1.25;font-weight:600;color:var(--text-1);margin:0 0 8px}
+.tpl-course-module .h4{font-size:18px;line-height:1.3;font-weight:600;margin:0 0 6px;color:var(--text-1)}
+.tpl-course-module .kicker{color:var(--accent-2);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px}
+.tpl-course-module .lede{font-size:18px;color:var(--text-2);line-height:1.6;max-width:65ch}
+.tpl-course-module .callout{border-left:3px solid var(--accent-2);background:var(--surface-2);padding:14px 18px;border-radius:0 var(--radius) var(--radius) 0;margin-top:16px;font-size:15px;line-height:1.55}
+.tpl-course-module .callout b{color:var(--accent-2)}
+.tpl-course-module .concept-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;box-shadow:var(--shadow)}
+.tpl-course-module .concept-box h4{margin-top:0;color:var(--accent);font-size:16px}
+.tpl-course-module .concept-box p{margin:4px 0 0;font-size:14px;color:var(--text-2);line-height:1.5}
+.tpl-course-module .exercise{background:#faf3e8;border:1.5px dashed var(--accent-2);border-radius:var(--radius);padding:18px 22px;margin-top:12px}
+.tpl-course-module .exercise::before{content:"✎ 实操环节";display:block;font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--accent-2);margin-bottom:8px;text-transform:uppercase}
+.tpl-course-module .exercise p,.tpl-course-module .exercise li{font-size:14px;line-height:1.6;color:var(--text-2)}
+.tpl-course-module .code{background:#2a2418;color:#f0e8db;border-radius:var(--radius);padding:14px 18px;font-family:var(--font-mono);font-size:13px;line-height:1.6;overflow-x:auto;margin:8px 0}
+.tpl-course-module .code .cmt{color:#8a7f68;font-style:italic}
+.tpl-course-module .code .kw{color:#e8a770}
+.tpl-course-module .code .str{color:#8ec6b2}
+.tpl-course-module .code .fn{color:#7ab8d4}
+.tpl-course-module .code .op{color:#d4879a}
+.tpl-course-module .code .num{color:#b8a07a}
+.tpl-course-module .mcq{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:8px;display:flex;gap:12px;align-items:flex-start;cursor:pointer}
+.tpl-course-module .mcq .letter{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid var(--text-3);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:var(--text-2)}
+.tpl-course-module .mcq.correct{border-color:var(--accent);background:rgba(139,94,60,.06)}
+.tpl-course-module .mcq.correct .letter{border-color:var(--accent);background:var(--accent);color:#fff}
+.tpl-course-module .pill-academic{display:inline-block;padding:3px 10px;border-radius:4px;background:var(--surface-2);border:1px solid var(--border);font-size:11px;color:var(--text-2);font-family:var(--font-mono)}
+.tpl-course-module .slide.full .h1{font-size:64px}
+.tpl-course-module .deck-footer{color:var(--text-3);position:absolute;bottom:20px;left:40px;right:40px;display:flex;align-items:center;justify-content:space-between;font-size:11px;z-index:10;pointer-events:none}
+.tpl-course-module .slide-number::before{content:attr(data-current)}
+.tpl-course-module .slide-number::after{content:" / " attr(data-total)}
+.progress-bar{position:fixed;left:0;right:0;bottom:0;height:2px;background:transparent;z-index:20}
+.progress-bar > span{display:block;height:100%;width:0;background:var(--accent-2);transition:width .3s var(--ease)}
+
+/* ===== Typography Helpers ===== */
+.dim{color:var(--text-2)}
+.dim2{color:var(--text-3)}
+.mono{font-family:var(--font-mono)}
+.serif{font-family:var(--font-serif)}
+.stack>*+*{margin-top:10px}
+.row{display:flex;gap:16px;align-items:center}
+.row.wrap{flex-wrap:wrap}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(2,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+.mt-s{margin-top:6px}.mt-m{margin-top:14px}.mt-l{margin-top:24px}
+.mb-s{margin-bottom:6px}.mb-m{margin-bottom:14px}.mb-l{margin-bottom:24px}
+.pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:500;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border)}
+.pill-accent{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);border-color:color-mix(in srgb,var(--accent) 28%,transparent)}
+.divider{height:1px;background:var(--border);width:100%;margin:12px 0}
+.divider-accent{height:2px;width:48px;background:var(--accent-2);border-radius:2px;margin:8px 0}
+
+/* ===== Table ===== */
+.data-table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0}
+.data-table th{background:var(--surface-2);padding:8px 12px;text-align:left;font-weight:600;border-bottom:2px solid var(--border-strong);font-family:var(--font-sans)}
+.data-table td{padding:7px 12px;border-bottom:1px solid var(--border);color:var(--text-2)}
+.data-table tr:hover td{background:var(--surface-2)}
+.data-table .num{font-family:var(--font-mono);text-align:right;font-feature-settings:"tnum"}
+
+/* ===== Pipeline ===== */
+.pipeline{display:flex;gap:6px;margin:10px 0;flex-wrap:wrap}
+.pipeline .step{flex:1;min-width:100px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;text-align:center;position:relative}
+.pipeline .step::after{content:"→";position:absolute;right:-10px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:16px}
+.pipeline .step:last-child::after{display:none}
+.pipeline .step .sn{font-family:var(--font-mono);font-size:10px;color:var(--text-3);letter-spacing:.1em}
+.pipeline .step .st{font-family:var(--font-serif);font-size:14px;font-weight:600;color:var(--text-1);margin:2px 0}
+.pipeline .step .sd{font-size:11px;color:var(--text-2);line-height:1.3}
+.pipeline .step.highlight{background:color-mix(in srgb,var(--accent-2) 10%,transparent);border-color:var(--accent-2)}
+
+/* ===== Tag ===== */
+.tag{display:inline-block;padding:2px 8px;border-radius:3px;font-family:var(--font-mono);font-size:10px;border:1px solid var(--border);color:var(--text-2);margin:1px}
+
+/* ===== Notes overlay ===== */
+.notes{display:none!important}
+.notes-overlay{position:fixed;inset:auto 0 0 0;max-height:40vh;background:rgba(30,25,18,.95);color:#e8e0d4;padding:16px 24px;font-size:15px;line-height:1.6;border-top:1px solid rgba(255,255,255,.1);transform:translateY(100%);transition:transform .3s var(--ease);z-index:40;overflow:auto;font-family:var(--font-sans)}
+.notes-overlay.open{transform:translateY(0)}
+.overview{position:fixed;inset:0;background:rgba(30,25,18,.92);backdrop-filter:blur(10px);z-index:50;display:none;padding:32px;overflow:auto}
+.overview.open{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;align-content:start}
+.overview .thumb{background:var(--surface);border:1px solid var(--border);border-radius:10px;aspect-ratio:16/9;overflow:hidden;cursor:pointer;position:relative;color:var(--text-1);padding:12px;font-size:10px;transition:transform .2s var(--ease)}
+.overview .thumb:hover{transform:scale(1.03)}
+.overview .thumb .n{position:absolute;top:6px;left:8px;font-weight:700;font-size:13px;color:var(--text-3)}
+.overview .thumb .t{position:absolute;bottom:8px;left:10px;right:10px;font-weight:600;color:var(--text-1);font-size:11px}
+
+/* ===== Print ===== */
+@media print{
+  .slide{position:relative;opacity:1!important;transform:none!important;page-break-after:always;height:100vh}
+  .progress-bar,.notes-overlay,.overview{display:none!important}
+}
+
+/* ===== Scrollbar ===== */
+.main::-webkit-scrollbar{width:4px}
+.main::-webkit-scrollbar-track{background:transparent}
+.main::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:2px}
+
+/* ===== Responsive ===== */
+@media (max-width:1024px){
+  .tpl-course-module .slide{grid-template-columns:1fr;padding:24px 28px}
+  .tpl-course-module .sidebar{border-right:none;border-bottom:1px solid var(--border);padding-right:0;padding-bottom:12px}
+  .tpl-course-module .sidebar .obj-list{display:flex;flex-wrap:wrap;gap:4px 12px}
+  .tpl-course-module .sidebar .obj-list li{border-bottom:none;padding:2px 0 2px 16px;font-size:11px}
+  .tpl-course-module .h1{font-size:40px}
+  .tpl-course-module .h2{font-size:28px}
+  .pipeline{flex-direction:column}
+  .pipeline .step::after{display:none}
+}
+</style>
+<style>
+/* ===== inlined unified course styles for standalone distribution ===== */
+/* Course-wide visual normalization.
+   This file intentionally mirrors the warm academic style of 1.html while
+   preserving each deck's existing navigation/runtime structure. */
+:root{
+  --bg:#faf7f0!important;
+  --bg-soft:#f0ece0!important;
+  --surface:#ffffff!important;
+  --surface-2:#f7f1e3!important;
+  --border:rgba(90,60,30,.13)!important;
+  --border-strong:rgba(90,60,30,.28)!important;
+  --text-1:#2a1f12!important;
+  --text-2:#5a4a33!important;
+  --text-3:#8a7859!important;
+  --accent:#3b7a5a!important;
+  --accent-2:#c4812a!important;
+  --accent-3:#b8452e!important;
+  --paper:#faf7f0!important;
+  --paper-tint:#f0ece0!important;
+  --paper-rgb:250,247,240!important;
+  --ink:#2a1f12!important;
+  --ink-rgb:42,31,18!important;
+  --ink-tint:#5a4a33!important;
+  --code-bg:#2a1f12!important;
+  --radius:14px!important;
+  --radius-sm:12px!important;
+  --shadow:0 8px 24px rgba(90,60,30,.07)!important;
+  --font-sans:'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif!important;
+  --font-serif:'Playfair Display','Noto Serif SC',Georgia,serif!important;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace!important;
+}
+html,body,#deck,.deck{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+  font-family:var(--font-sans)!important;
+  letter-spacing:-.01em;
+}
+.slide,
+section[class*="slide"],
+.slide.light,
+.slide.dark,
+.slide-cover,
+.slide-divider{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+}
+.slide.full,
+.cover,
+.slide-cover{
+  background:var(--bg)!important;
+}
+.main,
+.content,
+.slide-content,
+.main-content,
+.right,
+.body,
+.stage{
+  color:var(--text-1)!important;
+  min-height:0!important;
+}
+h1,h2,h3,
+.h1,.h2,.h3,
+.slide-title,
+.cover-title,
+.end-title,
+.h-hero,
+.h-xl,
+.main h1,
+.main h2,
+.main h3{
+  font-family:var(--font-serif)!important;
+  color:var(--text-1)!important;
+  letter-spacing:-.02em!important;
+}
+h1,.h1,.cover-title,.slide-title,.h-hero{
+  font-weight:800!important;
+}
+h2,.h2,.h-xl{
+  font-weight:700!important;
+}
+p,li,td,th,.lede,.dim,.dim2,.fn-desc,.body-text,.txt,.label{
+  color:var(--text-2);
+}
+strong,b{color:var(--text-1)}
+.kicker,
+.eyebrow,
+.module-label,
+.sidebar-module-label,
+.module-code,
+.obj-label,
+.obj-title,
+.obj-header,
+.objectives-title,
+.lb-title,
+.sidebar-label{
+  color:var(--accent-2)!important;
+  font-family:var(--font-sans)!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  letter-spacing:.14em!important;
+  text-transform:uppercase!important;
+}
+.sidebar,
+aside.sidebar,
+.learning-sidebar,
+.slide-sidebar,
+.left-col{
+  background:transparent!important;
+  border-right:1px solid var(--border)!important;
+  border-left:0!important;
+  padding-right:24px!important;
+  color:var(--text-2)!important;
+  box-shadow:none!important;
+}
+.sidebar-title,
+.module-title,
+.sidebar-module,
+.lb-module,
+.brand,
+.sidebar .brand{
+  font-family:var(--font-serif)!important;
+  color:var(--accent)!important;
+  font-size:20px!important;
+  line-height:1.25!important;
+  font-weight:700!important;
+}
+.obj-list,
+.objectives,
+.objective-list,
+.learning-sidebar ul,
+.slide-sidebar ul{
+  list-style:none!important;
+  padding:0!important;
+  margin:0!important;
+  font-family:var(--font-sans)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+  color:var(--text-2)!important;
+}
+.obj-list li,
+.objectives li,
+.objective-list li,
+.learning-sidebar li,
+.slide-sidebar li{
+  position:relative!important;
+  padding:7px 0 7px 22px!important;
+  border-bottom:1px dashed var(--border)!important;
+  color:var(--text-2)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+}
+.obj-list li::before,
+.objectives li::before,
+.objective-list li::before,
+.learning-sidebar li::before,
+.slide-sidebar li::before{
+  content:"○"!important;
+  position:absolute!important;
+  left:0!important;
+  top:7px!important;
+  color:var(--accent)!important;
+  width:auto!important;
+  height:auto!important;
+  background:transparent!important;
+  border-radius:0!important;
+  opacity:1!important;
+}
+.obj-list li.current::before,
+.objectives li.current::before,
+.objective-list li.current::before,
+.obj-list li.highlight::before,
+.objectives li.highlight::before,
+.objective-list li.highlight::before{
+  content:"▸"!important;
+  color:var(--accent-2)!important;
+}
+.obj-list li.current,
+.objectives li.current,
+.objective-list li.current,
+.obj-list li.highlight,
+.objectives li.highlight,
+.objective-list li.highlight{
+  color:var(--text-1)!important;
+  font-weight:700!important;
+}
+.card,
+.concept-box,
+.col-item,
+.metric-card,
+.panel,
+.info-card,
+.tip-box,
+.callout-box,
+.comp-item,
+.diagram-box,
+.data-card,
+.feature-card,
+.task-card,
+.warning-card,
+.workflow-card{
+  background:var(--surface)!important;
+  border:1px solid var(--border)!important;
+  border-radius:var(--radius)!important;
+  box-shadow:var(--shadow)!important;
+  color:var(--text-1)!important;
+}
+.card-accent,
+.accent-card,
+.concept-box h4{
+  border-color:var(--border)!important;
+}
+.callout,
+.tip,
+.note-box{
+  background:var(--surface-2)!important;
+  border-left:4px solid var(--accent-2)!important;
+  border-radius:0 var(--radius) var(--radius) 0!important;
+  color:var(--text-2)!important;
+}
+.warn-box,
+.warning,
+.alert{
+  background:rgba(196,129,42,.08)!important;
+  border:1px solid rgba(196,129,42,.3)!important;
+  border-radius:var(--radius)!important;
+  color:var(--text-2)!important;
+}
+.course-bridge{
+  max-width:72ch;
+  margin-top:16px!important;
+  padding:10px 16px!important;
+  font-size:13px!important;
+  line-height:1.45!important;
+}
+.course-bridge b{
+  color:var(--accent-2)!important;
+}
+
+
+.slide > .sidebar + .main-content + .course-bridge{
+  left:calc(18vw + 3vw)!important;
+  max-width:min(760px,70vw)!important;
+}
+
+.slide > .course-bridge,
+.hero .course-bridge,
+.slide.full .course-bridge,
+section.full .course-bridge{
+  position:absolute!important;
+  left:6vw!important;
+  right:auto!important;
+  bottom:9vh!important;
+  max-width:min(760px,64vw)!important;
+  margin:0!important;
+  z-index:3!important;
+}
+.slide.compact .h2,
+section.compact .h2,
+.slide.compact h2,
+section.compact h2{
+  font-size:clamp(25px,2.15vw,34px)!important;
+  line-height:1.12!important;
+  margin-bottom:6px!important;
+}
+.slide.compact .lede,
+section.compact .lede,
+.slide.compact .fn-desc,
+section.compact .fn-desc,
+.slide.compact p,
+section.compact p{
+  font-size:clamp(13px,1.05vw,16px)!important;
+  line-height:1.45!important;
+}
+.slide.compact .card,
+section.compact .card,
+.slide.compact .concept-box,
+section.compact .concept-box,
+.slide.compact .col-item,
+section.compact .col-item{
+  padding:12px 15px!important;
+}
+.slide.compact .concept-box h4,
+section.compact .concept-box h4,
+.slide.compact .card h4,
+section.compact .card h4{
+  font-size:clamp(14px,1.1vw,17px)!important;
+  line-height:1.25!important;
+  margin-bottom:4px!important;
+}
+.slide.compact .grid,
+section.compact .grid{
+  gap:12px!important;
+}
+.slide.compact .mt-l,
+section.compact .mt-l{
+  margin-top:14px!important;
+}
+.slide.compact .mt-m,
+section.compact .mt-m{
+  margin-top:8px!important;
+}
+.problem-grid .concept-box{
+  min-height:118px;
+}
+.problem-grid .concept-box:last-child{
+  grid-column:1/-1;
+  min-height:96px;
+}
+.slide.code-heavy .code-block,
+section.code-heavy .code-block{
+  font-size:clamp(10px,.82vw,12px)!important;
+  line-height:1.28!important;
+  padding:10px 12px!important;
+}
+.slide.compact .data-table th,
+.slide.compact .data-table td,
+section.compact .data-table th,
+section.compact .data-table td{
+  padding:4px 7px!important;
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.3!important;
+}
+.slide.compact .code-block,
+section.compact .code-block{
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.35!important;
+  padding:10px 12px!important;
+}
+pre,
+code,
+.code,
+.code-block,
+.code-panel{
+  font-family:var(--font-mono)!important;
+}
+pre,
+.code,
+.code-block,
+.code-panel{
+  background:#2a1f12!important;
+  color:#f0ece0!important;
+  border:0!important;
+  border-radius:var(--radius)!important;
+  box-shadow:none!important;
+}
+code:not(pre code){
+  background:rgba(90,60,30,.08)!important;
+  color:var(--text-1)!important;
+}
+table,
+.data-table{
+  border-color:var(--border)!important;
+}
+th,
+.data-table th{
+  background:var(--surface-2)!important;
+  color:var(--text-1)!important;
+}
+td,
+.data-table td{
+  background:var(--surface)!important;
+  color:var(--text-2)!important;
+}
+.pill,
+.pill-academic,
+.tag,
+.badge{
+  background:var(--surface-2)!important;
+  color:var(--text-2)!important;
+  border:1px solid var(--border)!important;
+  border-radius:4px!important;
+  font-family:var(--font-mono)!important;
+}
+.pill-accent,
+.tag.accent,
+.badge.accent{
+  color:var(--accent)!important;
+  border-color:color-mix(in srgb,var(--accent) 28%,transparent)!important;
+}
+.deck-footer,
+.page-meta,
+.footer,
+.slide-meta{
+  color:var(--text-3)!important;
+}
+.progress-bar>span,
+.progress,
+.progress-dot.active,
+.dot.active{
+  background:var(--accent)!important;
+}
+svg text{font-family:var(--font-sans)!important}
+/* ===== end inlined unified course styles ===== */
+</style>
+</head>
+<body class="tpl-course-module">
+<div class="deck">
+
+<!-- ================================================================ -->
+<!-- SLIDE 1 · Cover -->
+<!-- ================================================================ -->
+<section class="slide full is-active" data-title="Cover">
+  <p class="kicker">计算机视觉 · 第九讲</p>
+  <h1 class="h1" style="max-width:14ch;margin:8px auto">实时推理、视频流、<br>摄像头检测与部署思维</h1>
+  <p class="lede" style="max-width:56ch;margin:12px auto">从单帧图片检测到连续视频流实时推理，构建完整的摄像头检测管线，理解部署思维与性能优化策略。</p>
+  <div class="row" style="justify-content:center;gap:12px;margin-top:16px">
+    <span class="pill-academic">~ 90 min</span>
+    <span class="pill-academic">prereq · YOLO 检测基础</span>
+    <span class="pill-academic">lang · Python + OpenCV</span>
+  </div>
+  <div class="deck-footer"><span>计算机视觉 · 课程专题 · 2026 春</span><span class="slide-number" data-current="1" data-total="34"></span></div>
+
+  <div class="callout course-bridge"><b>课程衔接。</b>承接离线训练与评估，本讲把检测模型放入实时视频、摄像头和部署场景，讨论帧率、延迟、稳定性与工程取舍。</div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 2 · Objectives -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Objectives">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="current">理解视频检测与图片检测的本质差异</li>
+      <li>掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li>构建完整的实时推理管线</li>
+      <li>分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>模块进度</h5>
+    <p class="dim" style="font-size:11px">第 2 页 / 共 34 页</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">学习目标</p>
+    <h2 class="h2 mt-s">本讲结束后应掌握的能力</h2>
+    <div class="stack mt-m">
+      <div class="concept-box"><h4>① 解释视频检测与图片检测的核心差异</h4><p class="dim">理解连续帧处理带来的时间维度约束：实时性、稳定性、资源管理。</p></div>
+      <div class="concept-box"><h4>② 独立编写 OpenCV 摄像头读取与帧处理代码</h4><p class="dim">掌握 VideoCapture 的初始化、参数配置、帧循环与资源释放。</p></div>
+      <div class="concept-box"><h4>③ 构建并调试完整的实时推理管线</h4><p class="dim">从采集、预处理、推理、后处理到绘制与显示的完整链路。</p></div>
+      <div class="concept-box"><h4>④ 测量并优化 FPS、延迟与吞吐量</h4><p class="dim">能够定位管线瓶颈并选择适当的优化策略。</p></div>
+      <div class="concept-box"><h4>⑤ 理解从脚本到服务的部署演进路径</h4><p class="dim">掌握接口设计原则与结构化输出规范。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 3 · 从离线图片检测到实时检测 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Paradigm Shift">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="current">理解视频检测与图片检测的本质差异</li>
+      <li>掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li>构建完整的实时推理管线</li>
+      <li>分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>关键概念</h5>
+    <p class="dim" style="font-size:11px">离线 vs 实时 · 连续帧 · 时间约束</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">范式转变 · Paradigm Shift</p>
+    <h2 class="h2 mt-s">从离线图片检测到实时检测</h2>
+    <p class="lede mt-m">图片检测处理单个静态输入，程序运行一次即结束。视频检测处理连续帧流，程序必须持续运行并满足时间约束。</p>
+    <div class="grid g2 mt-m" style="gap:14px">
+      <div class="concept-box" style="opacity:.65">
+        <h4>图片检测（离线）</h4>
+        <p class="dim">输入：单张图片<br>输出：检测结果<br>耗时：无硬性约束<br>资源：用完即释放<br>典型场景：批量审核、相册分类</p>
+      </div>
+      <div class="concept-box" style="border-color:var(--accent-2)">
+        <h4>视频检测（实时）</h4>
+        <p class="dim">输入：连续帧流<br>输出：逐帧结果 + 时序稳定性<br>耗时：必须 ≤ 帧间隔<br>资源：持续占用摄像头/GPU<br>典型场景：安防监控、自动驾驶</p>
+      </div>
+    </div>
+    <div class="callout">
+      <b>核心问题：</b>如果模型单帧推理耗时 100ms，理论最大 FPS 为 10。但实际还需扣除读取、预处理、绘制和显示时间，真实 FPS 通常更低。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 4 · 视频的本质 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Video Essence">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="current">理解视频检测与图片检测的本质差异</li>
+      <li>掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li>构建完整的实时推理管线</li>
+      <li>分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>关键概念</h5>
+    <p class="dim" style="font-size:11px">帧率 · 时间维度 · 实时性约束</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">基础概念 · Fundamentals</p>
+    <h2 class="h2 mt-s">视频的本质：连续帧与时间维度</h2>
+    <p class="lede mt-m">视频可视为每秒若干张静态图片的序列。帧率（FPS, Frames Per Second）描述每秒显示的帧数。</p>
+    <div class="grid g2 mt-m" style="gap:14px">
+      <div class="concept-box">
+        <h4>常见帧率标准</h4>
+        <p class="dim">24 FPS — 电影工业标准<br>25 FPS — PAL 制式（中国电视）<br>30 FPS — NTSC 制式<br>60 FPS — 高帧率显示<br>120+ FPS — 高速摄像</p>
+      </div>
+      <div class="concept-box">
+        <h4>实时检测的时间约束</h4>
+        <p class="dim">25 FPS → 每帧可用时间 40ms<br>30 FPS → 每帧可用时间 33ms<br>60 FPS → 每帧可用时间 16.7ms<br>推理耗时必须 ≤ 帧间隔，否则产生卡顿</p>
+      </div>
+    </div>
+    <div class="callout">
+      <b>关键洞察：</b>实时检测系统不仅要考虑推理速度，还需考虑读取、预处理、后处理、绘制、显示等全部环节的累积耗时。管线中任一环节成为瓶颈，整体 FPS 都会受限。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 5 · OpenCV 视频读取 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="OpenCV Read">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="current">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li>构建完整的实时推理管线</li>
+      <li>分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>关键 API</h5>
+    <p class="dim" style="font-size:11px">VideoCapture · read() · waitKey()</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">OpenCV · Video I/O</p>
+    <h2 class="h2 mt-s">OpenCV 摄像头读取基本流程</h2>
+    <p class="lede mt-m">OpenCV 通过 VideoCapture 类提供统一的视频/摄像头读取接口。</p>
+    <div class="code mt-m"><pre style="margin:0"><span class="kw">import</span> cv2
+
+<span class="cmt"># 初始化摄像头（0=默认摄像头，也可传入视频文件路径）</span>
+cap = cv2.VideoCapture(<span class="num">0</span>)
+
+<span class="kw">while</span> <span class="str">True</span>:
+    <span class="cmt"># 读取一帧：返回 (是否成功, 帧数据)</span>
+    ok, frame = cap.read()
+    <span class="kw">if not</span> ok:
+        <span class="kw">break</span>  <span class="cmt"># 读取失败则退出循环</span>
+
+    <span class="cmt"># 显示帧</span>
+    cv2.imshow(<span class="str">"camera"</span>, frame)
+
+    <span class="cmt"># waitKey(1) 等待 1ms 键盘输入，同时驱动窗口刷新</span>
+    <span class="kw">if</span> cv2.waitKey(<span class="num">1</span>) & <span class="num">0xFF</span> == ord(<span class="str">"q"</span>):
+        <span class="kw">break</span>
+
+<span class="cmt"># 释放资源（必须执行，否则摄像头可能被占用）</span>
+cap.release()
+cv2.destroyAllWindows()</pre></div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 6 · OpenCV 关键参数 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="OpenCV Params">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="current">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li>构建完整的实时推理管线</li>
+      <li>分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>关键参数</h5>
+    <p class="dim" style="font-size:11px">CAP_PROP_* · 分辨率 · 缓存</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">OpenCV · 参数配置</p>
+    <h2 class="h2 mt-s">VideoCapture 关键参数与常见问题</h2>
+    <div class="code mt-m"><pre style="margin:0"><span class="cmt"># 设置摄像头参数（需在 read() 之前设置）</span>
+cap = cv2.VideoCapture(<span class="num">0</span>)
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, <span class="num">1280</span>)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, <span class="num">720</span>)
+cap.set(cv2.CAP_PROP_FPS, <span class="num">30</span>)
+cap.set(cv2.CAP_PROP_BUFFERSIZE, <span class="num">1</span>)  <span class="cmt"># 减少缓存延迟</span>
+
+<span class="cmt"># 读取实际参数（摄像头可能不支持设定值）</span>
+w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+fps = cap.get(cv2.CAP_PROP_FPS)
+<span class="kw">print</span>(f<span class="str">"实际分辨率: {w}×{h}, FPS: {fps}"</span>)</pre></div>
+    <table class="data-table mt-m">
+      <tr><th>常见问题</th><th>原因</th><th>解决方案</th></tr>
+      <tr><td>摄像头无法打开</td><td>设备号错误 / 被其他进程占用</td><td>尝试 cap = VideoCapture(0, cv2.CAP_DSHOW)（Windows）</td></tr>
+      <tr><td>读取延迟高</td><td>内部缓存队列堆积</td><td>设置 CAP_PROP_BUFFERSIZE=1</td></tr>
+      <tr><td>分辨率不匹配</td><td>摄像头不支持设定值</td><td>读取 get() 实际值并适配</td></tr>
+      <tr><td>cap.release() 后仍被占用</td><td>进程未完全退出</td><td>检查是否有 Python 进程残留</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 7 · 实时推理管线总览 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Pipeline Overview">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="current">构建完整的实时推理管线</li>
+      <li>分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>管线阶段</h5>
+    <p class="dim" style="font-size:11px">6 个阶段 · 逐级分析</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">推理管线 · Inference Pipeline</p>
+    <h2 class="h2 mt-s">实时推理管线总览</h2>
+    <p class="lede mt-m">完整的实时检测管线包含 6 个阶段，每个阶段都可能成为性能瓶颈。</p>
+    <div class="pipeline mt-m">
+      <div class="step highlight">
+        <div class="sn">01</div>
+        <div class="st">采集</div>
+        <div class="sd">摄像头/视频<br>读取帧</div>
+      </div>
+      <div class="step">
+        <div class="sn">02</div>
+        <div class="st">预处理</div>
+        <div class="sd">Letterbox<br>归一化</div>
+      </div>
+      <div class="step">
+        <div class="sn">03</div>
+        <div class="st">模型推理</div>
+        <div class="sd">前向传播<br>输出张量</div>
+      </div>
+      <div class="step">
+        <div class="sn">04</div>
+        <div class="st">后处理</div>
+        <div class="sd">NMS<br>阈值过滤</div>
+      </div>
+      <div class="step">
+        <div class="sn">05</div>
+        <div class="st">坐标还原</div>
+        <div class="sd">映射回原图<br>绘制结果</div>
+      </div>
+      <div class="step">
+        <div class="sn">06</div>
+        <div class="st">展示/保存</div>
+        <div class="sd">imshow<br>VideoWriter</div>
+      </div>
+    </div>
+    <div class="callout">
+      <b>瓶颈分析原则：</b>使用 <code>time.perf_counter()</code> 对每个阶段分别计时，定位耗时最长的环节。优化应优先针对耗时占比最高的阶段。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 8 · 管线阶段1：采集 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Stage 1 Capture">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="current">构建完整的实时推理管线</li>
+      <li>分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>采集阶段</h5>
+    <p class="dim" style="font-size:11px">分辨率 · 格式 · 缓存</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">管线阶段 01 · 采集</p>
+    <h2 class="h2 mt-s">帧采集：摄像头与视频文件</h2>
+    <p class="lede mt-m">采集阶段从摄像头或视频文件读取原始帧。采集速度受硬件接口、分辨率和驱动影响。</p>
+    <div class="grid g2 mt-m" style="gap:14px">
+      <div class="concept-box">
+        <h4>摄像头采集</h4>
+        <p class="dim">接口：USB / CSI / IP Camera<br>分辨率建议：1280×720 或 640×480<br>帧率：取决于摄像头规格<br>缓存：默认队列可能堆积旧帧<br>优化：设置 BUFFERSIZE=1 降低延迟</p>
+      </div>
+      <div class="concept-box">
+        <h4>视频文件读取</h4>
+        <p class="dim">支持格式：MP4, AVI, MOV 等<br>解码：依赖系统 codec<br>速度：通常快于摄像头（无传输延迟）<br>seek：可跳转到指定帧<br>注意：解码耗时不可忽略</p>
+      </div>
+    </div>
+    <div class="code mt-m"><pre style="margin:0"><span class="cmt"># 视频文件读取</span>
+cap = cv2.VideoCapture(<span class="str">"test_video.mp4"</span>)
+total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+fps = cap.get(cv2.CAP_PROP_FPS)
+duration = total_frames / fps
+<span class="kw">print</span>(f<span class="str">"总帧数: {total_frames}, 时长: {duration:.1f}s"</span>)</pre></div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 9 · 管线阶段2：预处理 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Stage 2 Preprocess">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="current">构建完整的实时推理管线</li>
+      <li>分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>预处理</h5>
+    <p class="dim" style="font-size:11px">Letterbox · 归一化 · 数据拷贝</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">管线阶段 02 · 预处理</p>
+    <h2 class="h2 mt-s">Letterbox 与归一化</h2>
+    <p class="lede mt-m">预处理将原始帧转换为模型所需的输入格式，包括尺寸调整、归一化和数据类型转换。</p>
+    <div class="code mt-m"><pre style="margin:0"><span class="kw">def</span> <span class="fn">preprocess</span>(frame, input_size=<span class="num">640</span>):
+    <span class="cmt"># Letterbox：保持宽高比的缩放 + 填充</span>
+    h, w = frame.shape[:<span class="num">2</span>]
+    scale = input_size / max(h, w)
+    nw, nh = int(w * scale), int(h * scale)
+    resized = cv2.resize(frame, (nw, nh))
+
+    <span class="cmt"># 创建画布并居中放置</span>
+    canvas = np.full((input_size, input_size, <span class="num">3</span>), <span class="num">114</span>, dtype=np.uint8)
+    dx = (input_size - nw) // <span class="num">2</span>
+    dy = (input_size - nh) // <span class="num">2</span>
+    canvas[dy:dy+nh, dx:dx+nw] = resized
+
+    <span class="cmt"># 归一化 + HWC→CHW + 添加 batch 维度</span>
+    blob = canvas.astype(np.float32) / <span class="num">255.0</span>
+    blob = blob.transpose(<span class="num">2</span>, <span class="num">0</span>, <span class="num">1</span>)[np.newaxis, ...]
+    <span class="kw">return</span> blob, (scale, dx, dy)  <span class="cmt"># 返回缩放参数供坐标还原</span></pre></div>
+    <div class="callout">
+      <b>性能注意：</b>频繁的 numpy 数组拷贝和 cv2.resize 是预处理阶段的主要耗时来源。使用 <code>np.ascontiguousarray()</code> 可减少内存重排开销。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 10 · 管线阶段3：模型推理 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Stage 3 Inference">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="current">构建完整的实时推理管线</li>
+      <li>分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>模型推理</h5>
+    <p class="dim" style="font-size:11px">ONNX · PyTorch · 前向传播</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">管线阶段 03 · 模型推理</p>
+    <h2 class="h2 mt-s">前向传播与推理引擎</h2>
+    <p class="lede mt-m">模型推理是管线中最耗时的阶段。推理引擎的选择直接影响速度和部署便利性。</p>
+    <div class="grid g2 mt-m" style="gap:14px">
+      <div class="concept-box">
+        <h4>PyTorch 原生推理</h4>
+        <p class="dim">优点：开发便捷，调试友好<br>缺点：依赖 PyTorch 环境，部署体积大<br>适用：原型验证、研究阶段<br>代码：<code>model(img.to(device))</code></p>
+      </div>
+      <div class="concept-box">
+        <h4>ONNX Runtime 推理</h4>
+        <p class="dim">优点：跨框架、跨平台，可优化<br>缺点：部分算子可能不支持<br>适用：生产部署、跨平台场景<br>代码：<code>session.run(None, {name: blob})</code></p>
+      </div>
+    </div>
+    <div class="code mt-m"><pre style="margin:0"><span class="cmt"># ONNX Runtime 推理示例</span>
+<span class="kw">import</span> onnxruntime <span class="kw">as</span> ort
+
+session = ort.InferenceSession(<span class="str">"model.onnx"</span>)
+input_name = session.get_inputs()[<span class="num">0</span>].name
+
+<span class="cmt"># 推理（返回 NumPy 数组，无需额外转换）</span>
+outputs = session.run(<span class="str">None</span>, {input_name: blob})
+<span class="cmt"># outputs[0].shape: (1, num_boxes, 6) — [x1,y1,x2,y2,conf,cls]</span></pre></div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 11 · 管线阶段4：后处理 NMS -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Stage 4 NMS">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="current">构建完整的实时推理管线</li>
+      <li>分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>后处理</h5>
+    <p class="dim" style="font-size:11px">NMS · 阈值过滤 · 候选框</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">管线阶段 04 · 后处理</p>
+    <h2 class="h2 mt-s">NMS 与阈值过滤</h2>
+    <p class="lede mt-m">模型输出大量候选框，需通过置信度阈值和 NMS（非极大值抑制）筛选出最终检测结果。</p>
+    <div class="code mt-m"><pre style="margin:0"><span class="kw">def</span> <span class="fn">postprocess</span>(outputs, conf_thres=<span class="num">0.25</span>, iou_thres=<span class="num">0.45</span>):
+    <span class="cmt"># 解析输出：假设 outputs shape 为 (1, 8400, 6)</span>
+    pred = outputs[<span class="num">0</span>]  <span class="cmt"># (8400, 6)</span>
+
+    <span class="cmt"># 步骤1：置信度过滤</span>
+    mask = pred[:, <span class="num">4</span>] > conf_thres
+    pred = pred[mask]
+
+    <span class="kw">if</span> len(pred) == <span class="num">0</span>:
+        <span class="kw">return</span> np.empty((<span class="num">0</span>, <span class="num">6</span>))
+
+    <span class="cmt"># 步骤2：NMS — 按置信度排序，消除重叠框</span>
+    boxes = pred[:, :<span class="num">4</span>]  <span class="cmt"># [x1, y1, x2, y2]</span>
+    scores = pred[:, <span class="num">4</span>]
+    indices = cv2.dnn.NMSBoxes(boxes.tolist(), scores.tolist(),
+                               conf_thres, iou_thres)
+
+    <span class="kw">if</span> len(indices) == <span class="num">0</span>:
+        <span class="kw">return</span> np.empty((<span class="num">0</span>, <span class="num">6</span>))
+    indices = indices.flatten()
+    <span class="kw">return</span> pred[indices]</pre></div>
+    <div class="callout">
+      <b>NMS 性能：</b>候选框数量直接影响 NMS 耗时。设置合理的置信度阈值（如 0.25）可大幅减少候选框数量。对于 8400 个候选框，NMS 耗时通常在 1-5ms。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 12 · 管线阶段5：坐标还原与绘制 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Stage 5 Draw">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="current">构建完整的实时推理管线</li>
+      <li>分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>坐标还原</h5>
+    <p class="dim" style="font-size:11px">映射 · 绘制 · 性能</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">管线阶段 05 · 坐标还原与绘制</p>
+    <h2 class="h2 mt-s">将检测框映射回原图</h2>
+    <p class="lede mt-m">模型输出的坐标基于预处理后的输入尺寸，需通过 letterbox 的缩放参数还原到原始帧坐标。</p>
+    <div class="code mt-m"><pre style="margin:0"><span class="kw">def</span> <span class="fn">scale_boxes</span>(boxes, scale, dx, dy, orig_shape):
+    <span class="cmt"># 将 letterbox 坐标还原到原图坐标</span>
+    boxes = boxes.copy()
+    boxes[:, [<span class="num">0</span>, <span class="num">2</span>]] -= dx  <span class="cmt"># 减去 padding</span>
+    boxes[:, [<span class="num">1</span>, <span class="num">3</span>]] -= dy
+    boxes /= scale  <span class="cmt"># 除以缩放比</span>
+    <span class="cmt"># 裁剪到图像边界</span>
+    h, w = orig_shape[:<span class="num">2</span>]
+    boxes[:, [<span class="num">0</span>, <span class="num">2</span>]] = boxes[:, [<span class="num">0</span>, <span class="num">2</span>]].clip(<span class="num">0</span>, w)
+    boxes[:, [<span class="num">1</span>, <span class="num">3</span>]] = boxes[:, [<span class="num">1</span>, <span class="num">3</span>]].clip(<span class="num">0</span>, h)
+    <span class="kw">return</span> boxes
+
+<span class="kw">def</span> <span class="fn">draw_detections</span>(frame, dets, class_names):
+    <span class="kw">for</span> det <span class="kw">in</span> dets:
+        x1, y1, x2, y2, conf, cls_id = det
+        label = f<span class="str">"{class_names[int(cls_id)]} {conf:.2f}"</span>
+        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)),
+                      (<span class="num">0</span>, <span class="num">255</span>, <span class="num">0</span>), <span class="num">2</span>)
+        cv2.putText(frame, label, (int(x1), int(y1) - <span class="num">5</span>),
+                    cv2.FONT_HERSHEY_SIMPLEX, <span class="num">0.5</span>, (<span class="num">0</span>, <span class="num">255</span>, <span class="num">0</span>), <span class="num">2</span>)</pre></div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 13 · 管线阶段6：展示与保存 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Stage 6 Display">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="current">构建完整的实时推理管线</li>
+      <li>分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>展示/保存</h5>
+    <p class="dim" style="font-size:11px">imshow · VideoWriter · FPS 叠加</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">管线阶段 06 · 展示与保存</p>
+    <h2 class="h2 mt-s">实时显示与视频录制</h2>
+    <p class="lede mt-m">展示阶段通过 imshow 显示结果帧，保存阶段通过 VideoWriter 写入视频文件。</p>
+    <div class="grid g2 mt-m" style="gap:14px">
+      <div class="concept-box">
+        <h4>实时显示</h4>
+        <p class="dim">cv2.imshow() 驱动窗口刷新<br>waitKey(1) 控制显示帧率<br>在帧上叠加 FPS 信息<br>注意：imshow 本身有额外开销</p>
+      </div>
+      <div class="concept-box">
+        <h4>视频保存</h4>
+        <p class="dim">cv2.VideoWriter(fourcc, fps, size)<br>常用 FourCC：mp4v / XVID / avc1<br>编码器影响文件大小和质量<br>注意：写入 I/O 可能成为瓶颈</p>
+      </div>
+    </div>
+    <div class="code mt-m"><pre style="margin:0"><span class="cmt"># 初始化 VideoWriter</span>
+fourcc = cv2.VideoWriter_fourcc(*<span class="str">"mp4v"</span>)
+writer = cv2.VideoWriter(<span class="str">"output.mp4"</span>, fourcc, <span class="num">30.0</span>,
+                         (frame_width, frame_height))
+
+<span class="cmt"># 在帧上叠加 FPS</span>
+cv2.putText(frame, f<span class="str">"FPS: {fps:.1f}"</span>, (<span class="num">10</span>, <span class="num">30</span>),
+            cv2.FONT_HERSHEY_SIMPLEX, <span class="num">1.0</span>, (<span class="num">0</span>, <span class="num">255</span>, <span class="num">0</span>), <span class="num">2</span>)
+writer.write(frame)  <span class="cmt"># 写入帧</span></pre></div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 14 · FPS 计算与测量 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="FPS Measurement">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="current">分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>性能指标</h5>
+    <p class="dim" style="font-size:11px">FPS · Latency · Throughput</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">性能指标 · Metrics</p>
+    <h2 class="h2 mt-s">FPS 计算与测量方法</h2>
+    <p class="lede mt-m">FPS（每秒处理帧数）是衡量实时检测系统流畅度的核心指标。</p>
+    <div class="code mt-m"><pre style="margin:0"><span class="cmt"># 滑动平均 FPS 测量</span>
+fps_values = []
+prev_time = time.perf_counter()
+
+<span class="kw">while</span> <span class="str">True</span>:
+    ok, frame = cap.read()
+    <span class="kw">if not</span> ok: <span class="kw">break</span>
+
+    <span class="cmt"># 推理管线...</span>
+    dets = run_inference(frame)
+
+    <span class="cmt"># FPS 计算</span>
+    now = time.perf_counter()
+    fps = <span class="num">1.0</span> / (now - prev_time)
+    prev_time = now
+
+    <span class="cmt"># 滑动平均（平滑波动）</span>
+    fps_values.append(fps)
+    <span class="kw">if</span> len(fps_values) > <span class="num">30</span>:
+        fps_values.pop(<span class="num">0</span>)
+    avg_fps = sum(fps_values) / len(fps_values)
+
+    <span class="cmt"># 显示</span>
+    cv2.putText(frame, f<span class="str">"FPS: {avg_fps:.1f}"</span>, ...)</pre></div>
+    <div class="callout">
+      <b>测量注意事项：</b>FPS 测量应包含整个管线耗时（从读取到显示），而非仅推理时间。滑动平均窗口建议 30 帧，可有效平滑瞬时波动。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 15 · 延迟与吞吐量 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Latency Throughput">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="current">分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>关键指标</h5>
+    <p class="dim" style="font-size:11px">延迟 · 吞吐量 · 端到端</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">性能指标 · Latency &amp; Throughput</p>
+    <h2 class="h2 mt-s">延迟与吞吐量</h2>
+    <p class="lede mt-m">延迟（Latency）描述单帧从输入到输出的耗时，吞吐量（Throughput）描述系统单位时间的处理能力。</p>
+    <table class="data-table mt-m">
+      <tr><th>指标</th><th>定义</th><th>公式</th><th>适用场景</th></tr>
+      <tr><td>FPS</td><td>每秒处理帧数</td><td class="num">processed / elapsed</td><td>实时显示流畅度</td></tr>
+      <tr><td>Latency</td><td>单帧端到端耗时</td><td class="num">t_end - t_start</td><td>响应速度敏感场景</td></tr>
+      <tr><td>Throughput</td><td>单位时间处理量</td><td class="num">batch / time</td><td>批量离线检测</td></tr>
+      <tr><td>Pipeline 延迟</td><td>各阶段耗时分解</td><td class="num">Σ stage_time</td><td>瓶颈定位</td></tr>
+    </table>
+    <div class="callout">
+      <b>重要区分：</b>高 FPS 不一定意味着低延迟。异步管线可能通过队列缓冲提高 FPS，但单帧延迟反而增加。对于实时交互场景，延迟比 FPS 更关键。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 16 · 性能指标对比 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Benchmark">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="current">分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>基准测试</h5>
+    <p class="dim" style="font-size:11px">不同配置对比</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">基准测试 · Benchmark</p>
+    <h2 class="h2 mt-s">不同配置下的性能对比</h2>
+    <p class="lede mt-m">以下数据基于 YOLOv8s 模型在 NVIDIA RTX 3060 上的实测结果（仅供参考）。</p>
+    <table class="data-table mt-m">
+      <tr><th>输入尺寸</th><th>模型</th><th>设备</th><th>推理耗时</th><th>端到端 FPS</th></tr>
+      <tr><td>640×640</td><td>YOLOv8s</td><td>GPU</td><td class="num">5.2 ms</td><td class="num">~45</td></tr>
+      <tr><td>640×640</td><td>YOLOv8s</td><td>CPU</td><td class="num">85 ms</td><td class="num">~11</td></tr>
+      <tr><td>416×416</td><td>YOLOv8s</td><td>GPU</td><td class="num">3.1 ms</td><td class="num">~58</td></tr>
+      <tr><td>640×640</td><td>YOLOv8n</td><td>GPU</td><td class="num">2.8 ms</td><td class="num">~62</td></tr>
+      <tr><td>640×640</td><td>YOLOv8n</td><td>CPU</td><td class="num">42 ms</td><td class="num">~22</td></tr>
+      <tr><td>320×320</td><td>YOLOv5-lite</td><td>CPU</td><td class="num">18 ms</td><td class="num">~38</td></tr>
+    </table>
+    <div class="callout">
+      <b>课堂项目要求：</b>展示单帧推理耗时、整体 FPS、输入分辨率和运行设备。否则不同小组的速度数据没有可比性。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 17 · 推理优化策略总览 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Optimization Overview">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="current">分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>优化策略</h5>
+    <p class="dim" style="font-size:11px">5 种策略 · 不同维度</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">优化策略 · Optimization</p>
+    <h2 class="h2 mt-s">实时检测优化策略总览</h2>
+    <p class="lede mt-m">从输入、模型、算法、硬件四个维度优化实时检测性能。</p>
+    <div class="grid g2 mt-m" style="gap:12px">
+      <div class="concept-box" style="border-left:3px solid var(--accent-2)">
+        <h4>① 降低输入尺寸</h4>
+        <p class="dim">640 → 416 → 320，推理速度提升 30-60%。小目标精度可能下降。</p>
+      </div>
+      <div class="concept-box" style="border-left:3px solid var(--accent)">
+        <h4>② 使用轻量模型</h4>
+        <p class="dim">YOLOv8n / YOLOv5-lite / MobileNet，参数量减少 50-80%。</p>
+      </div>
+      <div class="concept-box" style="border-left:3px solid var(--good)">
+        <h4>③ 跳帧检测</h4>
+        <p class="dim">每 N 帧检测一次，中间帧复用上次结果。适合目标移动较慢场景。</p>
+      </div>
+      <div class="concept-box" style="border-left:3px solid var(--accent-3)">
+        <h4>④ 限定 ROI</h4>
+        <p class="dim">只检测画面中目标可能出现的区域，降低计算量 30-70%。</p>
+      </div>
+      <div class="concept-box" style="border-left:3px solid var(--accent-2)">
+        <h4>⑤ 硬件加速</h4>
+        <p class="dim">GPU / TensorRT / ONNX Runtime / OpenVINO / NCNN，推理速度提升 2-10×。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 18 · 优化1：降低输入尺寸 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Opt Input Size">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="current">分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>优化策略</h5>
+    <p class="dim" style="font-size:11px">输入尺寸 · 精度权衡</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">优化策略 01 · 输入尺寸</p>
+    <h2 class="h2 mt-s">降低输入尺寸</h2>
+    <p class="lede mt-m">降低模型输入分辨率是最直接有效的加速手段。推理时间与输入像素数近似线性关系。</p>
+    <table class="data-table mt-m">
+      <tr><th>输入尺寸</th><th>像素数</th><th>相对计算量</th><th>推理耗时（GPU）</th><th>小目标检测</th></tr>
+      <tr><td>640×640</td><td class="num">409,600</td><td class="num">1.0×</td><td class="num">5.2 ms</td><td>优</td></tr>
+      <tr><td>416×416</td><td class="num">173,056</td><td class="num">0.42×</td><td class="num">3.1 ms</td><td>良</td></tr>
+      <tr><td>320×320</td><td class="num">102,400</td><td class="num">0.25×</td><td class="num">2.0 ms</td><td>中</td></tr>
+      <tr><td>224×224</td><td class="num">50,176</td><td class="num">0.12×</td><td class="num">1.2 ms</td><td>差</td></tr>
+    </table>
+    <div class="callout">
+      <b>权衡建议：</b>对于安全帽、车牌等中大型目标检测场景，416×416 是较好的平衡点。对于小目标（如远处行人），建议保持 640×640 或使用多尺度检测。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 19 · 优化2：轻量模型 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Opt Light Model">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="current">分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>优化策略</h5>
+    <p class="dim" style="font-size:11px">轻量模型 · 参数量</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">优化策略 02 · 轻量模型</p>
+    <h2 class="h2 mt-s">使用轻量模型</h2>
+    <p class="lede mt-m">YOLO 系列提供不同规模的变体，从 nano 到 xlarge，参数量相差 10 倍以上。</p>
+    <table class="data-table mt-m">
+      <tr><th>模型</th><th>参数量</th><th>FLOPs</th><th>GPU 推理</th><th>CPU 推理</th><th>mAP@0.5</th></tr>
+      <tr><td>YOLOv8n</td><td class="num">3.2M</td><td class="num">8.7G</td><td class="num">2.8 ms</td><td class="num">42 ms</td><td class="num">37.3</td></tr>
+      <tr><td>YOLOv8s</td><td class="num">11.2M</td><td class="num">28.6G</td><td class="num">5.2 ms</td><td class="num">85 ms</td><td class="num">44.9</td></tr>
+      <tr><td>YOLOv8m</td><td class="num">25.9M</td><td class="num">78.9G</td><td class="num">9.5 ms</td><td class="num">185 ms</td><td class="num">50.2</td></tr>
+      <tr><td>YOLOv8l</td><td class="num">43.7M</td><td class="num">165.2G</td><td class="num">15.4 ms</td><td class="num">360 ms</td><td class="num">52.9</td></tr>
+      <tr><td>YOLOv5-lite</td><td class="num">1.5M</td><td class="num">3.5G</td><td class="num">1.5 ms</td><td class="num">18 ms</td><td class="num">32.1</td></tr>
+    </table>
+    <div class="callout">
+      <b>选择建议：</b>普通笔记本 CPU 场景推荐 YOLOv5-lite 或 YOLOv8n。有 GPU 时 YOLOv8s 是精度/速度的最佳平衡。YOLOv5-lite 在边缘设备上的价值尤为突出。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 20 · 优化3：跳帧检测 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Opt Skip Frame">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="current">分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>优化策略</h5>
+    <p class="dim" style="font-size:11px">跳帧 · 帧间复用</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">优化策略 03 · 跳帧检测</p>
+    <h2 class="h2 mt-s">跳帧检测策略</h2>
+    <p class="lede mt-m">对于目标移动较慢的场景（如安防监控），无需每帧都执行完整推理。</p>
+    <div class="code mt-m"><pre style="margin:0"><span class="kw">def</span> <span class="fn">skip_frame_detection</span>(cap, skip=<span class="num">2</span>):
+    frame_count = <span class="num">0</span>
+    last_dets = []
+
+    <span class="kw">while</span> <span class="str">True</span>:
+        ok, frame = cap.read()
+        <span class="kw">if not</span> ok: <span class="kw">break</span>
+
+        <span class="kw">if</span> frame_count % skip == <span class="num">0</span>:
+            <span class="cmt"># 执行完整推理</span>
+            last_dets = run_inference(frame)
+        <span class="cmt"># 跳过的帧复用上次检测结果</span>
+        draw_detections(frame, last_dets)
+
+        frame_count += <span class="num">1</span>
+        cv2.imshow(<span class="str">"skip"</span>, frame)
+        <span class="kw">if</span> cv2.waitKey(<span class="num">1</span>) & <span class="num">0xFF</span> == ord(<span class="str">"q"</span>):
+            <span class="kw">break</span></pre></div>
+    <div class="callout">
+      <b>效果：</b>skip=2 时推理量减半，FPS 可提升约 80%。skip=3 时推理量降为 1/3，FPS 提升约 150%。适用于目标运动速度 ≤ 检测区域宽度 5%/帧 的场景。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 21 · 优化4：限定 ROI -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Opt ROI">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="current">分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>优化策略</h5>
+    <p class="dim" style="font-size:11px">ROI · 区域裁剪</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">优化策略 04 · 限定 ROI</p>
+    <h2 class="h2 mt-s">限定检测区域（ROI）</h2>
+    <p class="lede mt-m">如果目标只可能出现在画面特定区域（如门口、传送带），可只对该区域进行检测。</p>
+    <div class="grid g2 mt-m" style="gap:14px">
+      <div class="concept-box">
+        <h4>ROI 裁剪实现</h4>
+        <p class="dim">1. 定义 ROI 区域坐标<br>2. 从原帧裁剪 ROI 子图<br>3. 对子图执行预处理 + 推理<br>4. 将检测框坐标映射回原图<br>计算量降低比例 ≈ ROI面积/全图面积</p>
+      </div>
+      <div class="concept-box">
+        <h4>适用场景</h4>
+        <p class="dim">• 闸机口人脸检测<br>• 生产线缺陷检测<br>• 停车场车位检测<br>• 交通灯区域检测<br>注意：ROI 外目标完全丢失</p>
+      </div>
+    </div>
+    <div class="code mt-m"><pre style="margin:0"><span class="cmt"># ROI 检测示例</span>
+roi_x1, roi_y1, roi_x2, roi_y2 = <span class="num">200</span>, <span class="num">100</span>, <span class="num">600</span>, <span class="num">500</span>
+roi = frame[roi_y1:roi_y2, roi_x1:roi_x2]  <span class="cmt"># 裁剪 ROI</span>
+dets = run_inference(roi)  <span class="cmt"># 在 ROI 上检测</span>
+<span class="cmt"># 坐标还原：dets.x += roi_x1, dets.y += roi_y1</span></pre></div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 22 · 优化5：硬件加速 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Opt Hardware">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="current">分析并优化 FPS、延迟与吞吐量</li>
+      <li>掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>优化策略</h5>
+    <p class="dim" style="font-size:11px">硬件加速 · 推理引擎</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">优化策略 05 · 硬件加速</p>
+    <h2 class="h2 mt-s">硬件加速与推理引擎</h2>
+    <p class="lede mt-m">从训练权重到产品部署之间存在工程转换过程。不同硬件平台有对应的加速方案。</p>
+    <table class="data-table mt-m">
+      <tr><th>方案</th><th>适用硬件</th><th>加速比</th><th>安装方式</th><th>学习成本</th></tr>
+      <tr><td>ONNX Runtime</td><td>CPU / GPU / NPU</td><td class="num">1.5-3×</td><td>pip install onnxruntime-gpu</td><td>低</td></tr>
+      <tr><td>TensorRT</td><td>NVIDIA GPU</td><td class="num">3-8×</td><td>pip install tensorrt</td><td>中</td></tr>
+      <tr><td>OpenVINO</td><td>Intel CPU / GPU</td><td class="num">2-5×</td><td>pip install openvino</td><td>中</td></tr>
+      <tr><td>NCNN</td><td>ARM CPU (手机)</td><td class="num">2-4×</td><td>源码编译</td><td>高</td></tr>
+      <tr><td>CoreML</td><td>Apple Silicon</td><td class="num">2-5×</td><td>coremltools 转换</td><td>中</td></tr>
+    </table>
+    <div class="callout">
+      <b>课堂说明：</b>不要求深入实现各方案，但需理解训练权重到产品部署之间存在工程转换过程。ONNX Runtime 是入门门槛最低的加速方案。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 23 · 检测结果稳定性 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Stability">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="done">分析并优化 FPS、延迟与吞吐量</li>
+      <li class="current">掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>稳定性</h5>
+    <p class="dim" style="font-size:11px">抖动 · 波动 · 漏检</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">检测稳定性 · Stability</p>
+    <h2 class="h2 mt-s">实时检测中的常见稳定性问题</h2>
+    <p class="lede mt-m">实时画面中，检测结果在时间维度上可能出现不稳定现象，影响系统可靠性。</p>
+    <div class="grid g2 mt-m" style="gap:12px">
+      <div class="concept-box" style="border-left:3px solid var(--accent-3)">
+        <h4>检测框抖动</h4>
+        <p class="dim">相邻帧之间检测框位置和大小剧烈变化。原因：模型对微小位移敏感、输入噪声。</p>
+      </div>
+      <div class="concept-box" style="border-left:3px solid var(--warn)">
+        <h4>置信度波动</h4>
+        <p class="dim">同一目标在不同帧的置信度忽高忽低，可能导致目标在阈值上下反复出现/消失。</p>
+      </div>
+      <div class="concept-box" style="border-left:3px solid var(--bad)">
+        <h4>目标偶尔漏检</h4>
+        <p class="dim">目标在部分帧中完全未被检测到。原因：遮挡、运动模糊、光照变化。</p>
+      </div>
+      <div class="concept-box" style="border-left:3px solid var(--accent)">
+        <h4>相邻目标 ID 混乱</h4>
+        <p class="dim">多目标场景下，同一目标在不同帧被分配不同 ID。需要跟踪算法解决。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 24 · 稳定性改进方法 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Stability Fixes">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="done">分析并优化 FPS、延迟与吞吐量</li>
+      <li class="current">掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>改进方法</h5>
+    <p class="dim" style="font-size:11px">平滑 · 跟踪 · 规则过滤</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">稳定性改进 · Improvement</p>
+    <h2 class="h2 mt-s">检测结果稳定性改进方法</h2>
+    <div class="code mt-m"><pre style="margin:0"><span class="cmt"># 置信度平滑（指数移动平均）</span>
+alpha = <span class="num">0.7</span>  <span class="cmt"># 历史权重</span>
+smoothed_conf = alpha * prev_conf + (<span class="num">1</span> - alpha) * current_conf
+
+<span class="cmt"># 连续多帧确认（防误报）</span>
+consecutive_detections = <span class="num">0</span>
+<span class="kw">if</span> detected:
+    consecutive_detections += <span class="num">1</span>
+    <span class="kw">if</span> consecutive_detections >= <span class="num">3</span>:  <span class="cmt"># 连续 3 帧确认</span>
+        trigger_alarm()
+<span class="kw">else</span>:
+    consecutive_detections = <span class="num">0</span></pre></div>
+    <div class="grid g2 mt-m" style="gap:12px">
+      <div class="concept-box">
+        <h4>简单改进</h4>
+        <p class="dim">• 置信度指数平滑<br>• 连续多帧确认再报警<br>• 检测区域业务规则过滤<br>• 框位置时序滤波</p>
+      </div>
+      <div class="concept-box">
+        <h4>进阶方案（课外拓展）</h4>
+        <p class="dim">• SORT 跟踪（Kalman Filter）<br>• DeepSORT（外观特征 + 跟踪）<br>• ByteTrack（高/低分框关联）</p>
+      </div>
+    </div>
+    <div class="callout">
+      <b>核心区分：</b>检测解决"每帧有什么"，跟踪解决"跨帧是谁"。两者结合才能构建稳定的实时检测系统。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 25 · 从脚本到部署 - 三个层级 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Deploy Levels">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="done">分析并优化 FPS、延迟与吞吐量</li>
+      <li class="current">掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>部署层级</h5>
+    <p class="dim" style="font-size:11px">脚本 → 服务 → 平台</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">部署思维 · Deployment</p>
+    <h2 class="h2 mt-s">从脚本到部署：三个层级</h2>
+    <p class="lede mt-m">课堂项目可沿三个层级逐步演进，每个层级解决不同维度的工程问题。</p>
+    <div class="pipeline mt-m" style="flex-direction:column;gap:8px">
+      <div class="step" style="display:grid;grid-template-columns:80px 1fr;gap:12px;text-align:left;min-width:auto;padding:12px 16px">
+        <div style="font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--accent-2)">L1</div>
+        <div><div style="font-family:var(--font-serif);font-size:16px;font-weight:600">单机脚本</div><div style="font-size:12px;color:var(--text-2)">命令行运行，显示检测窗口。解决"能不能跑"的问题。</div></div>
+      </div>
+      <div class="step" style="display:grid;grid-template-columns:80px 1fr;gap:12px;text-align:left;min-width:auto;padding:12px 16px">
+        <div style="font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--accent)">L2</div>
+        <div><div style="font-family:var(--font-serif);font-size:16px;font-weight:600">本地服务</div><div style="font-size:12px;color:var(--text-2)">FastAPI/Flask 封装 /detect 接口。解决"怎么被调用"的问题。</div></div>
+      </div>
+      <div class="step" style="display:grid;grid-template-columns:80px 1fr;gap:12px;text-align:left;min-width:auto;padding:12px 16px">
+        <div style="font-family:var(--font-mono);font-size:24px;font-weight:700;color:var(--good)">L3</div>
+        <div><div style="font-family:var(--font-serif);font-size:16px;font-weight:600">演示平台</div><div style="font-size:12px;color:var(--text-2)">前端上传文件，后端返回检测图和结构化结果。解决"怎么被使用"的问题。</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 26 · 层级1：单机脚本 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Level 1 Script">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="done">分析并优化 FPS、延迟与吞吐量</li>
+      <li class="current">掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>L1 脚本</h5>
+    <p class="dim" style="font-size:11px">完整代码 · 命令行运行</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">部署层级 01 · 单机脚本</p>
+    <h2 class="h2 mt-s">完整实时检测脚本</h2>
+    <div class="code mt-m"><pre style="margin:0"><span class="kw">import</span> cv2, time, numpy <span class="kw">as</span> np
+<span class="kw">import</span> onnxruntime <span class="kw">as</span> ort
+
+<span class="cmt"># 加载模型</span>
+session = ort.InferenceSession(<span class="str">"best.onnx"</span>)
+input_name = session.get_inputs()[<span class="num">0</span>].name
+
+cap = cv2.VideoCapture(<span class="num">0</span>)
+cap.set(cv2.CAP_PROP_BUFFERSIZE, <span class="num">1</span>)
+fps_log, prev = [], time.perf_counter()
+
+<span class="kw">while</span> <span class="str">True</span>:
+    ok, frame = cap.read()
+    <span class="kw">if not</span> ok: <span class="kw">break</span>
+
+    <span class="cmt"># 预处理 → 推理 → 后处理</span>
+    blob, meta = preprocess(frame, <span class="num">640</span>)
+    outputs = session.run(<span class="str">None</span>, {input_name: blob})
+    dets = postprocess(outputs)
+
+    <span class="kw">if</span> len(dets):
+        dets[:, :<span class="num">4</span>] = scale_boxes(dets[:, :<span class="num">4</span>], *meta, frame.shape)
+        draw_detections(frame, dets)
+
+    <span class="cmt"># FPS</span>
+    now = time.perf_counter()
+    fps = <span class="num">1.0</span> / (now - prev); prev = now
+    fps_log.append(fps)
+    <span class="kw">if</span> len(fps_log) > <span class="num">30</span>: fps_log.pop(<span class="num">0</span>)
+    cv2.putText(frame, f<span class="str">"FPS: {sum(fps_log)/len(fps_log):.1f}"</span>,
+                (<span class="num">10</span>, <span class="num">30</span>), cv2.FONT_HERSHEY_SIMPLEX, <span class="num">1</span>, (<span class="num">0</span>,<span class="num">255</span>,<span class="num">0</span>), <span class="num">2</span>)
+
+    cv2.imshow(<span class="str">"detect"</span>, frame)
+    <span class="kw">if</span> cv2.waitKey(<span class="num">1</span>) & <span class="num">0xFF</span> == ord(<span class="str">"q"</span>): <span class="kw">break</span>
+
+cap.release(); cv2.destroyAllWindows()</pre></div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 27 · 层级2：本地服务 FastAPI -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Level 2 FastAPI">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="done">分析并优化 FPS、延迟与吞吐量</li>
+      <li class="current">掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>L2 服务</h5>
+    <p class="dim" style="font-size:11px">FastAPI · REST API</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">部署层级 02 · 本地服务</p>
+    <h2 class="h2 mt-s">FastAPI 封装检测接口</h2>
+    <div class="code mt-m"><pre style="margin:0"><span class="cmt"># pip install fastapi uvicorn python-multipart</span>
+<span class="cmt"># 启动: uvicorn main:app --host 0.0.0.0 --port 8000</span>
+
+<span class="kw">from</span> fastapi <span class="kw">import</span> FastAPI, UploadFile, File
+<span class="kw">import</span> cv2, numpy <span class="kw">as</span> np
+
+app = FastAPI()
+session = ort.InferenceSession(<span class="str">"best.onnx"</span>)
+
+@app.post(<span class="str">"/detect"</span>)
+<span class="kw">async def</span> <span class="fn">detect</span>(file: UploadFile = File(...)):
+    <span class="cmt"># 读取上传图片</span>
+    contents = <span class="kw">await</span> file.read()
+    nparr = np.frombuffer(contents, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    <span class="cmt"># 推理</span>
+    blob, meta = preprocess(img, <span class="num">640</span>)
+    outputs = session.run(<span class="str">None</span>, {input_name: blob})
+    dets = postprocess(outputs)
+
+    <span class="cmt"># 绘制结果</span>
+    <span class="kw">if</span> len(dets):
+        dets[:, :<span class="num">4</span>] = scale_boxes(dets[:, :<span class="num">4</span>], *meta, img.shape)
+        draw_detections(img, dets)
+
+    <span class="cmt"># 返回结构化结果</span>
+    <span class="kw">return</span> {
+        <span class="str">"detections"</span>: dets.tolist(),
+        <span class="str">"num_objects"</span>: len(dets)
+    }</pre></div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 28 · 层级3：演示平台 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Level 3 Platform">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="done">分析并优化 FPS、延迟与吞吐量</li>
+      <li class="current">掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>L3 平台</h5>
+    <p class="dim" style="font-size:11px">前后端 · 完整链路</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">部署层级 03 · 演示平台</p>
+    <h2 class="h2 mt-s">完整演示平台架构</h2>
+    <p class="lede mt-m">前端上传文件，后端返回检测图和结构化结果。算法能力通过 API 被平台调用。</p>
+    <div class="pipeline mt-m" style="flex-direction:column;gap:6px">
+      <div class="step" style="display:grid;grid-template-columns:100px 1fr;gap:10px;text-align:left;min-width:auto;padding:10px 14px">
+        <span class="tag">前端</span>
+        <div style="font-size:13px;color:var(--text-2)">HTML/JS 上传图片 → 调用 /detect → 展示检测结果图 + JSON 数据</div>
+      </div>
+      <div class="step" style="display:grid;grid-template-columns:100px 1fr;gap:10px;text-align:left;min-width:auto;padding:10px 14px">
+        <span class="tag">后端</span>
+        <div style="font-size:13px;color:var(--text-2)">FastAPI 接收请求 → 模型推理 → 返回检测结果 + 结果图片路径</div>
+      </div>
+      <div class="step" style="display:grid;grid-template-columns:100px 1fr;gap:10px;text-align:left;min-width:auto;padding:10px 14px">
+        <span class="tag">存储</span>
+        <div style="font-size:13px;color:var(--text-2)">结果图片保存至 /outputs/，结构化数据以 JSON 返回</div>
+      </div>
+    </div>
+    <div class="code mt-m"><pre style="margin:0"><span class="cmt"># 安装依赖</span>
+pip install fastapi uvicorn python-multipart onnxruntime opencv-python
+
+<span class="cmt"># 启动服务</span>
+uvicorn main:app --reload --host <span class="num">0.0.0.0</span> --port <span class="num">8000</span>
+
+<span class="cmt"># 测试接口（curl）</span>
+curl -X POST -F <span class="str">"file=@test.jpg"</span> http://localhost:<span class="num">8000</span>/detect</pre></div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 29 · 接口设计 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="API Design">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="done">分析并优化 FPS、延迟与吞吐量</li>
+      <li class="current">掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>接口规范</h5>
+    <p class="dim" style="font-size:11px">JSON Schema · 结构化输出</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">接口设计 · API Design</p>
+    <h2 class="h2 mt-s">检测接口的标准化输出</h2>
+    <p class="lede mt-m">当检测结果可以结构化表达，算法能力才能被平台调用。统一的接口规范是部署的基础。</p>
+    <div class="code mt-m"><pre style="margin:0">{
+  <span class="str">"filename"</span>: <span class="str">"test.jpg"</span>,
+  <span class="str">"timestamp"</span>: <span class="str">"2026-05-15T14:30:00Z"</span>,
+  <span class="str">"detections"</span>: [
+    {
+      <span class="str">"class"</span>: <span class="str">"helmet"</span>,
+      <span class="str">"confidence"</span>: <span class="num">0.91</span>,
+      <span class="str">"bbox"</span>: [<span class="num">120</span>, <span class="num">80</span>, <span class="num">240</span>, <span class="num">210</span>]
+    },
+    {
+      <span class="str">"class"</span>: <span class="str">"person"</span>,
+      <span class="str">"confidence"</span>: <span class="num">0.87</span>,
+      <span class="str">"bbox"</span>: [<span class="num">300</span>, <span class="num">50</span>, <span class="num">450</span>, <span class="num">380</span>]
+    }
+  ],
+  <span class="str">"result_image"</span>: <span class="str">"/outputs/test_result.jpg"</span>,
+  <span class="str">"elapsed_ms"</span>: <span class="num">38</span>
+}</pre></div>
+    <div class="callout">
+      <b>设计原则：</b>接口应包含输入标识、检测结果列表（类别、置信度、坐标）、结果图片路径和耗时信息。结构化输出使得检测能力可被上层业务系统灵活调用。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 30 · 课堂任务 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Tasks">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="done">分析并优化 FPS、延迟与吞吐量</li>
+      <li class="done">掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>课堂任务</h5>
+    <p class="dim" style="font-size:11px">5 项 · 90 分钟</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">课堂任务 · Lab Tasks</p>
+    <h2 class="h2 mt-s">实操环节：完成摄像头/视频检测演示</h2>
+    <div class="exercise mt-m">
+      <p style="margin:0;font-size:15px;color:var(--text-1);font-weight:600">任务清单（90 分钟）</p>
+      <ol style="color:var(--text-2);line-height:1.7;margin:8px 0 0;padding-left:20px;font-size:14px">
+        <li>使用自训练权重（best.onnx）检测一段视频文件</li>
+        <li>使用本地摄像头运行实时检测（VideoCapture(0)）</li>
+        <li>在画面左上角叠加显示实时 FPS（滑动平均）</li>
+        <li>保存一段演示视频或截图（VideoWriter）</li>
+        <li>说明当前速度瓶颈和一个优化方案</li>
+      </ol>
+    </div>
+    <div class="grid g2 mt-m" style="gap:12px">
+      <div class="concept-box">
+        <h4>提交要求</h4>
+        <p class="dim">• 可运行的 Python 脚本<br>• 运行截图或录屏<br>• 瓶颈分析文档（100-200 字）<br>• 优化方案说明</p>
+      </div>
+      <div class="concept-box">
+        <h4>评分标准</h4>
+        <p class="dim">• 基础功能完整（40%）<br>• FPS 显示正确（20%）<br>• 瓶颈分析准确（20%）<br>• 优化方案合理（20%）</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 31 · 课外拓展 -->
+<!-- ================================================================ -->
+<section class="slide" data-title="Extras">
+  <aside class="sidebar">
+    <div class="brand">CV · L09</div>
+    <h5>学习目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解视频检测与图片检测的本质差异</li>
+      <li class="done">掌握 OpenCV 摄像头读取与帧处理流程</li>
+      <li class="done">构建完整的实时推理管线</li>
+      <li class="done">分析并优化 FPS、延迟与吞吐量</li>
+      <li class="done">掌握从脚本到服务的部署思维</li>
+    </ul>
+    <h5>课外拓展</h5>
+    <p class="dim" style="font-size:11px">ONNX · TensorRT · 跟踪</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">课外拓展 · Further Study</p>
+    <h2 class="h2 mt-s">进阶方向与学习资源</h2>
+    <div class="grid g2 mt-m" style="gap:12px">
+      <div class="concept-box">
+        <h4>ONNX Runtime 深入学习</h4>
+        <p class="dim">将 PyTorch 模型导出为 ONNX 格式：<br><code>torch.onnx.export(model, dummy, "model.onnx")</code><br>支持量化（INT8/FP16）和算子融合优化。<br>官方文档：onnxruntime.ai</p>
+      </div>
+      <div class="concept-box">
+        <h4>TensorRT 部署</h4>
+        <p class="dim">NVIDIA 高性能推理引擎。<br>支持 FP16/INT8 量化、层融合、动态形状。<br>适合 GPU 服务器和 Jetson 边缘设备。<br>安装：pip install tensorrt</p>
+      </div>
+      <div class="concept-box">
+        <h4>OpenVINO</h4>
+        <p class="dim">Intel 开源推理优化工具。<br>支持 CPU/iGPU/VPU 异构执行。<br>适合 Intel 平台部署。<br>安装：pip install openvino</p>
+      </div>
+      <div class="concept-box">
+        <h4>NCNN / 移动端部署</h4>
+        <p class="dim">腾讯开源的高性能神经网络推理框架。<br>针对移动端 ARM CPU 优化。<br>支持 Vulkan GPU 加速。<br>适合 Android/iOS 端部署。</p>
+      </div>
+    </div>
+    <div class="callout">
+      <b>思考题：</b>实时检测系统不能只看 mAP。mAP 衡量单帧检测精度，实际部署还必须同时评估帧间稳定性、端到端延迟和资源占用。
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================ -->
+<!-- SLIDE 32 · 总结 -->
+<!-- ================================================================ -->
+<section class="slide full" data-title="Summary">
+  <p class="kicker">总结 · 第九讲</p>
+  <h1 class="h1" style="max-width:14ch;margin:8px auto">本讲核心要点</h1>
+  <div class="grid g2" style="max-width:800px;margin:16px auto;gap:12px;text-align:left">
+    <div class="concept-box"><h4>✓ 视频检测 vs 图片检测</h4><p class="dim">连续帧处理带来时间维度约束，推理速度必须接近或超过帧率。</p></div>
+    <div class="concept-box"><h4>✓ OpenCV 视频读取</h4><p class="dim">VideoCapture 初始化、参数配置、帧循环、资源释放的完整流程。</p></div>
+    <div class="concept-box"><h4>✓ 实时推理管线</h4><p class="dim">采集 → 预处理 → 推理 → 后处理 → 坐标还原 → 展示/保存，六阶段完整链路。</p></div>
+    <div class="concept-box"><h4>✓ 性能优化策略</h4><p class="dim">降低输入尺寸、轻量模型、跳帧检测、ROI 限定、硬件加速五种优化手段。</p></div>
+    <div class="concept-box"><h4>✓ 部署思维</h4><p class="dim">从单机脚本到本地服务到演示平台的三级演进路径与接口设计规范。</p></div>
+    <div class="concept-box"><h4>✓ 稳定性保障</h4><p class="dim">置信度平滑、多帧确认、目标跟踪等帧间稳定性改进方法。</p></div>
+  </div>
+  <div class="callout" style="max-width:600px;margin:16px auto;text-align:left">
+    <b>下一讲预告：</b>目标跟踪与多目标关联 —— 在检测基础上解决"跨帧是谁"的问题。
+  </div>
+  <div class="deck-footer"><span>计算机视觉 · 课程专题 · 2026 春</span><span class="slide-number" data-current="32" data-total="32"></span></div>
+</section>
+
+
+</div>
+
+<div class="progress-bar"><span></span></div>
+<div class="notes-overlay"></div>
+<div class="overview"></div>
+
+<script>
+(function(){
+  'use strict';
+  var deck = document.querySelector('.deck');
+  if (!deck) return;
+  var slides = Array.from(deck.querySelectorAll('.slide'));
+  if (!slides.length) return;
+
+  var idx = 0, total = slides.length;
+
+  /* progress bar */
+  var bar = document.querySelector('.progress-bar');
+  if (!bar) { bar = document.createElement('div'); bar.className = 'progress-bar'; bar.innerHTML = '<span></span>'; document.body.appendChild(bar); }
+  var barFill = bar.querySelector('span');
+
+  /* notes overlay */
+  var notes = document.querySelector('.notes-overlay');
+  if (!notes) { notes = document.createElement('div'); notes.className = 'notes-overlay'; document.body.appendChild(notes); }
+
+  /* overview */
+  var overview = document.querySelector('.overview');
+  if (!overview) {
+    overview = document.createElement('div'); overview.className = 'overview';
+    slides.forEach(function(s, i) {
+      var t = document.createElement('div'); t.className = 'thumb';
+      var title = s.getAttribute('data-title') || (s.querySelector('h1,h2,h3')||{}).textContent || ('Slide '+(i+1));
+      t.innerHTML = '<div class="n">'+(i+1)+'</div><div class="t">'+title.slice(0,60)+'</div>';
+      t.addEventListener('click', function(){ go(i); toggleOverview(false); });
+      overview.appendChild(t);
+    });
+    document.body.appendChild(overview);
+  }
+
+  function go(n) {
+    n = Math.max(0, Math.min(total-1, n));
+    slides.forEach(function(s, i) {
+      s.classList.toggle('is-active', i === n);
+      s.classList.toggle('is-prev', i < n);
+    });
+    idx = n;
+    barFill.style.width = ((n+1)/total*100)+'%';
+    var numEl = document.querySelector('.slide-number');
+    if (numEl) { numEl.setAttribute('data-current', n+1); numEl.setAttribute('data-total', total); }
+    var note = slides[n].querySelector('.notes, aside.notes, .speaker-notes');
+    notes.innerHTML = note ? note.innerHTML : '';
+    var hashTarget = '#/'+(n+1);
+    if (location.hash !== hashTarget) history.replaceState(null, '', hashTarget);
+  }
+
+  function toggleOverview(force) {
+    var isOpen = force !== undefined ? force : !overview.classList.contains('open');
+    overview.classList.toggle('open', isOpen);
+  }
+
+  function toggleNotes(force) { notes.classList.toggle('open', force !== undefined ? force : !notes.classList.contains('open')); }
+
+  /* keyboard */
+  document.addEventListener('keydown', function(e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    switch(e.key) {
+      case 'ArrowRight': case ' ': case 'PageDown': go(idx+1); e.preventDefault(); break;
+      case 'ArrowLeft': case 'PageUp': go(idx-1); e.preventDefault(); break;
+      case 'Home': go(0); break;
+      case 'End': go(total-1); break;
+      case 'f': case 'F': if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); break;
+      case 'n': case 'N': toggleNotes(); break;
+      case 'o': case 'O': toggleOverview(); break;
+      case 'Escape': toggleOverview(false); toggleNotes(false); break;
+    }
+  });
+
+  /* hash deep-link */
+  var m = /^#\/(\d+)/.exec(location.hash || '');
+  if (m) go(Math.max(0, parseInt(m[1],10)-1));
+  else go(0);
+})();
+</script>
+</body>
+</html>

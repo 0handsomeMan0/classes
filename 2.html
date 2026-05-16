@@ -1,0 +1,1676 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OpenCV 图像表示、灰度化、滤波与几何变换 · 数字图像处理</title>
+<style>
+:root{
+  --bg:#faf6ef;--bg-soft:#f5efe3;--surface:#fdfcf8;--surface-2:#f3ece0;
+  --border:rgba(80,60,30,.12);--border-strong:rgba(80,60,30,.24);
+  --text-1:#2c2418;--text-2:#5c5240;--text-3:#8c7f68;
+  --accent:#8b5e3c;--accent-2:#9a6b3e;--accent-3:#6b3a2a;
+  --good:#3a7a4a;--warn:#9a7a2a;--bad:#8a3a2a;
+  --radius:8px;--radius-sm:6px;
+  --font-serif:'Noto Serif SC','Latin Modern Roman','Playfair Display',Georgia,serif;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace;
+  --ease:cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text-1);
+  font-family:var(--font-serif);font-weight:400;line-height:1.6}
+img,svg,video{max-width:100%;display:block}
+a{color:var(--accent);text-decoration:none}
+code,kbd,pre,samp{font-family:var(--font-mono);font-size:.9em}
+.deck{position:relative;width:100vw;height:100vh;overflow:hidden;background:var(--bg)}
+.slide{
+  position:absolute;inset:0;
+  display:grid;grid-template-columns:200px 1fr;gap:28px;align-content:start;
+  padding:36px 48px;
+  box-sizing:border-box;
+  opacity:0;pointer-events:none;
+  transition:opacity .5s var(--ease),transform .5s var(--ease);
+  transform:translateX(30px);
+  overflow-y:auto;
+}
+.slide.is-active{opacity:1;pointer-events:auto;transform:translateX(0);z-index:2}
+.slide.is-prev{transform:translateX(-30px)}
+.slide.full{grid-template-columns:1fr;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+.slide.full .main{max-width:85ch;margin:0 auto}
+/* === SIDEBAR — more compact, larger text === */
+.sidebar{border-right:1px solid var(--border);padding-right:18px;position:relative}
+.sidebar .module-title{font-size:14px;font-weight:700;color:var(--accent);line-height:1.25;margin-bottom:3px}
+.sidebar .module-code{font-family:var(--font-mono);font-size:10px;color:var(--text-3);letter-spacing:.06em;margin-bottom:14px}
+.sidebar h5{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);margin:0 0 7px}
+.obj-list{list-style:none;padding:0;margin:0;font-size:13px;color:var(--text-2);line-height:1.4}
+.obj-list li{padding:5px 0 5px 16px;position:relative;border-bottom:1px dashed var(--border)}
+.obj-list li::before{content:"○";position:absolute;left:0;top:5px;color:var(--accent);font-size:10px}
+.obj-list li.done::before{content:"●";color:var(--good)}
+.obj-list li.current{color:var(--text-1);font-weight:700}
+.obj-list li.current::before{content:"▸";color:var(--accent-2);font-weight:700}
+/* === MAIN — larger text === */
+.main{min-width:0}
+.h1{font-size:clamp(36px,3.8vw,56px);line-height:1.1;font-weight:800;letter-spacing:-.015em;margin:0 0 10px}
+.h2{font-size:clamp(22px,2.4vw,34px);line-height:1.15;font-weight:700;letter-spacing:-.01em;margin:0 0 6px}
+.h3{font-size:clamp(17px,1.6vw,22px);line-height:1.25;font-weight:600;margin:0 0 5px}
+.h4{font-size:clamp(14px,1.3vw,17px);line-height:1.3;font-weight:600;margin:0 0 4px}
+.kicker{font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin:0 0 3px}
+.lede{font-size:clamp(16px,1.4vw,19px);color:var(--text-2);line-height:1.6;margin:0}
+.fn-desc{font-size:clamp(15px,1.3vw,17px);line-height:1.6;margin:0;color:var(--text-2)}
+.fn-desc strong{color:var(--text-1)}
+.dim{color:var(--text-2);font-size:clamp(14px,1.2vw,16px)}
+.dim2{color:var(--text-3);font-size:clamp(13px,1.1vw,15px)}
+.stack>*+*{margin-top:10px}
+.row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:1fr 1fr 1fr}
+.g4{grid-template-columns:1fr 1fr 1fr 1fr}
+.g5{grid-template-columns:repeat(5,1fr)}
+.mt-s{margin-top:5px}.mt-m{margin-top:10px}.mt-l{margin-top:18px}.mt-xl{margin-top:26px}
+.mb-s{margin-bottom:5px}.mb-m{margin-bottom:10px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;position:relative;overflow:hidden}
+.card h4{margin-top:0}
+.card-accent{border-left:3px solid var(--accent)}
+.card-tight{padding:8px 12px}
+.code-block{background:#2c2418;color:#f0ebe0;border-radius:var(--radius);padding:12px 16px;font-family:var(--font-mono);font-size:clamp(13px,1.15vw,15px);line-height:1.55;overflow-x:auto;margin:6px 0}
+.code-block .cmt{color:#9a8f78;font-style:italic}
+.code-block .kw{color:#e8a770;font-weight:700}
+.code-block .str{color:#8ec6b2}
+.code-block .fn{color:#88b8e8}
+.code-block .op{color:#d4a0d4}
+.code-block .num{color:#c8a87a}
+.callout{border-left:4px solid var(--accent-2);background:var(--surface-2);padding:10px 16px;border-radius:0 var(--radius) var(--radius) 0;margin-top:10px;font-size:clamp(14px,1.2vw,16px)}
+.callout b{color:var(--accent-3)}
+.pill{display:inline-block;padding:2px 8px;border-radius:3px;background:var(--surface-2);border:1px solid var(--border);font-size:11px;color:var(--text-2);font-family:var(--font-mono)}
+.pill-accent{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);border-color:color-mix(in srgb,var(--accent) 28%,transparent)}
+/* === TABLES === */
+.data-table{width:100%;border-collapse:collapse;font-size:clamp(13px,1.15vw,15px);margin:5px 0}
+.data-table th,.data-table td{border:1px solid var(--border);padding:6px 10px;text-align:left}
+.data-table th{background:var(--surface-2);font-weight:700}
+.data-table td{background:var(--surface)}
+.data-table tr:nth-child(even) td{background:var(--bg-soft)}
+/* === MATRIX VIS === */
+.matrix-viz{display:inline-grid;gap:1px;background:var(--border);padding:1px;border-radius:4px;margin:4px 0;font-family:var(--font-mono);font-size:clamp(12px,1vw,14px)}
+.matrix-viz .cell{background:var(--surface);padding:3px 6px;text-align:center;min-width:24px}
+.matrix-viz .cell.dark{background:#2c2418;color:#f0ebe0}
+.matrix-viz .cell.mid{background:#8c7f68;color:#fff}
+.matrix-viz .cell.light{background:#d4c8b8;color:#2c2418}
+/* === SVG DIAGRAM === */
+.diagram-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin:5px 0}
+/* === DECK FOOTER === */
+.deck-footer{position:absolute;bottom:14px;left:48px;right:48px;display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--text-3);z-index:10;pointer-events:none}
+.slide-number::before{content:attr(data-current)}
+.slide-number::after{content:" / " attr(data-total)}
+.progress-bar{position:fixed;left:0;right:0;bottom:0;height:2px;background:transparent;z-index:20}
+.progress-bar > span{display:block;height:100%;width:0;background:var(--accent);transition:width .3s var(--ease)}
+code{background:rgba(80,60,30,.08);padding:1px 4px;border-radius:3px;font-size:.88em}
+/* === COMPARISON === */
+.comp-box{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:5px 0}
+.comp-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px}
+.comp-item h4{font-size:clamp(13px,1.15vw,16px);margin:0 0 4px}
+/* === LABELED ANNOTATION === */
+.ann-row{display:flex;gap:6px;align-items:flex-start;font-size:clamp(13px,1.15vw,15px)}
+.ann-row .tag{flex-shrink:0;background:var(--accent);color:#fff;border-radius:3px;padding:1px 8px;font-size:11px;font-weight:700;font-family:var(--font-mono)}
+@media print{
+  .slide{position:relative;opacity:1!important;transform:none!important;page-break-after:always;height:auto;min-height:100vh}
+  .deck-footer,.progress-bar{display:none!important}
+}
+@media (max-width:1200px){
+  .slide{padding:28px 32px;grid-template-columns:1fr}
+  .sidebar{border-right:none;padding-right:0;padding-bottom:10px}
+}
+</style>
+<style>
+/* ===== inlined unified course styles for standalone distribution ===== */
+/* Course-wide visual normalization.
+   This file intentionally mirrors the warm academic style of 1.html while
+   preserving each deck's existing navigation/runtime structure. */
+:root{
+  --bg:#faf7f0!important;
+  --bg-soft:#f0ece0!important;
+  --surface:#ffffff!important;
+  --surface-2:#f7f1e3!important;
+  --border:rgba(90,60,30,.13)!important;
+  --border-strong:rgba(90,60,30,.28)!important;
+  --text-1:#2a1f12!important;
+  --text-2:#5a4a33!important;
+  --text-3:#8a7859!important;
+  --accent:#3b7a5a!important;
+  --accent-2:#c4812a!important;
+  --accent-3:#b8452e!important;
+  --paper:#faf7f0!important;
+  --paper-tint:#f0ece0!important;
+  --paper-rgb:250,247,240!important;
+  --ink:#2a1f12!important;
+  --ink-rgb:42,31,18!important;
+  --ink-tint:#5a4a33!important;
+  --code-bg:#2a1f12!important;
+  --radius:14px!important;
+  --radius-sm:12px!important;
+  --shadow:0 8px 24px rgba(90,60,30,.07)!important;
+  --font-sans:'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif!important;
+  --font-serif:'Playfair Display','Noto Serif SC',Georgia,serif!important;
+  --font-mono:'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace!important;
+}
+html,body,#deck,.deck{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+  font-family:var(--font-sans)!important;
+  letter-spacing:-.01em;
+}
+.slide,
+section[class*="slide"],
+.slide.light,
+.slide.dark,
+.slide-cover,
+.slide-divider{
+  background:var(--bg)!important;
+  color:var(--text-1)!important;
+}
+.slide.full,
+.cover,
+.slide-cover{
+  background:var(--bg)!important;
+}
+.main,
+.content,
+.slide-content,
+.main-content,
+.right,
+.body,
+.stage{
+  color:var(--text-1)!important;
+  min-height:0!important;
+}
+h1,h2,h3,
+.h1,.h2,.h3,
+.slide-title,
+.cover-title,
+.end-title,
+.h-hero,
+.h-xl,
+.main h1,
+.main h2,
+.main h3{
+  font-family:var(--font-serif)!important;
+  color:var(--text-1)!important;
+  letter-spacing:-.02em!important;
+}
+h1,.h1,.cover-title,.slide-title,.h-hero{
+  font-weight:800!important;
+}
+h2,.h2,.h-xl{
+  font-weight:700!important;
+}
+p,li,td,th,.lede,.dim,.dim2,.fn-desc,.body-text,.txt,.label{
+  color:var(--text-2);
+}
+strong,b{color:var(--text-1)}
+.kicker,
+.eyebrow,
+.module-label,
+.sidebar-module-label,
+.module-code,
+.obj-label,
+.obj-title,
+.obj-header,
+.objectives-title,
+.lb-title,
+.sidebar-label{
+  color:var(--accent-2)!important;
+  font-family:var(--font-sans)!important;
+  font-size:12px!important;
+  font-weight:700!important;
+  letter-spacing:.14em!important;
+  text-transform:uppercase!important;
+}
+.sidebar,
+aside.sidebar,
+.learning-sidebar,
+.slide-sidebar,
+.left-col{
+  background:transparent!important;
+  border-right:1px solid var(--border)!important;
+  border-left:0!important;
+  padding-right:24px!important;
+  color:var(--text-2)!important;
+  box-shadow:none!important;
+}
+.sidebar-title,
+.module-title,
+.sidebar-module,
+.lb-module,
+.brand,
+.sidebar .brand{
+  font-family:var(--font-serif)!important;
+  color:var(--accent)!important;
+  font-size:20px!important;
+  line-height:1.25!important;
+  font-weight:700!important;
+}
+.obj-list,
+.objectives,
+.objective-list,
+.learning-sidebar ul,
+.slide-sidebar ul{
+  list-style:none!important;
+  padding:0!important;
+  margin:0!important;
+  font-family:var(--font-sans)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+  color:var(--text-2)!important;
+}
+.obj-list li,
+.objectives li,
+.objective-list li,
+.learning-sidebar li,
+.slide-sidebar li{
+  position:relative!important;
+  padding:7px 0 7px 22px!important;
+  border-bottom:1px dashed var(--border)!important;
+  color:var(--text-2)!important;
+  font-size:12.5px!important;
+  line-height:1.5!important;
+}
+.obj-list li::before,
+.objectives li::before,
+.objective-list li::before,
+.learning-sidebar li::before,
+.slide-sidebar li::before{
+  content:"○"!important;
+  position:absolute!important;
+  left:0!important;
+  top:7px!important;
+  color:var(--accent)!important;
+  width:auto!important;
+  height:auto!important;
+  background:transparent!important;
+  border-radius:0!important;
+  opacity:1!important;
+}
+.obj-list li.current::before,
+.objectives li.current::before,
+.objective-list li.current::before,
+.obj-list li.highlight::before,
+.objectives li.highlight::before,
+.objective-list li.highlight::before{
+  content:"▸"!important;
+  color:var(--accent-2)!important;
+}
+.obj-list li.current,
+.objectives li.current,
+.objective-list li.current,
+.obj-list li.highlight,
+.objectives li.highlight,
+.objective-list li.highlight{
+  color:var(--text-1)!important;
+  font-weight:700!important;
+}
+.card,
+.concept-box,
+.col-item,
+.metric-card,
+.panel,
+.info-card,
+.tip-box,
+.callout-box,
+.comp-item,
+.diagram-box,
+.data-card,
+.feature-card,
+.task-card,
+.warning-card,
+.workflow-card{
+  background:var(--surface)!important;
+  border:1px solid var(--border)!important;
+  border-radius:var(--radius)!important;
+  box-shadow:var(--shadow)!important;
+  color:var(--text-1)!important;
+}
+.card-accent,
+.accent-card,
+.concept-box h4{
+  border-color:var(--border)!important;
+}
+.callout,
+.tip,
+.note-box{
+  background:var(--surface-2)!important;
+  border-left:4px solid var(--accent-2)!important;
+  border-radius:0 var(--radius) var(--radius) 0!important;
+  color:var(--text-2)!important;
+}
+.warn-box,
+.warning,
+.alert{
+  background:rgba(196,129,42,.08)!important;
+  border:1px solid rgba(196,129,42,.3)!important;
+  border-radius:var(--radius)!important;
+  color:var(--text-2)!important;
+}
+.course-bridge{
+  max-width:72ch;
+  margin-top:16px!important;
+  padding:10px 16px!important;
+  font-size:13px!important;
+  line-height:1.45!important;
+}
+.course-bridge b{
+  color:var(--accent-2)!important;
+}
+
+
+.slide > .sidebar + .main-content + .course-bridge{
+  left:calc(18vw + 3vw)!important;
+  max-width:min(760px,70vw)!important;
+}
+
+.slide > .course-bridge,
+.hero .course-bridge,
+.slide.full .course-bridge,
+section.full .course-bridge{
+  position:absolute!important;
+  left:6vw!important;
+  right:auto!important;
+  bottom:9vh!important;
+  max-width:min(760px,64vw)!important;
+  margin:0!important;
+  z-index:3!important;
+}
+.slide.compact .h2,
+section.compact .h2,
+.slide.compact h2,
+section.compact h2{
+  font-size:clamp(25px,2.15vw,34px)!important;
+  line-height:1.12!important;
+  margin-bottom:6px!important;
+}
+.slide.compact .lede,
+section.compact .lede,
+.slide.compact .fn-desc,
+section.compact .fn-desc,
+.slide.compact p,
+section.compact p{
+  font-size:clamp(13px,1.05vw,16px)!important;
+  line-height:1.45!important;
+}
+.slide.compact .card,
+section.compact .card,
+.slide.compact .concept-box,
+section.compact .concept-box,
+.slide.compact .col-item,
+section.compact .col-item{
+  padding:12px 15px!important;
+}
+.slide.compact .concept-box h4,
+section.compact .concept-box h4,
+.slide.compact .card h4,
+section.compact .card h4{
+  font-size:clamp(14px,1.1vw,17px)!important;
+  line-height:1.25!important;
+  margin-bottom:4px!important;
+}
+.slide.compact .grid,
+section.compact .grid{
+  gap:12px!important;
+}
+.slide.compact .mt-l,
+section.compact .mt-l{
+  margin-top:14px!important;
+}
+.slide.compact .mt-m,
+section.compact .mt-m{
+  margin-top:8px!important;
+}
+.problem-grid .concept-box{
+  min-height:118px;
+}
+.problem-grid .concept-box:last-child{
+  grid-column:1/-1;
+  min-height:96px;
+}
+.slide.code-heavy .code-block,
+section.code-heavy .code-block{
+  font-size:clamp(10px,.82vw,12px)!important;
+  line-height:1.28!important;
+  padding:10px 12px!important;
+}
+.slide.compact .data-table th,
+.slide.compact .data-table td,
+section.compact .data-table th,
+section.compact .data-table td{
+  padding:4px 7px!important;
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.3!important;
+}
+.slide.compact .code-block,
+section.compact .code-block{
+  font-size:clamp(11px,.9vw,13px)!important;
+  line-height:1.35!important;
+  padding:10px 12px!important;
+}
+pre,
+code,
+.code,
+.code-block,
+.code-panel{
+  font-family:var(--font-mono)!important;
+}
+pre,
+.code,
+.code-block,
+.code-panel{
+  background:#2a1f12!important;
+  color:#f0ece0!important;
+  border:0!important;
+  border-radius:var(--radius)!important;
+  box-shadow:none!important;
+}
+code:not(pre code){
+  background:rgba(90,60,30,.08)!important;
+  color:var(--text-1)!important;
+}
+table,
+.data-table{
+  border-color:var(--border)!important;
+}
+th,
+.data-table th{
+  background:var(--surface-2)!important;
+  color:var(--text-1)!important;
+}
+td,
+.data-table td{
+  background:var(--surface)!important;
+  color:var(--text-2)!important;
+}
+.pill,
+.pill-academic,
+.tag,
+.badge{
+  background:var(--surface-2)!important;
+  color:var(--text-2)!important;
+  border:1px solid var(--border)!important;
+  border-radius:4px!important;
+  font-family:var(--font-mono)!important;
+}
+.pill-accent,
+.tag.accent,
+.badge.accent{
+  color:var(--accent)!important;
+  border-color:color-mix(in srgb,var(--accent) 28%,transparent)!important;
+}
+.deck-footer,
+.page-meta,
+.footer,
+.slide-meta{
+  color:var(--text-3)!important;
+}
+.progress-bar>span,
+.progress,
+.progress-dot.active,
+.dot.active{
+  background:var(--accent)!important;
+}
+svg text{font-family:var(--font-sans)!important}
+/* ===== end inlined unified course styles ===== */
+</style>
+</head>
+<body>
+<div class="deck">
+
+<!-- 1. Cover -->
+<section class="slide full" data-title="封面">
+  <p class="kicker">数字图像处理 · 第 2 讲</p>
+  <h1 class="h1">OpenCV 图像表示、<br>灰度化、滤波与几何变换</h1>
+  <p class="lede mt-m" style="max-width:72ch">本讲涵盖图像在计算机中的矩阵表示方法、色彩空间转换原理、图像噪声模型与滤波技术、几何变换的数学基础与 OpenCV 实现。全程融合可运行代码、参数调优指南与常见问题排查。</p>
+  <div class="row mt-m" style="gap:10px;justify-content:center">
+    <span class="pill">90 min · 两节连堂</span>
+    <span class="pill">课程专题</span>
+    <span class="pill">Python 3 + OpenCV 4.x</span>
+    <span class="pill">混合基础</span>
+  </div>
+  <p class="dim2 mt-l">环境要求: Python 3.8+ · opencv-python · numpy · matplotlib · pip install opencv-python numpy matplotlib</p>
+  <div class="deck-footer"><span>数字图像处理 · 第 2 讲</span><span class="slide-number" data-current="1" data-total="27"></span></div>
+
+  <div class="callout course-bridge"><b>课程衔接。</b>承接模块一的课程导入，本讲把“机器视觉系统”落到图像矩阵、颜色空间、滤波与几何变换等基础操作，为后续边缘检测、轮廓提取和模型输入预处理建立共同语言。</div>
+</section>
+
+<!-- 2. Learning Objectives -->
+<section class="slide" data-title="学习目标">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="current">理解图像在计算机中的矩阵表示</li>
+      <li>掌握色彩空间转换与灰度化原理</li>
+      <li>理解图像噪声来源与滤波方法</li>
+      <li>掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+    <h5>前置</h5>
+    <p class="dim" style="font-size:12px">Python 基础语法 · NumPy 数组操作 · 基本线性代数</p>
+    <h5>90 min 节奏</h5>
+    <p class="dim" style="font-size:12px;line-height:1.5">图像基础 15'<br>色彩空间 15'<br>滤波原理 20'<br>几何变换 20'<br>综合实验 20'</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">LEARNING OBJECTIVES</p>
+    <h2 class="h2">本讲目标与课程结构</h2>
+    <div class="stack mt-m">
+      <div class="card card-accent"><h4>① 理解图像在计算机中的矩阵表示</h4><p class="dim">解释灰度图与彩色图在内存中的存储方式，区分 BGR 与 RGB 通道顺序的差异。掌握 NumPy 数组形状与像素寻址。</p></div>
+      <div class="card card-accent"><h4>② 掌握色彩空间转换与灰度化原理</h4><p class="dim">理解亮度加权公式 (Gray=0.299R+0.587G+0.114B) 的生理学基础，熟练使用 cv2.cvtColor 进行 BGR/Gray/HSV 间的转换。</p></div>
+      <div class="card card-accent"><h4>③ 理解图像噪声来源与滤波方法</h4><p class="dim">掌握均值滤波、高斯滤波、中值滤波的原理与适用场景，根据噪声类型选择合适方法，理解卷积的数学本质。</p></div>
+      <div class="card card-accent"><h4>④ 掌握几何变换的数学基础与实现</h4><p class="dim">理解缩放、平移、旋转、仿射与透视变换的矩阵表示，使用 cv2.warpAffine / cv2.warpPerspective 实现图像坐标映射。</p></div>
+      <div class="card card-accent"><h4>⑤ 构建完整图像预处理管线</h4><p class="dim">综合运用灰度化、滤波与几何变换，构建从原始传感器图像到目标检测模型输入的标准化处理管线。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 3. Image as Matrix + Bit Depth -->
+<section class="slide compact" data-title="图像矩阵">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="current">理解图像在计算机中的矩阵表示</li>
+      <li>掌握色彩空间转换与灰度化原理</li>
+      <li>理解图像噪声来源与滤波方法</li>
+      <li>掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 1 · 图像基础</p>
+    <h2 class="h2">图像的本质：矩阵、张量与位深</h2>
+    <p class="fn-desc">数字图像在计算机中存储为<strong>多维 NumPy 数组</strong>。灰度图是 H×W 的二维矩阵，每个元素是像素亮度值。彩色图是 H×W×C 的三维张量，C=3 表示 B/G/R 三个颜色通道。</p>
+    <div class="grid g2 mt-m">
+      <div class="card">
+        <h4>灰度图矩阵 (img.shape → (H, W))</h4>
+        <div class="matrix-viz" style="grid-template-columns:repeat(6,auto)">
+          <span class="cell dark">32</span><span class="cell dark">45</span><span class="cell dark">68</span><span class="cell mid">90</span><span class="cell mid">112</span><span class="cell light">145</span>
+          <span class="cell dark">40</span><span class="cell dark">55</span><span class="cell mid">78</span><span class="cell mid">105</span><span class="cell light">130</span><span class="cell light">160</span>
+          <span class="cell dark">38</span><span class="cell mid">72</span><span class="cell mid">95</span><span class="cell light">120</span><span class="cell light">155</span><span class="cell light">190</span>
+          <span class="cell mid">70</span><span class="cell mid">88</span><span class="cell light">110</span><span class="cell light">140</span><span class="cell light">175</span><span class="cell light">210</span>
+        </div>
+        <p class="dim2 mt-s">数组元素 img[y, x] 即 (行, 列) 处的像素值</p>
+      </div>
+      <div class="card">
+        <h4>彩色图张量 (img.shape → (H, W, 3))</h4>
+        <p class="fn-desc">每个像素位置有 3 个值，按 B/G/R 排列：</p>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0"><span class="cmt"># 像素坐标 (y=2, x=3) 处的值</span>
+b = img[2, 3, 0]  <span class="cmt"># Blue  通道</span>
+g = img[2, 3, 1]  <span class="cmt"># Green 通道</span>
+r = img[2, 3, 2]  <span class="cmt"># Red   通道</span>
+
+<span class="cmt"># 切出单通道</span>
+blue_channel  = img[:, :, 0]  <span class="cmt"># (H, W) 矩阵</span>
+green_channel = img[:, :, 1]
+red_channel   = img[:, :, 2]</pre></div>
+      </div>
+    </div>
+    <table class="data-table mt-m">
+      <tr><th>位深 (bit depth)</th><th>取值范围</th><th>灰度级数</th><th>dtype</th><th>常见用途</th></tr>
+      <tr><td>8-bit</td><td>0–255</td><td>256</td><td>uint8</td><td>普通图像、JPEG、PNG</td></tr>
+      <tr><td>10-bit</td><td>0–1023</td><td>1024</td><td>uint16</td><td>工业相机、RAW 格式</td></tr>
+      <tr><td>12-bit</td><td>0–4095</td><td>4096</td><td>uint16</td><td>医疗影像 (DICOM)</td></tr>
+      <tr><td>16-bit</td><td>0–65535</td><td>65536</td><td>uint16</td><td>卫星遥感、HDR 图像</td></tr>
+    </table>
+    <div class="code-block mt-m"><pre style="margin:0"><span class="cmt"># 快速获取图像基本信息</span>
+<span class="kw">import</span> cv2
+img = cv2.imread(<span class="str">"photo.jpg"</span>)               <span class="cmt"># 读取为 BGR 顺序</span>
+<span class="kw">print</span>(<span class="str">"Shape:"</span>, img.shape)               <span class="cmt"># (H, W, C) → (480, 640, 3)</span>
+<span class="kw">print</span>(<span class="str">"Data type:"</span>, img.dtype)           <span class="cmt"># uint8</span>
+<span class="kw">print</span>(<span class="str">"Total pixels:"</span>, img.size)         <span class="cmt"># H × W × C = 921,600</span>
+<span class="kw">print</span>(<span class="str">"Min / Max:"</span>, img.min(), img.max()) <span class="cmt"># 查看动态范围</span></pre></div>
+  </div>
+</section>
+
+<!-- 4. BGR vs RGB + Channel operations -->
+<section class="slide" data-title="BGR与RGB">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="current">理解图像在计算机中的矩阵表示</li>
+      <li>掌握色彩空间转换与灰度化原理</li>
+      <li>理解图像噪声来源与滤波方法</li>
+      <li>掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 1 · 通道顺序</p>
+    <h2 class="h2">BGR vs RGB：通道顺序陷阱与正确显示</h2>
+    <p class="fn-desc">OpenCV 使用 <strong>BGR</strong> 通道顺序（而非常见的 RGB），源于早期 BMP 格式的兼容性设计。若直接用 Matplotlib 显示 OpenCV 读取的彩色图像，红蓝通道互换，图像呈现蓝色偏。</p>
+    <div class="grid g2 mt-m">
+      <div class="card">
+        <h4>正确的读取与显示流程</h4>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0"><span class="kw">import</span> cv2
+<span class="kw">import</span> matplotlib.pyplot <span class="kw">as</span> plt
+
+img = cv2.imread(<span class="str">"photo.jpg"</span>)       <span class="cmt"># BGR</span>
+
+<span class="cmt"># 方法 1：转换通道顺序</span>
+img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+plt.imshow(img_rgb)
+
+<span class="cmt"># 方法 2：手动翻转通道轴</span>
+img_rgb2 = img[:, :, ::-1]           <span class="cmt"># 反转第 3 维</span>
+<span class="cmt"># img[:, :, ::-1] 等价于 BGR→RGB</span></pre></div>
+      </div>
+      <div class="card">
+        <h4>通道操作与 NumPy 索引</h4>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0"><span class="cmt"># 提取完整单通道</span>
+b = img[:, :, 0].copy()              <span class="cmt"># Blue  (H×W)</span>
+
+<span class="cmt"># 将红色通道全部置 0</span>
+img_no_red = img.copy()
+img_no_red[:, :, 2] = 0
+
+<span class="cmt"># BGR→RGB 另一种写法</span>
+rgb = img[..., ::-1]                 <span class="cmt"># ...=所有前导维度</span>
+
+<span class="cmt"># 不同格式的通道顺序</span>
+<span class="cmt"># OpenCV imread → BGR</span>
+<span class="cmt"># Matplotlib imshow → RGB</span>
+<span class="cmt"># PIL/Pillow → RGB</span></pre></div>
+      </div>
+    </div>
+    <div class="callout"><b>常见错误：</b><code>cv2.imread()</code> 后直接调用 <code>plt.imshow(img)</code> 会产生蓝色偏。校正方法：<code>cv2.cvtColor(img, cv2.COLOR_BGR2RGB)</code>。若写入文件，<code>cv2.imwrite()</code> 始终使用 BGR 顺序，无需转换。</div>
+  </div>
+</section>
+
+<!-- 5. Color Space + Grayscale Theory -->
+<section class="slide" data-title="色彩空间与灰度化">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="current">掌握色彩空间转换与灰度化原理</li>
+      <li>理解图像噪声来源与滤波方法</li>
+      <li>掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 2 · 色彩空间</p>
+    <h2 class="h2">BGR、灰度、二值、HSV 四大色彩空间</h2>
+    <p class="fn-desc">同一幅图像可用不同色彩空间表示。每种空间强调信息的不同侧面，适用于不同的处理任务。色彩空间转换使用统一的 <code>cv2.cvtColor()</code> 函数。</p>
+    <table class="data-table mt-m">
+      <tr><th>色彩空间</th><th>通道数</th><th>维度含义</th><th>OpenCV 转换标志</th><th>适用场景</th></tr>
+      <tr><td>BGR / RGB</td><td>3</td><td>蓝/绿/红 强度</td><td>— (原生)</td><td>图像读取、显示、存储</td></tr>
+      <tr><td>GRAY</td><td>1</td><td>亮度值 [0,255]</td><td>COLOR_BGR2GRAY</td><td>边缘检测、特征提取、形态学</td></tr>
+      <tr><td>BINARY</td><td>1</td><td>仅 0 或 255</td><td>threshold()</td><td>掩膜、轮廓提取</td></tr>
+      <tr><td>HSV</td><td>3</td><td>色相/饱和度/明度</td><td>COLOR_BGR2HSV</td><td>颜色分割、目标跟踪</td></tr>
+    </table>
+    <div class="card mt-m">
+      <h4>灰度化的数学原理：亮度加权公式</h4>
+      <p class="fn-desc">灰度化并非简单取 RGB 均值。人眼对绿色最敏感、蓝色最不敏感，权重分配基于 ITU-R BT.601 标准：</p>
+      <p style="font-family:var(--font-mono);font-size:clamp(18px,1.6vw,24px);text-align:center;font-weight:700;margin:8px 0;color:var(--text-1)">Gray = <span style="color:var(--bad)">0.299</span> × R + <span style="color:var(--good)">0.587</span> × G + <span style="color:var(--accent)">0.114</span> × B</p>
+      <div class="grid g3" style="text-align:center;gap:10px;margin-top:6px">
+        <div><span class="pill" style="background:#d44;color:#fff;border-color:#d44">0.299</span><p class="dim2 mt-s">红色 — M 视锥细胞中等敏感</p></div>
+        <div><span class="pill" style="background:#4a8;color:#fff;border-color:#4a8">0.587</span><p class="dim2 mt-s">绿色 — M 视锥细胞最多</p></div>
+        <div><span class="pill" style="background:var(--accent);color:#fff;border-color:var(--accent)">0.114</span><p class="dim2 mt-s">蓝色 — S 视锥细胞最少</p></div>
+      </div>
+    </div>
+    <div class="callout"><b>生物学背景：</b>人类视网膜含三种视锥细胞：L（红，约 64%）、M（绿，约 32%）、S（蓝，约 2%）。加权公式模拟了视锥细胞的分布比例。</div>
+  </div>
+</section>
+
+<!-- 6. Grayscale Implementation -->
+<section class="slide" data-title="灰度化实现">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="current">掌握色彩空间转换与灰度化原理</li>
+      <li>理解图像噪声来源与滤波方法</li>
+      <li>掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 2 · OpenCV 实现</p>
+    <h2 class="h2">灰度化 OpenCV 实现与多方向转换</h2>
+    <div class="grid g2 mt-m">
+      <div class="card">
+        <h4>推荐方法：cvtColor</h4>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0"><span class="kw">import</span> cv2, numpy <span class="kw">as</span> np
+
+img = cv2.imread(<span class="str">"sample.jpg"</span>)
+
+<span class="cmt">#</span>
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+<span class="cmt"># 验证 shape 变化</span>
+<span class="kw">print</span>(img.shape)    <span class="cmt"># (H, W, 3)</span>
+<span class="kw">print</span>(gray.shape)   <span class="cmt"># (H, W)</span></pre></div>
+      </div>
+      <div class="card">
+        <h4>手动实现（理解原理）</h4>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0">b, g, r = cv2.split(img)
+
+<span class="cmt"># 加权手动计算</span>
+gray_manual = (
+    <span class="num">0.299</span> * r + <span class="num">0.587</span> * g + <span class="num">0.114</span> * b
+).astype(np.uint8)
+
+<span class="cmt"># 验证一致</span>
+<span class="kw">print</span>(np.allclose(gray, gray_manual))</pre></div>
+      </div>
+    </div>
+    <div class="code-block mt-m"><pre style="margin:0"><span class="cmt"># 多方向色彩空间转换</span>
+hsv       = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)      <span class="cmt"># BGR → HSV</span>
+lab       = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)      <span class="cmt"># BGR → CIELAB</span>
+yuv       = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)      <span class="cmt"># BGR → YUV</span>
+gray2bgr  = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)    <span class="cmt"># 单→三通道</span>
+hsv2bgr   = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)      <span class="cmt"># 还原为 BGR</span>
+
+<span class="cmt"># 特别注意：COLOR_GRAY2BGR 生成三通道但值相同</span>
+<span class="cmt"># 这是为之后在彩色图上叠加处理结果做准备</span></pre></div>
+  </div>
+</section>
+
+<!-- 7. Grayscale Decision Guide -->
+<section class="slide" data-title="灰度化决策">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="current">理解图像噪声来源与滤波方法</li>
+      <li>掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 2 · 决策指南</p>
+    <h2 class="h2">何时灰度化，何时保留颜色</h2>
+    <p class="fn-desc">灰度化压缩颜色信息，仅保留亮度结构。以下决策树帮助判断是否需要灰度化——如果颜色本身包含关键信息，不可盲目灰度化。</p>
+    <div class="comp-box mt-m">
+      <div class="comp-item">
+        <h4 style="color:var(--good)">可灰度化的场景</h4>
+        <ul style="font-size:clamp(13px,1.15vw,15px);color:var(--text-2);padding-left:15px;margin:4px 0">
+          <li><strong>边缘检测：</strong>Canny / Sobel 只需亮度梯度</li>
+          <li><strong>特征匹配：</strong>SIFT / ORB 基于梯度直方图，颜色不参与</li>
+          <li><strong>形状分析：</strong>轮廓提取、多边形拟合与颜色无关</li>
+          <li><strong>纹理分析：</strong>LBP / GLCM 计算灰度共生矩阵</li>
+          <li><strong>光流法：</strong>亮度恒定假设下估计运动向量</li>
+          <li><strong>模板匹配：</strong>matchTemplate 在灰度图上更稳定</li>
+        </ul>
+      </div>
+      <div class="comp-item">
+        <h4 style="color:var(--bad)">必须保留颜色的场景</h4>
+        <ul style="font-size:clamp(13px,1.15vw,15px);color:var(--text-2);padding-left:15px;margin:4px 0">
+          <li><strong>交通灯检测：</strong>红色/绿色是核心判据</li>
+          <li><strong>果实成熟度：</strong>颜色变化指示成熟阶段</li>
+          <li><strong>工业色差检测：</strong>颜色差异 = 缺陷指标</li>
+          <li><strong>基于 HSV 的分割：</strong>利用色相区分目标</li>
+          <li><strong>多光谱分析：</strong>远红外/近红外等多通道</li>
+          <li><strong>语义分割/实例分割：</strong>颜色是重要特征</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout"><b>设计原则：</b>灰度化应视为"当亮度结构足够完成任务时的优化步骤"，而非默认始终执行的预处理。每次使用前需明确判断颜色信息是否包含任务所需的关键辨別维度。</div>
+  </div>
+</section>
+
+<!-- 8. Binary + Threshold -->
+<section class="slide" data-title="二值图与阈值">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="current">理解图像噪声来源与滤波方法</li>
+      <li>掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 2 · 二值图与阈值分割</p>
+    <h2 class="h2">二值化：从灰度到 0/255 的阈值分割</h2>
+    <p class="fn-desc">二值图 (Binary Image) 的像素值仅为 0 或 255。通过阈值分割从灰度图得到。常用于生成掩膜 (Mask) 标记感兴趣区域。</p>
+    <div class="grid g2 mt-m">
+      <div class="card">
+        <h4>固定阈值：cv2.threshold</h4>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0"><span class="cmt"># 阈值 = 127, 最大 = 255</span>
+_, bin = cv2.threshold(
+    gray, 127, 255, cv2.THRESH_BINARY
+)
+
+<span class="cmt"># 四种阈值模式</span>
+cv2.THRESH_BINARY      <span class="cmt"># 标准二值化</span>
+cv2.THRESH_BINARY_INV  <span class="cmt"># 反转二值化</span>
+cv2.THRESH_TRUNC       <span class="cmt"># 截断: v>thr=thr</span>
+cv2.THRESH_TOZERO      <span class="cmt"># 归零: v<thr=0</span></pre></div>
+      </div>
+      <div class="card">
+        <h4>自适应阈值（光照不均场景）</h4>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0">binary = cv2.adaptiveThreshold(
+    gray, 255,
+    cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+    cv2.THRESH_BINARY,
+    blockSize=11,    <span class="cmt"># 邻域大小（奇数）</span>
+    C=2              <span class="cmt"># 常数减项</span>
+)
+
+<span class="cmt"># ADAPTIVE_THRESH_GAUSSIAN_C</span>
+<span class="cmt"># 使用高斯加权均值作为局部阈值</span>
+<span class="cmt"># C 为正则化常数: T = mean - C</span></pre></div>
+      </div>
+    </div>
+    <div class="callout"><b>阈值选型指南：</b>全局照明均匀 → 固定阈值 (速度快)；光照渐变或阴影 → 自适应阈值（更精确，但计算更慢）。blockSize 值越大，对局部光照变化越不敏感。</div>
+  </div>
+</section>
+
+<!-- 9. HSV Application -->
+<section class="slide" data-title="HSV应用">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="current">理解图像噪声来源与滤波方法</li>
+      <li>掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 2 · HSV 应用</p>
+    <h2 class="h2">基于 HSV 的颜色分割与范围调优</h2>
+    <p class="fn-desc">HSV 最典型应用：通过色相 (H) 范围提取特定颜色目标。相比 BGR 空间为每个通道分别设阈值，HSV 在光照变化条件下更稳定。</p>
+    <div class="grid g2 mt-m">
+      <div class="card">
+        <h4>蓝色目标提取</h4>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0">hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+<span class="cmt"># 蓝色 H 范围 [100, 130]</span>
+lower = np.array([100, 50, 50])
+upper = np.array([130, 255, 255])
+
+mask = cv2.inRange(hsv, lower, upper)
+result = cv2.bitwise_and(
+    img, img, mask=mask
+)</pre></div>
+      </div>
+      <div class="card">
+        <h4>常见颜色 H 参考</h4>
+        <p class="dim2">OpenCV 的 H 范围 0–179（非 360）</p>
+        <table class="data-table" style="font-size:clamp(12px,1vw,14px)">
+          <tr><th>颜色</th><th>H 范围</th><th>上限</th></tr>
+          <tr><td>红 (两段)</td><td>0–10</td><td>160–179</td></tr>
+          <tr><td>橙</td><td>11–25</td><td>—</td></tr>
+          <tr><td>黄</td><td>26–35</td><td>—</td></tr>
+          <tr><td>绿</td><td>36–85</td><td>—</td></tr>
+          <tr><td>蓝</td><td>100–130</td><td>—</td></tr>
+          <tr><td>紫</td><td>130–155</td><td>—</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="callout"><b>注意事项：</b>阴影区域 V 值降低，高光区域 S 值降低，白平衡偏移导致 H 漂移。调试时可先用 <code>cv2.calcHist</code> 画 H 通道直方图确定 H 峰值范围。<br><b>红色的特殊性：</b>色相环首尾相接，红色跨越 H=0 两侧，需用两个范围合并 (cv2.bitwise_or)。</div>
+  </div>
+</section>
+
+<!-- 10. Noise Sources -->
+<section class="slide" data-title="图像噪声">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="current">理解图像噪声来源与滤波方法</li>
+      <li>掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 3 · 噪声</p>
+    <h2 class="h2">图像噪声的来源分类与仿真</h2>
+    <p class="fn-desc">图像噪声是采集、传输、压缩过程中引入的随机干扰。噪声的类型决定了应选用何种滤波方法。认识噪声是选择滤波器的先决条件。</p>
+    <table class="data-table mt-m">
+      <tr><th>噪声类型</th><th>产生原因</th><th>数学特性</th><th>适用滤波</th></tr>
+      <tr><td><strong>高斯噪声</strong></td><td>传感器热噪声，低照度放大</td><td>正态分布 N(0, σ²)</td><td>高斯滤波 / 均值滤波</td></tr>
+      <tr><td><strong>椒盐噪声</strong></td><td>传输误码，ADC 采样错误</td><td>随机黑白像素点 (0 或 255)</td><td>中值滤波</td></tr>
+      <tr><td><strong>泊松噪声</strong></td><td>光子计数统计波动</td><td>泊松分布，与信号强度相关</td><td>高斯滤波 + 方差稳定变换</td></tr>
+      <tr><td><strong>相干斑噪声</strong></td><td>激光 / 超声成像干涉</td><td>乘性噪声 (speckle)</td><td>Lee / Kuan 滤波</td></tr>
+    </table>
+    <div class="code-block mt-m"><pre style="margin:0"><span class="cmt"># NumPy 噪声仿真（帮助理解噪声视觉特征）</span>
+img = cv2.imread(<span class="str">"sample.jpg"</span>, 0)                    <span class="cmt"># 灰度</span>
+
+<span class="cmt"># 高斯噪声：np.random.normal(mean, std, shape)</span>
+gauss = np.random.normal(<span class="num">0</span>, <span class="num">25</span>, img.shape).astype(np.int16)
+noisy_gauss = np.clip(img.astype(np.int16) + gauss, <span class="num">0</span>, <span class="num">255</span>).astype(np.uint8)
+
+<span class="cmt"># 椒盐噪声：随机分布的黑/白点</span>
+sp = img.copy()
+mask = np.random.random(img.shape)
+sp[mask &lt; <span class="num">0.02</span>]  = <span class="num">0</span>      <span class="cmt"># 2% 概率置黑</span>
+sp[mask &gt; <span class="num">0.98</span>]  = <span class="num">255</span>    <span class="cmt"># 2% 概率置白</span></pre></div>
+  </div>
+</section>
+
+<!-- 11. Mean Filter -->
+<section class="slide" data-title="均值滤波">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="current">理解图像噪声来源与滤波方法</li>
+      <li>掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 3 · 均值滤波</p>
+    <h2 class="h2">均值滤波：原理、实现与边缘模糊问题</h2>
+    <p class="fn-desc">均值滤波 (Mean / Box Filter) 是最简单的线性滤波。以目标像素为中心，k×k 窗口内所有像素的<strong>算术平均值</strong>作为输出。每个邻域像素权重相等。</p>
+    <p style="font-family:var(--font-mono);font-size:clamp(15px,1.3vw,18px);text-align:center;font-weight:700;margin:8px 0">I'(x,y) = (1/k²) · ΣΣ I(i,j) (i,j ∈ k×k 邻域)</p>
+    <div class="grid g2 mt-m">
+      <div class="card">
+        <h4>3×3 均值核可视化</h4>
+        <div class="matrix-viz" style="grid-template-columns:repeat(3,auto);font-size:clamp(12px,1vw,14px)">
+          <span class="cell">1/9</span><span class="cell">1/9</span><span class="cell">1/9</span>
+          <span class="cell">1/9</span><span class="cell">1/9</span><span class="cell">1/9</span>
+          <span class="cell">1/9</span><span class="cell">1/9</span><span class="cell">1/9</span>
+        </div>
+        <p class="dim2 mt-s">所有权重均为 1/9，归一化后和为 1.0</p>
+      </div>
+      <div class="card">
+        <h4>OpenCV 实现</h4>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0"><span class="cmt"># ksize = 5（必须奇数）</span>
+blur = cv2.blur(img, (5, 5))
+
+<span class="cmt"># 等价写法</span>
+blur2 = cv2.boxFilter(
+    img, -1, (5, 5),
+    normalize=True
+)</pre></div>
+      </div>
+    </div>
+    <div class="callout"><b>边缘模糊的根源：</b>窗口跨越边缘时，高值区域（物体）和低值区域（背景）被平均，破坏锐利过渡。ksize 越大，参与平均的像素越多，模糊越严重。<b>适用：</b>对边缘保留要求不高、计算速度优先的场景（如实时视频预处理器）。</div>
+  </div>
+</section>
+
+<!-- 12. Gaussian Filter Theory -->
+<section class="slide" data-title="高斯滤波原理">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="current">理解图像噪声来源与滤波方法</li>
+      <li>掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 3 · 高斯滤波</p>
+    <h2 class="h2">高斯滤波：数学原理与参数含义</h2>
+    <p class="fn-desc">高斯滤波使用<strong>高斯分布权重</strong>卷积核：中心像素权重最大，距离越远权重按钟形曲线递减。二维高斯函数如下：</p>
+    <p style="font-family:var(--font-mono);font-size:clamp(15px,1.3vw,18px);text-align:center;font-weight:700;margin:8px 0">G(x,y) = (1 / 2πσ²) · exp(−(x² + y²) / 2σ²)</p>
+    <div class="grid g2 mt-m">
+      <div class="card">
+        <h4>5×5 高斯核 (σ=1, 整数近似)</h4>
+        <div class="matrix-viz" style="grid-template-columns:repeat(5,auto);font-size:clamp(11px,0.95vw,13px)">
+          <span class="cell">1</span><span class="cell">4</span><span class="cell">7</span><span class="cell">4</span><span class="cell">1</span>
+          <span class="cell">4</span><span class="cell">16</span><span class="cell">26</span><span class="cell">16</span><span class="cell">4</span>
+          <span class="cell">7</span><span class="cell">26</span><span class="cell">41</span><span class="cell">26</span><span class="cell">7</span>
+          <span class="cell">4</span><span class="cell">16</span><span class="cell">26</span><span class="cell">16</span><span class="cell">4</span>
+          <span class="cell">1</span><span class="cell">4</span><span class="cell">7</span><span class="cell">4</span><span class="cell">1</span>
+        </div>
+        <p class="dim2 mt-s">中心 (41) 权重远超角落 (1)，中心主导输出</p>
+      </div>
+      <div class="card">
+        <h4>σ 对核形状的影响</h4>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0"><span class="cmt"># σ 小 → 核集中在中心</span>
+<span class="cmt">#   (保留更多细节)</span>
+<span class="cmt"># σ 大 → 核分布更均匀</span>
+<span class="cmt">#   (平滑更强)</span>
+<span class="cmt"># 经验法则：</span>
+<span class="cmt"># ksize ≈ 6σ + 1</span>
+<span class="cmt"># σ=1.0 → ksize=7</span></pre></div>
+      </div>
+    </div>
+    <div class="code-block mt-m"><pre style="margin:0"><span class="cmt"># 高斯核权重分布示例（手动生成验证）</span>
+<span class="kw">import</span> cv2, numpy <span class="kw">as</span> np
+
+<span class="cmt"># 查看 5×5 高斯核的真实数值（σ=1.0）</span>
+kernel = cv2.getGaussianKernel(<span class="num">5</span>, <span class="num">1.0</span>)
+gauss_2d = kernel @ kernel.T         <span class="cmt"># 外积 = 二维核</span>
+<span class="kw">print</span>(gauss_2d.round(<span class="num">3</span>))</pre></div>
+  </div>
+</section>
+
+<!-- 13. Gaussian Implementation + Median Filter -->
+<section class="slide" data-title="高斯与中值滤波实现">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="done">理解图像噪声来源与滤波方法</li>
+      <li>掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 3 · 高斯 & 中值滤波实现</p>
+    <h2 class="h2">GaussianBlur 与 medianBlur 参数详解</h2>
+    <div class="grid g2 mt-m">
+      <div class="card">
+        <h4>高斯滤波：GaussianBlur</h4>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0"><span class="cmt"># 指定 ksize + sigmaX</span>
+blur = cv2.GaussianBlur(
+    img, (5, 5), sigmaX=1.2
+)
+
+<span class="cmt"># 自动计算 ksize</span>
+blur_auto = cv2.GaussianBlur(
+    img, (0, 0), sigmaX=2.0
+)
+
+<span class="cmt"># 三个 sigma 参数</span>
+<span class="cmt"># sigmaX: 水平标准差</span>
+<span class="cmt"># sigmaY: 垂直（默认=sigmaX）</span></pre></div>
+      </div>
+      <div class="card">
+        <h4>参数选择快速参考</h4>
+        <table class="data-table" style="font-size:clamp(12px,1vw,14px)">
+          <tr><th>场景</th><th>ksize</th><th>sigmaX</th></tr>
+          <tr><td>轻度降噪</td><td>3×3</td><td>0.8</td></tr>
+          <tr><td>通用平滑</td><td>5×5</td><td>1.2</td></tr>
+          <tr><td>重度平滑</td><td>7×7</td><td>2.0</td></tr>
+          <tr><td>Canny 预处理</td><td>5×5</td><td>1.5</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="card mt-m">
+      <h4>中值滤波：medianBlur——椒盐噪声克星</h4>
+      <p class="fn-desc">中值滤波将窗口像素的<strong>中位数</strong>替代中心值。不是线性卷积，而是排序统计滤波，能保留边缘的同时去除椒盐噪声。</p>
+      <div class="code-block mt-s" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0"><span class="cmt"># 窗口直径 = 5</span>
+median = cv2.medianBlur(img, 5)
+
+<span class="cmt"># 3×3: 保留细节，去噪有限</span>
+<span class="cmt"># 7×7: 去噪强，但细节损失大</span></pre></div>
+      <p class="dim2 mt-s">示例：窗口 [0, 128, 130, 132, 255, 126, 129, 131, 127] → 排序后中位数 = 129。极值 0 和 255 被跳过。</p>
+    </div>
+  </div>
+</section>
+
+<!-- 14. Filter Comparison + Convolution -->
+<section class="slide" data-title="滤波对比与卷积">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="done">理解图像噪声来源与滤波方法</li>
+      <li>掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 3 · 总结</p>
+    <h2 class="h2">三种滤波方法对比 + 卷积本质</h2>
+    <table class="data-table mt-m">
+      <tr><th>特性</th><th>均值滤波 blur</th><th>高斯滤波 GaussianBlur</th><th>中值滤波 medianBlur</th></tr>
+      <tr><td>算法类型</td><td>线性 · 均等权重</td><td>线性 · 高斯权重</td><td>非线性 · 排序统计</td></tr>
+      <tr><td>边缘保留</td><td>差</td><td>中等 (σ↑则↓)</td><td>好</td></tr>
+      <tr><td>高斯噪声抑制</td><td>中等</td><td>好</td><td>中等</td></tr>
+      <tr><td>椒盐噪声抑制</td><td>差</td><td>差</td><td>极好</td></tr>
+      <tr><td>计算速度</td><td>快</td><td>中等</td><td>中等 (需排序)</td></tr>
+    </table>
+    <div class="card mt-m">
+      <h4>滤波的本质：卷积 (Convolution)</h4>
+      <p class="fn-desc">上述所有滤波方法的数学核心都是<strong>卷积</strong>——卷积核在图像上逐像素滑动，计算邻域与核权重的<strong>加权和</strong>。用 <code>cv2.filter2D()</code> 可应用自定义卷积核：</p>
+      <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0"><span class="cmt"># 自定义锐化内核</span>
+kernel_sharpen = np.array([
+    [ 0, -1,  0],
+    [-1,  5, -1],
+    [ 0, -1,  0]
+], dtype=np.float32)
+
+sharp = cv2.filter2D(img, -1, kernel_sharpen)
+
+<span class="cmt"># filter2D 参数：输入、位深(-1=相同)、核</span>
+<span class="cmt"># 可用 cv2.filter2D 实现任意线性滤波</span></pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- 15. Traditional to CNN -->
+<section class="slide" data-title="传统滤波到CNN">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="done">理解图像噪声来源与滤波方法</li>
+      <li class="current">掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 3 · 拓展</p>
+    <h2 class="h2">从传统滤波到深度学习卷积 (CNN)</h2>
+    <p class="fn-desc">传统图像滤波与 CNN 卷积在数学形式上完全一致（滑动窗口 · 加权求和），核心区别在于<strong>卷积核的来源</strong>：</p>
+    <div class="comp-box mt-m">
+      <div class="comp-item">
+        <h4>传统滤波 (OpenCV)</h4>
+        <ul style="font-size:clamp(13px,1.15vw,15px);color:var(--text-2);padding-left:16px;margin:4px 0">
+          <li>卷积核<strong>人工设计</strong>（高斯、均值、Sobel）</li>
+          <li>数学原理明确、可解释性强</li>
+          <li>参数极少（仅 ksize, sigma）</li>
+          <li>计算速度快，不需训练</li>
+          <li>泛化能力有限，每类场景需手工调参</li>
+        </ul>
+      </div>
+      <div class="comp-item">
+        <h4>CNN 卷积 (深度学习)</h4>
+        <ul style="font-size:clamp(13px,1.15vw,15px);color:var(--text-2);padding-left:16px;margin:4px 0">
+          <li>卷积核<strong>从数据中学习</strong>获得</li>
+          <li>自动提取任务相关特征</li>
+          <li>参数量大（常以百万计）</li>
+          <li>需要 GPU 加速训练</li>
+          <li>需大量标注数据</li>
+        </ul>
+      </div>
+    </div>
+    <p class="fn-desc mt-m">二者不是替代关系。实践中常<strong>组合使用</strong>：<span class="pill">传统方法 → 预处理降噪</span> <span class="pill">CNN → 高层语义分析</span>。例如：先用高斯滤波去除传感器噪声，再输入 YOLO / ResNet 做目标检测。</p>
+    <div class="callout"><b>常见误解：</b>CNN 的"卷积层"名称来源于图像处理中的卷积概念。理解传统卷积的滑动窗口机制，是理解 CNN 感受野、池化、空洞卷积的基础。</div>
+  </div>
+</section>
+
+<!-- 16. Geometric Transform Overview -->
+<section class="slide" data-title="几何变换概述">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="done">理解图像噪声来源与滤波方法</li>
+      <li class="current">掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 4 · 几何变换</p>
+    <h2 class="h2">几何变换：坐标系统的数学映射</h2>
+    <p class="fn-desc">几何变换 (Geometric Transformation) <strong>不是</strong>改变图像显示尺寸，而是<strong>重新映射像素坐标</strong>。每个输出像素从输入图像中对应位置插值得到。变换的五个级别：</p>
+    <table class="data-table mt-m">
+      <tr><th>变换</th><th>矩阵维度</th><th>自由度</th><th>OpenCV 函数</th><th>保持性质</th></tr>
+      <tr><td>缩放 (Scale)</td><td>2×3</td><td>2</td><td>resize()</td><td>形状</td></tr>
+      <tr><td>平移 (Translate)</td><td>2×3</td><td>2</td><td>warpAffine()</td><td>形状、大小</td></tr>
+      <tr><td>旋转 (Rotate)</td><td>2×3</td><td>1</td><td>warpAffine()</td><td>形状 (绕中心)</td></tr>
+      <tr><td>仿射 (Affine)</td><td>2×3</td><td>6</td><td>warpAffine()</td><td>平行 + 共线</td></tr>
+      <tr><td>透视 (Perspective)</td><td>3×3</td><td>8</td><td>warpPerspective()</td><td>共线 (直线仍直线)</td></tr>
+    </table>
+    <div class="card mt-m">
+      <h4>核心原则：变换坐标 ≠ 变换像素</h4>
+      <p class="fn-desc">若图像经历几何变换，目标检测的<strong>标注框坐标必须同步变换</strong>——框的坐标用相同的变换矩阵计算，不是手动调整偏移。</p>
+      <div class="code-block mt-s" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0"><span class="cmt"># warpAffine 核心参数</span>
+dst = cv2.warpAffine(
+    src,        <span class="cmt"># 输入图像</span>
+    M,          <span class="cmt"># 2×3 变换矩阵</span>
+    dsize,      <span class="cmt"># 输出尺寸 (width, height)</span>
+    flags=cv2.INTER_LINEAR,         <span class="cmt"># 插值方法</span>
+    borderMode=cv2.BORDER_CONSTANT  <span class="cmt"># 边界填充策略</span>
+)</pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- 17. Resize -->
+<section class="slide" data-title="缩放">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="done">理解图像噪声来源与滤波方法</li>
+      <li class="current">掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 4 · 缩放</p>
+    <h2 class="h2">图像缩放 (Resize) 与五类插值方法</h2>
+    <p class="fn-desc">缩放映射：x' = s<sub>x</sub> · x，y' = s<sub>y</sub> · y。插值方法决定非整数坐标处的像素值如何计算。</p>
+    <div class="grid g2 mt-m">
+      <div class="card">
+        <h4>三种 resize 调用方式</h4>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0"><span class="cmt"># 1. 指定目标尺寸</span>
+small = cv2.resize(img, (640, 480))
+
+<span class="cmt"># 2. 指定缩放因子</span>
+half = cv2.resize(
+    img, (0, 0),
+    fx=0.5, fy=0.5
+)
+
+<span class="cmt"># 3. 指定插值</span>
+big = cv2.resize(
+    img, (0, 0),
+    fx=2.0, fy=2.0,
+    interpolation=cv2.INTER_CUBIC
+)</pre></div>
+      </div>
+      <div class="card">
+        <h4>插值方法速查表</h4>
+        <table class="data-table" style="font-size:clamp(12px,1vw,14px)">
+          <tr><th>方法</th><th>适用</th><th>速度</th></tr>
+          <tr><td>INTER_NEAREST</td><td>最近邻 → 马赛克效果</td><td>最快</td></tr>
+          <tr><td>INTER_LINEAR</td><td>双线性，通用默认</td><td>快 ⭐</td></tr>
+          <tr><td>INTER_CUBIC</td><td>4×4，放大质量高</td><td>慢</td></tr>
+          <tr><td>INTER_LANCZOS4</td><td>8×8，缩小质量最高</td><td>最慢</td></tr>
+          <tr><td>INTER_AREA</td><td>区域关系，缩小效果好</td><td>中</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="callout"><b>目标检测提示：</b>原图 1920×1080 → 640×480，x 乘 640/1920，y 乘 480/1080，非固定偏移。每个标注框独立计算。YOLO 等模型在训练时自动完成缩放和填充 (letterbox)。</div>
+  </div>
+</section>
+
+<!-- 18. Translation + Rotation -->
+<section class="slide" data-title="平移与旋转">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="done">理解图像噪声来源与滤波方法</li>
+      <li class="current">掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 4 · 平移 & 旋转</p>
+    <h2 class="h2">平移与旋转：仿射变换的两种基本形式</h2>
+    <p class="fn-desc">平移和旋转是最基础的两类仿射变换。两者都可用 2×3 矩阵表示，且都通过 <code>cv2.warpAffine()</code> 执行。</p>
+    <div class="grid g2 mt-m">
+      <div class="card">
+        <h4>平移：矩阵与代码</h4>
+        <p style="font-family:var(--font-mono);font-size:13px;text-align:center;margin:4px 0">[x'] = [1 0 t<sub>x</sub>][x]<br>[y']   [0 1 t<sub>y</sub>][y]</p>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0">h, w = img.shape[:2]
+M = np.float32([
+    [1, 0, 100],      <span class="cmt"># 右移 100px</span>
+    [0, 1,  50]       <span class="cmt"># 下移  50px</span>
+])
+shifted = cv2.warpAffine(
+    img, M, (w, h)
+)</pre></div>
+      </div>
+      <div class="card">
+        <h4>绕中心旋转 + 画布适配</h4>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0">center = (w//2, h//2)
+M = cv2.getRotationMatrix2D(
+    center, 45, 1.0
+)
+<span class="cmt"># 自动计算新画布尺寸</span>
+cos, sin = abs(M[0,:2])
+nw = int(h*sin + w*cos)
+nh = int(h*cos + w*sin)
+M[:,2] += [nw/2-center[0],
+           nh/2-center[1]]
+rotated = cv2.warpAffine(
+    img, M, (nw, nh)
+)</pre></div>
+      </div>
+    </div>
+    <p class="dim2 mt-s" style="font-size:clamp(13px,1.1vw,15px)">绕中心旋转 = 先平移到原点 → 旋转 → 平移到新中心。cv2.getRotationMatrix2D 自动完成这个复合变换计算。</p>
+  </div>
+</section>
+
+<!-- 19. Affine + Perspective -->
+<section class="slide" data-title="仿射与透视变换">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="done">理解图像噪声来源与滤波方法</li>
+      <li class="done">掌握几何变换的数学基础与实现</li>
+      <li>能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 4 · 仿射与透视</p>
+    <h2 class="h2">仿射变换 (3 点) vs 透视变换 (4 点)</h2>
+    <p class="fn-desc"><strong>仿射：</strong>保持平行性，2×3 矩阵，3 组对应点求解。<strong>透视：</strong>平行线可能相交（近大远小），3×3 矩阵，4 组对应点求解。</p>
+    <div class="comp-box mt-m">
+      <div class="comp-item">
+        <h4>仿射变换 (getAffineTransform)</h4>
+        <div class="code-block" style="font-size:clamp(11px,0.95vw,13px)"><pre style="margin:0">src = np.float32([
+    [50,50],[200,50],[50,200]
+])
+dst = np.float32([
+    [10,100],[200,50],[100,250]
+])
+M = cv2.getAffineTransform(src, dst)
+affined = cv2.warpAffine(
+    img, M, (w, h)
+)</pre></div>
+      </div>
+      <div class="comp-item">
+        <h4>透视变换 (getPerspectiveTransform)</h4>
+        <div class="code-block" style="font-size:clamp(11px,0.95vw,13px)"><pre style="margin:0">src = np.float32([
+    [150,200],[650,150],
+    [700,800],[100,750]
+])
+dst = np.float32([
+    [0,0],[600,0],
+    [600,800],[0,800]
+])
+M = cv2.getPerspectiveTransform(src, dst)
+warped = cv2.warpPerspective(
+    img, M, (600, 800)
+)</pre></div>
+      </div>
+    </div>
+    <div class="callout"><b>典型应用：</b>仿射 → 旋转校正、图像对齐、数据增广。透视 → 文档扫描矫正、车道线鸟瞰图 (BEV)、广告牌替换。透视变换的精度高度依赖对应点选取的准确性。</div>
+  </div>
+</section>
+
+<!-- 20. Preprocessing for Detection -->
+<section class="slide" data-title="预处理管线">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="done">理解图像噪声来源与滤波方法</li>
+      <li class="done">掌握几何变换的数学基础与实现</li>
+      <li class="current">能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 5 · 综合管线</p>
+    <h2 class="h2">图像预处理管线：从传感器到模型输入</h2>
+    <p class="fn-desc">目标检测管线中，预处理将原始传感器数据转换为检测模型可以稳定处理的标准化输入。</p>
+    <div class="card mt-m">
+      <div class="ann-row"><span class="tag">STEP 1</span><span><strong>图像读取与尺寸统一</strong> — cv2.imread() → resize(640×640)，确保批次内尺寸一致</span></div>
+      <div class="ann-row mt-s"><span class="tag">STEP 2</span><span><strong>色彩空间转换</strong> — 灰度模型 → BGR2GRAY；彩色模型 → BGR2RGB（匹配训练数据格式）</span></div>
+      <div class="ann-row mt-s"><span class="tag">STEP 3</span><span><strong>噪声抑制</strong> — 高斯滤波 (5×5, σ=1.2) 消除传感器热噪声，提升边缘稳定性</span></div>
+      <div class="ann-row mt-s"><span class="tag">STEP 4</span><span><strong>几何校正</strong> — 透视变换矫正拍摄角度，使目标在标准视角下被检测</span></div>
+      <div class="ann-row mt-s"><span class="tag">STEP 5</span><span><strong>归一化</strong> — 像素值 [0,255] → [0,1] 或 [-1,1]（浮点数），加速模型收敛</span></div>
+    </div>
+    <div class="code-block mt-m"><pre style="margin:0"><span class="cmt"># 完整预处理函数（可复用于任何推理任务）</span>
+<span class="kw">def</span> <span class="fn">preprocess</span>(image_path, input_size=<span class="num">640</span>):
+    img = cv2.imread(image_path)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img = cv2.GaussianBlur(img, (<span class="num">5</span>,<span class="num">5</span>), <span class="num">1.2</span>)
+    img = cv2.resize(img, (input_size, input_size))
+    img = img.astype(np.float32) / <span class="num">255.0</span>   <span class="cmt"># [0,1]</span>
+    <span class="kw">return</span> img</pre></div>
+  </div>
+</section>
+
+<!-- 21. Complete Experiment -->
+<section class="slide compact code-heavy" data-title="综合实验">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="done">理解图像噪声来源与滤波方法</li>
+      <li class="done">掌握几何变换的数学基础与实现</li>
+      <li class="current">能够完成图像预处理完整流程</li>
+    </ul>
+    <h5>实操</h5>
+    <p class="dim" style="font-size:12px">约 25 min · 10 步</p>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 5 · 综合实验</p>
+    <h2 class="h2">完整预处理管线实验：从原始图像到可检测输入</h2>
+    <p class="fn-desc">实验目标：综合运用灰度化、滤波与几何变换。原始图像为工业场景拍摄的零件照片，10 个步骤生成完整的预处理验证结果。</p>
+    <div class="code-block mt-m"><pre style="margin:0"><span class="cmt"># 步骤 1-5：读取 → 灰度 → 滤波 → 缩放 → 保存</span>
+<span class="kw">import</span> cv2, numpy <span class="kw">as</span> np
+
+img = cv2.imread(<span class="str">"industrial_part.jpg"</span>)
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)            <span class="cmt"># ①</span>
+blurred = cv2.GaussianBlur(gray, (<span class="num">5</span>, <span class="num">5</span>), <span class="num">1.2</span>)           <span class="cmt"># ②</span>
+resized = cv2.resize(blurred, (<span class="num">640</span>, <span class="num">480</span>))              <span class="cmt"># ③</span>
+cv2.imwrite(<span class="str">"01_gray.jpg"</span>, gray)
+cv2.imwrite(<span class="str">"02_blurred.jpg"</span>, blurred)
+cv2.imwrite(<span class="str">"03_resized.jpg"</span>, resized)
+
+<span class="cmt"># 步骤 6-10：滤波对比 → 几何变换 → Canny 边缘 → 保存</span>
+mean  = cv2.blur(gray, (<span class="num">5</span>, <span class="num">5</span>))                         <span class="cmt"># ④ 均值</span>
+gauss = cv2.GaussianBlur(gray, (<span class="num">5</span>, <span class="num">5</span>), <span class="num">1.2</span>)             <span class="cmt"># ⑤ 高斯</span>
+median = cv2.medianBlur(gray, <span class="num">5</span>)                        <span class="cmt"># ⑥ 中值</span>
+
+h, w = gray.shape
+M = cv2.getRotationMatrix2D((w//<span class="num">2</span>, h//<span class="num">2</span>), <span class="num">15</span>, <span class="num">1.0</span>)
+rotated = cv2.warpAffine(gray, M, (w, h))               <span class="cmt"># ⑦ 旋转</span>
+small = cv2.resize(rotated, (<span class="num">0</span>,<span class="num">0</span>), fx=<span class="num">0.5</span>, fy=<span class="num">0.5</span>)     <span class="cmt"># ⑧ 缩放</span>
+
+edges_raw = cv2.Canny(gray, <span class="num">50</span>, <span class="num">150</span>)                    <span class="cmt"># ⑨</span>
+edges_blur = cv2.Canny(gauss, <span class="num">50</span>, <span class="num">150</span>)                  <span class="cmt"># ⑩</span>
+
+<span class="kw">for</span> name, data <span class="kw">in</span> [(<span class="str">"mean"</span>,mean),(<span class="str">"gauss"</span>,gauss),(<span class="str">"median"</span>,median),
+                 (<span class="str">"rotated"</span>,rotated),(<span class="str">"small"</span>,small),
+                 (<span class="str">"edges_raw"</span>,edges_raw),(<span class="str">"edges_blur"</span>,edges_blur)]:
+    cv2.imwrite(<span class="str">f"04_{name}.jpg"</span>, data)
+<span class="kw">print</span>(<span class="str">"预处理完成 — 共 10 个中间文件"</span>)</pre></div>
+  </div>
+</section>
+
+<!-- 22. Troubleshooting -->
+<section class="slide" data-title="常见问题">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="done">理解图像噪声来源与滤波方法</li>
+      <li class="done">掌握几何变换的数学基础与实现</li>
+      <li class="done">能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">SECTION 5 · 排错</p>
+    <h2 class="h2">常见问题诊断与解决方案</h2>
+    <table class="data-table mt-m">
+      <tr><th>问题现象</th><th>根本原因</th><th>解决方案</th></tr>
+      <tr><td>imread() 返回 None</td><td>路径错误 / 格式不支持 / 中文路径</td><td>使用<strong>绝对路径</strong>；os.path.exists() 预检；中文路径用英文替代</td></tr>
+      <tr><td>plt.imshow() 颜色偏蓝</td><td>BGR→RGB 未转换</td><td>cv2.cvtColor(img, cv2.COLOR_BGR2RGB)</td></tr>
+      <tr><td>imwrite() 文件为空</td><td>目录不存在 / 扩展名错误</td><td>os.makedirs() 创建目录；检查扩展名 (`.jpg`, `.png`)</td></tr>
+      <tr><td>滤波后图像模糊过度</td><td>ksize / sigma 过大</td><td>从 3×3 / sigma=0.8 逐步增大，每次评估</td></tr>
+      <tr><td>warpAffine 输出黑边</td><td>变换后坐标超界</td><td>borderMode=cv2.BORDER_REPLICATE 或计算新画布</td></tr>
+      <tr><td>HSV 分割不稳定</td><td>光照变化致 H 漂移</td><td>cv2.calcHist 分析 H 直方图；增加 V/S 的容差范围</td></tr>
+      <tr><td>gray.shape == (H,W,3)</td><td>忘记 COLOR_BGR2GRAY</td><td>转换后验证 shape 应为 (H, W)</td></tr>
+    </table>
+    <div class="code-block mt-m"><pre style="margin:0"><span class="cmt"># 文件读取容错模板（可复用于任何图像处理脚本）</span>
+<span class="kw">import</span> os, cv2
+path = <span class="str">"images/sample.jpg"</span>
+<span class="kw">if</span> <span class="kw">not</span> os.path.exists(path):
+    <span class="kw">print</span>(<span class="str">f"File not found: {os.path.abspath(path)}"</span>)
+<span class="kw">else</span>:
+    img = cv2.imread(path)
+    <span class="kw">if</span> img <span class="kw">is</span> <span class="kw">None</span>:
+        <span class="kw">print</span>(<span class="str">"OpenCV 无法解码（格式可能不支持）"</span>)</pre></div>
+  </div>
+</section>
+
+<!-- 23. Environment Setup -->
+<section class="slide" data-title="环境搭建与操作">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="done">理解图像噪声来源与滤波方法</li>
+      <li class="done">掌握几何变换的数学基础与实现</li>
+      <li class="done">能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">APPENDIX · 环境搭建</p>
+    <h2 class="h2">开发环境安装与验证</h2>
+    <div class="grid g2 mt-m">
+      <div class="card">
+        <h4>pip 安装（推荐）</h4>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0"><span class="cmt"># 基础安装（CPU 版本）</span>
+pip install opencv-python==4.9.0.80
+pip install numpy matplotlib
+
+<span class="cmt"># 完整版（含 contrib 模块）</span>
+pip install opencv-contrib-python
+
+<span class="cmt"># 验证安装</span>
+<span class="kw">import</span> cv2
+<span class="kw">print</span>(cv2.__version__)  <span class="cmt"># 4.x</span></pre></div>
+      </div>
+      <div class="card">
+        <h4>conda 安装</h4>
+        <div class="code-block" style="font-size:clamp(12px,1vw,14px)"><pre style="margin:0">conda create -n opencv python=3.10
+conda activate opencv
+conda install -c conda-forge
+    opencv numpy matplotlib
+
+<span class="cmt"># 国内镜像加速</span>
+pip install -i https://pypi.tuna.tsinghua.edu.cn/simple
+    opencv-python
+
+<span class="cmt"># 官方文档</span>
+<span class="cmt"># docs.opencv.org/4.x/</span></pre></div>
+      </div>
+    </div>
+    <div class="card mt-m">
+      <h4>常见安装问题</h4>
+      <table class="data-table" style="font-size:clamp(12px,1vw,14px)">
+        <tr><th>问题</th><th>原因</th><th>解决</th></tr>
+        <tr><td>ImportError: libGL.so.1</td><td>Linux 缺少 OpenGL 库</td><td>apt install libgl1-mesa-glx</td></tr>
+        <tr><td>ModuleNotFoundError: cv2</td><td>未安装或虚拟环境未激活</td><td>pip list | grep opencv 确认</td></tr>
+        <tr><td>QObject::moveToThread 警告</td><td>Qt 界面线程问题</td><td>不影响功能，可忽略或升级 opencv</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 24. Hands-on Guide -->
+<section class="slide" data-title="操作指引">
+  <aside class="sidebar">
+    <div class="module-title">OpenCV 图像处理</div>
+    <div class="module-code">DIP · MODULE 02</div>
+    <h5>目标</h5>
+    <ul class="obj-list">
+      <li class="done">理解图像在计算机中的矩阵表示</li>
+      <li class="done">掌握色彩空间转换与灰度化原理</li>
+      <li class="done">理解图像噪声来源与滤波方法</li>
+      <li class="done">掌握几何变换的数学基础与实现</li>
+      <li class="done">能够完成图像预处理完整流程</li>
+    </ul>
+  </aside>
+  <div class="main">
+    <p class="kicker">APPENDIX · 实操指南</p>
+    <h2 class="h2">本讲实验操作步骤</h2>
+    <p class="fn-desc">以下为课堂实操的完整指令序列，按每步执行即可完成本讲全部实验。</p>
+    <div class="card mt-m">
+      <div class="ann-row"><span class="tag">STEP 1</span><span><code>pip install opencv-python numpy matplotlib</code> — 安装依赖（约 30s）</span></div>
+      <div class="ann-row mt-s"><span class="tag">STEP 2</span><span>新建 <code>dip_lab.py</code> 文件，粘贴实验代码</span></div>
+      <div class="ann-row mt-s"><span class="tag">STEP 3</span><span>准备测试图片 <code>sample.jpg</code>，放于同级目录</span></div>
+      <div class="ann-row mt-s"><span class="tag">STEP 4</span><span>运行 <code>python dip_lab.py</code>，观察各步骤输出</span></div>
+      <div class="ann-row mt-s"><span class="tag">STEP 5</span><span>修改参数（ksize, sigma, 角度…）观察效果差异</span></div>
+      <div class="ann-row mt-s"><span class="tag">STEP 6</span><span><code>cv2.imshow()</code> 或 <code>plt.imshow()</code> 逐张查看结果</span></div>
+    </div>
+    <div class="card mt-m">
+      <h4>验证成功的标志</h4>
+      <p class="fn-desc">目录下生成 01_gray.jpg ~ 10_edges_blur.jpg 共 10 个文件。灰度图边缘清晰可辨、滤波后噪声降低但边缘保留、旋转后未裁剪。</p>
+    </div>
+    <div class="callout"><b>提示：</b>若使用远程服务器（如 SSH、Jupyter Notebook），用 <code>plt.imshow()</code> 而非 <code>cv2.imshow()</code>。Jupyter 中 <code>%matplotlib inline</code> 使图像直接显示在 notebook 中。</div>
+  </div>
+</section>
+
+<!-- 25. Summary -->
+<section class="slide full" data-title="总结">
+  <p class="kicker">数字图像处理 · 第 2 讲</p>
+  <h1 class="h1">本讲总结</h1>
+  <div class="grid g3 mt-l" style="max-width:90ch;margin:0 auto">
+    <div class="card"><h4>图像表示</h4><p class="dim" style="font-size:14px">灰度图 H×W 矩阵，彩色图 H×W×C 张量。OpenCV 默认 BGR 顺序。dtype = uint8 (0-255)。</p></div>
+    <div class="card"><h4>灰度化</h4><p class="dim" style="font-size:14px">加权公式 Gray = 0.299R + 0.587G + 0.114B。使用 <code>cv2.cvtColor(BGR2GRAY)</code>。颜色是否保留取决于任务需求。</p></div>
+    <div class="card"><h4>色彩空间</h4><p class="dim" style="font-size:14px">HSV 按色相分割颜色，适合颜色目标提取。BGR 用于设备原生操作。转换用统一的 cvtColor 接口。</p></div>
+    <div class="card"><h4>滤波</h4><p class="dim" style="font-size:14px">均值 blur 简单但模糊边缘。高斯 GaussianBlur 保边中。中值 medianBlur 对椒盐噪声最有效。本质 = 卷积。</p></div>
+    <div class="card"><h4>几何变换</h4><p class="dim" style="font-size:14px">缩放/平移/旋转/仿射/透视。warpAffine (2×3) 或 warpPerspective (3×3)。检测框坐标必须同步变换。</p></div>
+    <div class="card"><h4>预处理管线</h4><p class="dim" style="font-size:14px">读取→尺寸统一→色彩转换→降噪→几何校正→归一化。目标是消除与任务无关的变量。</p></div>
+  </div>
+  <p class="dim2 mt-l"><b>拓展阅读：</b>OpenCV 官方教程 docs.opencv.org/4.x/d7/da8/tutorial_table_of_content_imgproc.html · 本讲代码可复用于所有基于 OpenCV 的图像预处理任务。</p>
+  <div class="deck-footer"><span>数字图像处理 · 第 2 讲</span><span class="slide-number" data-current="27" data-total="27"></span></div>
+</section>
+
+</div>
+<div class="progress-bar"><span></span></div>
+<script>
+(function(){
+  var slides = Array.from(document.querySelectorAll('.slide'));
+  if(!slides.length) return;
+  var idx=0,total=slides.length,barFill=document.querySelector('.progress-bar > span');
+  function go(n,f){
+    n=Math.max(0,Math.min(total-1,n));
+    slides.forEach(function(s,i){s.classList.toggle('is-active',i===n);s.classList.toggle('is-prev',i<n);});
+    idx=n;
+    if(barFill) barFill.style.width=((n+1)/total*100)+'%';
+    var ne=document.querySelector('.slide-number');
+    if(ne){ne.setAttribute('data-current',n+1);ne.setAttribute('data-total',total);}
+    if(!f){try{history.replaceState(null,'','#/'+(n+1))}catch(e){}}
+  }
+  document.addEventListener('keydown',function(e){
+    if(e.metaKey||e.ctrlKey||e.altKey) return;
+    switch(e.key){
+      case 'ArrowRight': case ' ': case 'PageDown': go(idx+1); e.preventDefault(); break;
+      case 'ArrowLeft': case 'PageUp': go(idx-1); e.preventDefault(); break;
+      case 'Home': go(0); break;
+      case 'End': go(total-1); break;
+      case 'f':case 'F': if(document.documentElement.requestFullscreen){if(!document.fullscreenElement) document.documentElement.requestFullscreen();else document.exitFullscreen();} break;
+    }
+  });
+  var hm=/^#\/(\d+)/.exec(location.hash||'');
+  if(hm) go(Math.max(0,parseInt(hm[1],10)-1),true); else go(0);
+  window.addEventListener('hashchange',function(){var m=/^#\/(\d+)/.exec(location.hash||'');if(m) go(Math.max(0,parseInt(m[1],10)-1),true);});
+})();
+</script>
+</body></html>
